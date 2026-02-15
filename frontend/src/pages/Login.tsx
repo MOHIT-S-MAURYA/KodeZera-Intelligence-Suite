@@ -24,7 +24,14 @@ export const Login: React.FC = () => {
             const response = await authService.login({ email, password });
             setUser(response.user);
             addToast('success', 'Login successful!');
-            navigate('/dashboard');
+
+            // Redirect based on user type
+            // Check if user is platform owner
+            if (response.user.isPlatformOwner) {
+                navigate('/platform');
+            } else {
+                navigate('/dashboard');
+            }
         } catch (error: any) {
             addToast('error', error.response?.data?.detail || 'Login failed. Please check your credentials.');
         } finally {
@@ -32,13 +39,16 @@ export const Login: React.FC = () => {
         }
     };
 
-    const fillDemoCredentials = (role: 'admin' | 'developer') => {
+    const fillDemoCredentials = (role: 'admin' | 'developer' | 'owner') => {
         if (role === 'admin') {
             setEmail('admin@demo.com');
             setPassword('admin123');
-        } else {
+        } else if (role === 'developer') {
             setEmail('developer@demo.com');
             setPassword('dev123');
+        } else if (role === 'owner') {
+            setEmail('owner@kodezera.com');
+            setPassword('owner123');
         }
     };
 
@@ -110,23 +120,31 @@ export const Login: React.FC = () => {
                     {/* Demo credentials */}
                     <div className="mt-8 pt-6 border-t border-gray-200">
                         <p className="text-sm text-gray-600 text-center mb-3">Demo Credentials:</p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => fillDemoCredentials('owner')}
+                                className="px-3 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg"
+                            >
+                                Platform Owner
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => fillDemoCredentials('admin')}
-                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
                             >
-                                Admin User
+                                Admin
                             </button>
                             <button
                                 type="button"
                                 onClick={() => fillDemoCredentials('developer')}
-                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
                             >
-                                Developer User
+                                Developer
                             </button>
                         </div>
                         <div className="mt-3 text-xs text-gray-500 space-y-1">
+                            <p>• Platform Owner: owner@kodezera.com / owner123</p>
                             <p>• Admin: admin@demo.com / admin123</p>
                             <p>• Developer: developer@demo.com / dev123</p>
                         </div>

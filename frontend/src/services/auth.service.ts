@@ -13,10 +13,13 @@ export interface LoginResponse {
         email: string;
         first_name: string;
         last_name: string;
-        tenant: {
+        is_superuser?: boolean;
+        is_staff?: boolean;
+        isPlatformOwner?: boolean;
+        tenant?: {
             id: number;
             name: string;
-        };
+        } | null;
     };
 }
 

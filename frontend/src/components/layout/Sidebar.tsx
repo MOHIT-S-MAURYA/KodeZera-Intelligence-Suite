@@ -9,9 +9,17 @@ import {
     Shield,
     FileSearch,
     X,
+    Crown,
+    CreditCard,
+    BarChart3,
+    ShieldAlert,
+    Brain,
+    Lock,
+    Headphones,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useUIStore } from '../../store/ui.store';
+import { useAuthStore } from '../../store/auth.store';
 
 interface NavItem {
     name: string;
@@ -20,7 +28,7 @@ interface NavItem {
     adminOnly?: boolean;
 }
 
-const navItems: NavItem[] = [
+const tenantNavItems: NavItem[] = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { name: 'AI Chat', path: '/chat', icon: <MessageSquare className="w-5 h-5" /> },
     { name: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" /> },
@@ -30,8 +38,24 @@ const navItems: NavItem[] = [
     { name: 'Audit Logs', path: '/audit-logs', icon: <FileSearch className="w-5 h-5" />, adminOnly: true },
 ];
 
+const platformOwnerNavItems: NavItem[] = [
+    { name: 'Dashboard', path: '/platform', icon: <Crown className="w-5 h-5" /> },
+    { name: 'Tenants', path: '/platform/tenants', icon: <Building2 className="w-5 h-5" /> },
+    { name: 'Subscriptions', path: '/platform/subscriptions', icon: <CreditCard className="w-5 h-5" /> },
+    { name: 'Usage Analytics', path: '/platform/analytics', icon: <BarChart3 className="w-5 h-5" /> },
+    { name: 'Security', path: '/platform/security', icon: <ShieldAlert className="w-5 h-5" /> },
+    { name: 'AI Configuration', path: '/platform/ai-config', icon: <Brain className="w-5 h-5" /> },
+    { name: 'Permissions', path: '/platform/permissions', icon: <Lock className="w-5 h-5" /> },
+    { name: 'Audit Logs', path: '/platform/audit-logs', icon: <FileSearch className="w-5 h-5" /> },
+    { name: 'Support', path: '/platform/support', icon: <Headphones className="w-5 h-5" /> },
+];
+
 export const Sidebar: React.FC = () => {
     const { sidebarOpen, setSidebarOpen } = useUIStore();
+    const { isPlatformOwner } = useAuthStore();
+
+    // Determine which navigation items to show
+    const navItems = isPlatformOwner ? platformOwnerNavItems : tenantNavItems;
 
     return (
         <>

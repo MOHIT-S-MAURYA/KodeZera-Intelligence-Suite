@@ -67,6 +67,7 @@ def login_view(request):
             'username': user.username,
             'full_name': user.full_name,
             'is_tenant_admin': user.is_tenant_admin,
+            'isPlatformOwner': user.is_superuser and user.tenant is None,
             'tenant': {
                 'id': str(user.tenant.id),
                 'name': user.tenant.name,

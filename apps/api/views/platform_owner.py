@@ -1,0 +1,253 @@
+"""
+Platform owner API views.
+Handles platform-level operations with strict privacy controls.
+"""
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, Sum, Avg, Q
+from django.utils import timezone
+from datetime import timedelta
+
+from apps.core.models import (
+    Tenant, User, SystemAuditLog, UsageMetrics,
+    TenantSubscription, SubscriptionPlan
+)
+from apps.documents.models import Document
+from apps.core.permissions import IsPlatformOwner
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def platform_overview(request):
+    """
+    Get platform-wide statistics.
+    Returns metadata only, no tenant data content.
+    """
+    today = timezone.now().date()
+    
+    # Tenant statistics
+    total_tenants = Tenant.objects.count()
+    active_tenants = Tenant.objects.filter(is_active=True).count()
+    suspended_tenants = Tenant.objects.filter(is_active=False).count()
+    
+    # User statistics (across all tenants)
+    total_users = User.objects.filter(tenant__isnull=False).count()
+    
+    # Usage statistics for today
+    today_metrics = UsageMetrics.objects.filter(date=today).aggregate(
+        total_queries=Sum('queries_count'),
+        failed_queries=Sum('failed_queries_count'),
+        avg_response_time=Avg('avg_response_time_ms'),
+        total_tokens=Sum('tokens_used'),
+    )
+    
+    # Document statistics (count only, no content)
+    total_documents = Document.objects.count()
+    
+    # Storage statistics
+    total_storage = UsageMetrics.objects.filter(date=today).aggregate(
+        total=Sum('storage_used_bytes')
+    )['total'] or 0
+    
+    # Active sessions (users active in last hour)
+    one_hour_ago = timezone.now() - timedelta(hours=1)
+    active_sessions = User.objects.filter(
+        last_login__gte=one_hour_ago,
+        tenant__isnull=False
+    ).count()
+    
+    # System health indicators
+    embedding_queue_length = 0  # TODO: Get from Celery
+    active_workers = 0  # TODO: Get from Celery
+    
+    data = {
+        'tenants': {
+            'total': total_tenants,
+            'active': active_tenants,
+            'suspended': suspended_tenants,
+        },
+        'users': {
+            'total': total_users,
+        },
+        'usage_today': {
+            'queries': today_metrics['total_queries'] or 0,
+            'failed_queries': today_metrics['failed_queries'] or 0,
+            'avg_response_time_ms': today_metrics['avg_response_time'] or 0,
+            'tokens_used': today_metrics['total_tokens'] or 0,
+        },
+        'documents': {
+            'total_indexed': total_documents,
+        },
+        'storage': {
+            'total_bytes': total_storage,
+            'total_gb': round(total_storage / (1024**3), 2),
+        },
+        'sessions': {
+            'active': active_sessions,
+        },
+        'system': {
+            'embedding_queue_length': embedding_queue_length,
+            'active_workers': active_workers,
+        }
+    }
+    
+    # Log this action
+    SystemAuditLog.objects.create(
+        action='platform_overview_viewed',
+        performed_by=request.user,
+        details={'timestamp': timezone.now().isoformat()},
+        ip_address=request.META.get('REMOTE_ADDR'),
+        user_agent=request.META.get('HTTP_USER_AGENT', '')
+    )
+    
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def tenants_list(request):
+    """
+    List all tenants with metadata only.
+    No access to tenant data content.
+    """
+    tenants = Tenant.objects.all()
+    
+    # Get usage stats for each tenant
+    tenant_data = []
+    for tenant in tenants:
+        # Get latest usage metrics
+        latest_metrics = UsageMetrics.objects.filter(
+            tenant=tenant
+        ).order_by('-date').first()
+        
+        # Get subscription info
+        try:
+            subscription = tenant.subscription
+            plan_name = subscription.plan.name
+            subscription_status = subscription.status
+        except TenantSubscription.DoesNotExist:
+            plan_name = 'No Plan'
+            subscription_status = 'inactive'
+        
+        # Count users (no names or emails)
+        user_count = User.objects.filter(tenant=tenant).count()
+        
+        # Count documents (no titles or content)
+        document_count = Document.objects.filter(tenant=tenant).count()
+        
+        tenant_data.append({
+            'id': str(tenant.id),
+            'name': tenant.name,
+            'slug': tenant.slug,
+            'is_active': tenant.is_active,
+            'created_at': tenant.created_at.isoformat(),
+            'users_count': user_count,
+            'documents_count': document_count,
+            'plan': plan_name,
+            'subscription_status': subscription_status,
+            'storage_used_bytes': latest_metrics.storage_used_bytes if latest_metrics else 0,
+            'queries_today': latest_metrics.queries_count if latest_metrics and latest_metrics.date == timezone.now().date() else 0,
+        })
+    
+    return Response({
+        'count': len(tenant_data),
+        'tenants': tenant_data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def system_health(request):
+    """
+    Get system health status.
+    Infrastructure monitoring only.
+    """
+    # TODO: Integrate with actual monitoring systems
+    # For now, return mock data structure
+    
+    health_data = {
+        'api_server': {
+            'status': 'healthy',
+            'uptime_percentage': 99.9,
+            'latency_ms': 45,
+            'error_rate': 0.1,
+        },
+        'database': {
+            'status': 'healthy',
+            'uptime_percentage': 99.8,
+            'connections': 12,
+            'query_time_ms': 8,
+        },
+        'vector_db': {
+            'status': 'healthy',
+            'uptime_percentage': 99.7,
+            'collections': 15,
+            'vectors_count': 125000,
+        },
+        'redis': {
+            'status': 'healthy',
+            'uptime_percentage': 100.0,
+            'memory_used_mb': 256,
+            'hit_rate': 95.5,
+        },
+        'celery_workers': {
+            'status': 'warning',
+            'uptime_percentage': 98.5,
+            'active_workers': 4,
+            'failed_tasks': 3,
+            'queue_length': 12,
+        },
+        'llm_provider': {
+            'status': 'healthy',
+            'uptime_percentage': 99.5,
+            'rate_limit_remaining': 8500,
+        }
+    }
+    
+    return Response(health_data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def audit_logs_list(request):
+    """
+    Get system-level audit logs.
+    Platform owner actions only, not tenant user actions.
+    """
+    # Filter parameters
+    action = request.query_params.get('action')
+    tenant_id = request.query_params.get('tenant_id')
+    days = int(request.query_params.get('days', 30))
+    
+    # Base query
+    logs = SystemAuditLog.objects.all()
+    
+    # Apply filters
+    if action:
+        logs = logs.filter(action=action)
+    if tenant_id:
+        logs = logs.filter(tenant_affected_id=tenant_id)
+    
+    # Date range
+    start_date = timezone.now() - timedelta(days=days)
+    logs = logs.filter(timestamp__gte=start_date)
+    
+    # Limit results
+    logs = logs[:100]
+    
+    log_data = [{
+        'id': str(log.id) if hasattr(log, 'id') else None,
+        'action': log.action,
+        'performed_by': log.performed_by.email if log.performed_by else 'System',
+        'tenant_affected': log.tenant_affected.name if log.tenant_affected else None,
+        'details': log.details,
+        'timestamp': log.timestamp.isoformat(),
+        'ip_address': log.ip_address,
+    } for log in logs]
+    
+    return Response({
+        'count': len(log_data),
+        'logs': log_data
+    })

@@ -9,6 +9,9 @@ from apps.api.views.rag import rag_query_view
 from apps.api.views.admin import (
     DepartmentViewSet, RoleViewSet, PermissionViewSet, UserRoleViewSet
 )
+from apps.api.views.platform_owner import (
+    platform_overview, tenants_list, system_health, audit_logs_list
+)
 
 # Create router
 router = DefaultRouter()
@@ -26,6 +29,12 @@ urlpatterns = [
     
     # RAG
     path('rag/query/', rag_query_view, name='rag-query'),
+    
+    # Platform Owner (superuser only)
+    path('platform/overview/', platform_overview, name='platform-overview'),
+    path('platform/tenants/', tenants_list, name='platform-tenants'),
+    path('platform/system-health/', system_health, name='platform-system-health'),
+    path('platform/audit-logs/', audit_logs_list, name='platform-audit-logs'),
     
     # Router URLs
     path('', include(router.urls)),

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Bell, LogOut, User, Settings } from 'lucide-react';
+import { Menu, Bell, LogOut, User, Settings, LayoutDashboard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../ui/Avatar';
 import { useAuthStore } from '../../store/auth.store';
@@ -35,7 +35,7 @@ export const TopNav: React.FC = () => {
                     </div>
                     <div className="hidden sm:block">
                         <h1 className="text-lg font-semibold text-gray-900">Kodezera Intelligence</h1>
-                        <p className="text-xs text-gray-500">{user?.tenant.name}</p>
+                        <p className="text-xs text-gray-500">{user?.tenant?.name || 'Platform Administration'}</p>
                     </div>
                 </div>
             </div>
@@ -73,11 +73,33 @@ export const TopNav: React.FC = () => {
                                 onClick={() => setShowUserMenu(false)}
                             />
                             <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 animate-scale-in">
-                                <button className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        navigate(user?.isPlatformOwner ? '/platform' : '/dashboard');
+                                        setShowUserMenu(false);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                    <LayoutDashboard className="w-4 h-4" />
+                                    Dashboard
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        navigate('/profile');
+                                        setShowUserMenu(false);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
                                     <User className="w-4 h-4" />
                                     Profile
                                 </button>
-                                <button className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        navigate('/settings');
+                                        setShowUserMenu(false);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
                                     <Settings className="w-4 h-4" />
                                     Settings
                                 </button>

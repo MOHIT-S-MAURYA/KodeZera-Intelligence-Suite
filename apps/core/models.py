@@ -233,3 +233,193 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.action} - {self.resource_type} at {self.created_at}"
+
+
+# Platform Owner Models - Subscription & Billing
+
+from django.core.validators import MinValueValidator
+from decimal import Decimal
+
+
+class SubscriptionPlan(models.Model):
+    """Subscription plans for tenants (Basic, Pro, Enterprise)"""
+    
+    PLAN_TYPES = [
+        ('basic', 'Basic'),
+        ('pro', 'Pro'),
+        ('enterprise', 'Enterprise'),
+    ]
+    
+    name = models.CharField(max_length=50, unique=True)
+    plan_type = models.CharField(max_length=20, choices=PLAN_TYPES)
+    description = models.TextField(blank=True)
+    
+    # Limits
+    max_users = models.IntegerField(validators=[MinValueValidator(1)])
+    max_storage_gb = models.IntegerField(validators=[MinValueValidator(1)])
+    max_queries_per_month = models.IntegerField(validators=[MinValueValidator(1)])
+    max_tokens_per_month = models.IntegerField(validators=[MinValueValidator(1)])
+    
+    # Pricing
+    price_monthly = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    
+    # Features
+    features = models.JSONField(default=list, blank=True)
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'subscription_plans'
+        ordering = ['price_monthly']
+        
+    def __str__(self):
+        return f"{self.name} (${self.price_monthly}/month)"
+
+
+class TenantSubscription(models.Model):
+    """Tenant subscription status and billing information"""
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('suspended', 'Suspended'),
+        ('cancelled', 'Cancelled'),
+        ('trial', 'Trial'),
+    ]
+    
+    tenant = models.OneToOneField(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name='subscription'
+    )
+    plan = models.ForeignKey(
+        SubscriptionPlan,
+        on_delete=models.PROTECT,
+        related_name='subscriptions'
+    )
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='trial')
+    
+    # Billing period
+    current_period_start = models.DateTimeField()
+    current_period_end = models.DateTimeField()
+    
+    # Payment
+    last_payment_date = models.DateTimeField(null=True, blank=True)
+    next_payment_date = models.DateTimeField(null=True, blank=True)
+    payment_method = models.CharField(max_length=50, blank=True)
+    
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'tenant_subscriptions'
+        
+    def __str__(self):
+        return f"{self.tenant.name} - {self.plan.name} ({self.status})"
+
+
+class UsageMetrics(models.Model):
+    """Daily usage metrics for each tenant"""
+    
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name='usage_metrics'
+    )
+    
+    date = models.DateField()
+    
+    # Query metrics
+    queries_count = models.IntegerField(default=0)
+    failed_queries_count = models.IntegerField(default=0)
+    avg_response_time_ms = models.FloatField(default=0.0)
+    
+    # Token usage
+    tokens_used = models.IntegerField(default=0)
+    embedding_tokens = models.IntegerField(default=0)
+    completion_tokens = models.IntegerField(default=0)
+    
+    # Storage
+    storage_used_bytes = models.BigIntegerField(default=0)
+    documents_count = models.IntegerField(default=0)
+    
+    # Activity
+    active_users_count = models.IntegerField(default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'usage_metrics'
+        unique_together = ['tenant', 'date']
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['tenant', '-date']),
+            models.Index(fields=['date']),
+        ]
+        
+    def __str__(self):
+        return f"{self.tenant.name} - {self.date}"
+
+
+class SystemAuditLog(models.Model):
+    """Platform-level audit logs for owner actions"""
+    
+    ACTION_TYPES = [
+        ('tenant_created', 'Tenant Created'),
+        ('tenant_updated', 'Tenant Updated'),
+        ('tenant_suspended', 'Tenant Suspended'),
+        ('tenant_activated', 'Tenant Activated'),
+        ('tenant_deleted', 'Tenant Deleted'),
+        ('plan_changed', 'Subscription Plan Changed'),
+        ('service_restarted', 'Service Restarted'),
+        ('config_updated', 'System Configuration Updated'),
+        ('emergency_access_granted', 'Emergency Access Granted'),
+        ('emergency_access_revoked', 'Emergency Access Revoked'),
+        ('platform_overview_viewed', 'Platform Overview Viewed'),
+    ]
+    
+    action = models.CharField(max_length=50, choices=ACTION_TYPES)
+    performed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='platform_actions'
+    )
+    
+    # Affected resources
+    tenant_affected = models.ForeignKey(
+        Tenant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='system_audit_logs'
+    )
+    
+    # Additional context
+    details = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'system_audit_logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['action']),
+            models.Index(fields=['performed_by', '-timestamp']),
+            models.Index(fields=['tenant_affected', '-timestamp']),
+        ]
+        
+    def __str__(self):
+        user = self.performed_by.email if self.performed_by else 'System'
+        return f"{self.action} by {user} at {self.timestamp}"

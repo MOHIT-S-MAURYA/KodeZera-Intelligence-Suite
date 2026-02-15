@@ -1,4 +1,5 @@
-import React, { InputHTMLAttributes, ReactNode, useState } from 'react';
+import React, { useState } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -17,26 +18,33 @@ export const Input: React.FC<InputProps> = ({
     type = 'text',
     className,
     id,
+    value,
+    defaultValue,
     ...props
 }) => {
     const [showPassword, setShowPassword] = useState(false);
-    const [isFocused, setIsFocused] = useState(false);
-    const [hasValue, setHasValue] = useState(!!props.value || !!props.defaultValue);
 
     const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
     const isPassword = type === 'password';
     const inputType = isPassword && showPassword ? 'text' : type;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setHasValue(e.target.value.length > 0);
         props.onChange?.(e);
+    };
+
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        props.onFocus?.(e);
+    };
+
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        props.onBlur?.(e);
     };
 
     return (
         <div className="w-full">
             <div className="relative">
                 {leftIcon && (
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
                         {leftIcon}
                     </div>
                 )}
@@ -44,8 +52,11 @@ export const Input: React.FC<InputProps> = ({
                 <input
                     id={inputId}
                     type={inputType}
+                    value={value}
+                    defaultValue={defaultValue}
+                    placeholder={label}
                     className={clsx(
-                        'w-full h-10 px-4 rounded-lg border transition-all duration-150',
+                        'w-full h-12 px-4 rounded-lg border transition-all duration-150',
                         'text-gray-900 placeholder-gray-400',
                         'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent',
                         error ? 'border-error-500' : 'border-gray-200',
@@ -54,32 +65,17 @@ export const Input: React.FC<InputProps> = ({
                         props.disabled && 'bg-gray-100 cursor-not-allowed',
                         className
                     )}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
                     onChange={handleChange}
                     {...props}
                 />
-
-                {label && (
-                    <label
-                        htmlFor={inputId}
-                        className={clsx(
-                            'absolute left-4 transition-all duration-150 pointer-events-none',
-                            leftIcon && 'left-10',
-                            (isFocused || hasValue)
-                                ? '-top-2 text-xs bg-white px-1 text-brand-600'
-                                : 'top-1/2 -translate-y-1/2 text-gray-400'
-                        )}
-                    >
-                        {label}
-                    </label>
-                )}
 
                 {isPassword && (
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors z-10"
                         tabIndex={-1}
                     >
                         {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
