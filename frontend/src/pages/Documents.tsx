@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Upload, FileText, Download, Trash2, Eye } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, Upload, FileText, Download, Trash2, Eye, X } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -18,10 +18,17 @@ interface Document {
 
 export const Documents: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [visibilityFilter, setVisibilityFilter] = useState('all');
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [documentTitle, setDocumentTitle] = useState('');
+    const [documentVisibility, setDocumentVisibility] = useState<'public' | 'private' | 'restricted'>('public');
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Mock data
-    const documents: Document[] = [
+    // Mock data - now stateful so we can add documents
+    const [documents, setDocuments] = useState<Document[]>([
         {
             id: 1,
             title: 'Q4 Financial Report.pdf',
@@ -49,7 +56,113 @@ export const Documents: React.FC = () => {
             uploadedAt: '2026-02-14',
             visibility: 'private',
         },
-    ];
+    ]);
+
+    // File upload handlers
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            validateAndSetFile(file);
+        }
+    };
+
+    const validateAndSetFile = (file: File) => {
+        // Validate file type
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please upload PDF, DOCX, or TXT files only');
+            return;
+        }
+
+        // Validate file size (10MB max)
+        const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+        if (file.size > maxSize) {
+            alert('File size must be less than 10MB');
+            return;
+        }
+
+        setSelectedFile(file);
+        // Auto-fill title from filename
+        if (!documentTitle) {
+            setDocumentTitle(file.name);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+            validateAndSetFile(file);
+        }
+    };
+
+    const handleUpload = () => {
+        if (!selectedFile || !documentTitle) {
+            alert('Please select a file and enter a title');
+            return;
+        }
+
+        // Get file extension
+        const fileExt = selectedFile.name.split('.').pop()?.toUpperCase() || 'FILE';
+
+        // Format file size
+        const formatSize = (bytes: number) => {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+
+        // Create new document
+        const newDocument: Document = {
+            id: documents.length + 1,
+            title: documentTitle,
+            type: fileExt,
+            size: formatSize(selectedFile.size),
+            uploadedBy: 'Current User', // In real app, get from auth
+            uploadedAt: new Date().toISOString().split('T')[0],
+            visibility: documentVisibility,
+        };
+
+        // Add to documents list
+        setDocuments([newDocument, ...documents]);
+
+        // Reset form and close modal
+        setSelectedFile(null);
+        setDocumentTitle('');
+        setDocumentVisibility('public');
+        setUploadModalOpen(false);
+
+        // Reset file input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDeleteDocument = (id: number) => {
+        if (confirm('Are you sure you want to delete this document?')) {
+            setDocuments(documents.filter(doc => doc.id !== id));
+        }
+    };
+
+    // Filter documents
+    const filteredDocuments = documents.filter(doc => {
+        const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesType = typeFilter === 'all' || doc.type === typeFilter;
+        const matchesVisibility = visibilityFilter === 'all' || doc.visibility === visibilityFilter;
+        return matchesSearch && matchesType && matchesVisibility;
+    });
 
     const getVisibilityBadge = (visibility: string) => {
         const variants: Record<string, 'success' | 'warning' | 'error'> = {
@@ -91,17 +204,25 @@ export const Documents: React.FC = () => {
                             leftIcon={<Search className="w-5 h-5" />}
                         />
                     </div>
-                    <select className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                        <option>All Types</option>
-                        <option>PDF</option>
-                        <option>DOCX</option>
-                        <option>TXT</option>
+                    <select
+                        className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value)}
+                    >
+                        <option value="all">All Types</option>
+                        <option value="PDF">PDF</option>
+                        <option value="DOCX">DOCX</option>
+                        <option value="TXT">TXT</option>
                     </select>
-                    <select className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                        <option>All Visibility</option>
-                        <option>Public</option>
-                        <option>Private</option>
-                        <option>Restricted</option>
+                    <select
+                        className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        value={visibilityFilter}
+                        onChange={(e) => setVisibilityFilter(e.target.value)}
+                    >
+                        <option value="all">All Visibility</option>
+                        <option value="public">Public</option>
+                        <option value="private">Private</option>
+                        <option value="restricted">Restricted</option>
                     </select>
                 </div>
             </Card>
@@ -122,7 +243,7 @@ export const Documents: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {documents.map((doc) => (
+                            {filteredDocuments.map((doc) => (
                                 <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td className="py-3 px-4">
                                         <div className="flex items-center gap-3">
@@ -145,7 +266,10 @@ export const Documents: React.FC = () => {
                                             <button className="p-1.5 text-gray-600 hover:text-info-600 hover:bg-info-50 rounded transition-colors">
                                                 <Download className="w-4 h-4" />
                                             </button>
-                                            <button className="p-1.5 text-gray-600 hover:text-error-600 hover:bg-error-50 rounded transition-colors">
+                                            <button
+                                                className="p-1.5 text-gray-600 hover:text-error-600 hover:bg-error-50 rounded transition-colors"
+                                                onClick={() => handleDeleteDocument(doc.id)}
+                                            >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -164,22 +288,68 @@ export const Documents: React.FC = () => {
                 title="Upload Document"
             >
                 <div className="space-y-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-brand-500 transition-colors cursor-pointer">
+                    {/* Hidden file input */}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.txt"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                    />
+
+                    {/* Upload area */}
+                    <div
+                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${isDragging ? 'border-brand-500 bg-brand-50' : 'border-gray-300 hover:border-brand-500'
+                            }`}
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
                         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                         <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
                         <p className="text-xs text-gray-500">PDF, DOCX, TXT up to 10MB</p>
+
+                        {selectedFile && (
+                            <div className="mt-4 p-3 bg-brand-50 rounded-lg flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-brand-600" />
+                                    <span className="text-sm font-medium text-brand-900">{selectedFile.name}</span>
+                                    <span className="text-xs text-brand-600">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedFile(null);
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                    }}
+                                    className="text-brand-600 hover:text-brand-700"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
-                    <Input label="Document Title" placeholder="Enter document title" />
+                    <Input
+                        label="Document Title"
+                        placeholder="Enter document title"
+                        value={documentTitle}
+                        onChange={(e) => setDocumentTitle(e.target.value)}
+                    />
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Visibility
                         </label>
-                        <select className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            <option>Public</option>
-                            <option>Private</option>
-                            <option>Restricted</option>
+                        <select
+                            className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            value={documentVisibility}
+                            onChange={(e) => setDocumentVisibility(e.target.value as 'public' | 'private' | 'restricted')}
+                        >
+                            <option value="public">Public</option>
+                            <option value="private">Private</option>
+                            <option value="restricted">Restricted</option>
                         </select>
                     </div>
 
@@ -187,7 +357,7 @@ export const Documents: React.FC = () => {
                         <Button variant="secondary" className="flex-1" onClick={() => setUploadModalOpen(false)}>
                             Cancel
                         </Button>
-                        <Button variant="primary" className="flex-1">
+                        <Button variant="primary" className="flex-1" onClick={handleUpload}>
                             Upload
                         </Button>
                     </div>
