@@ -128,12 +128,77 @@ class TenantSerializer(serializers.ModelSerializer):
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
-    """Serializer for Department model."""
-    
+    """
+    Full serializer for Department management.
+
+    Read-only computed fields:
+      - parent_name: human-readable name of the parent department
+      - user_count:  number of users directly assigned to this department
+      - children_count: number of direct child departments
+
+    Security:
+      - validate_parent enforces same-tenant ownership of parent
+    """
+    parent_name    = serializers.SerializerMethodField()
+    user_count     = serializers.IntegerField(read_only=True, default=0)
+    children_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Department
-        fields = ['id', 'name', 'parent', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = [
+            'id', 'name', 'description',
+            'parent', 'parent_name',
+            'user_count', 'children_count',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'parent_name', 'user_count', 'children_count', 'created_at']
+        extra_kwargs = {
+            'parent': {'required': False, 'allow_null': True},
+            'description': {'required': False},
+        }
+
+    def get_parent_name(self, obj):
+        return obj.parent.name if obj.parent_id else None
+
+    def validate_parent(self, value):
+        """Prevent cross-tenant parent assignment."""
+        if value is None:
+            return value
+        request = self.context.get('request')
+        if request and value.tenant_id != request.user.tenant_id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Parent department must belong to the same tenant.')
+        # Prevent a department from being its own parent
+        instance = self.instance
+        if instance and value.pk == instance.pk:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError('A department cannot be its own parent.')
+        return value
+
+    def validate(self, attrs):
+        """
+        Enforce unique (tenant, name, parent) at the application layer.
+        The DB unique_together constraint silently ignores NULL parent values
+        in SQLite/PostgreSQL, so we replicate the check here.
+        """
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        request = self.context.get('request')
+        if not request:
+            return attrs
+
+        name   = attrs.get('name', getattr(self.instance, 'name', None))
+        parent = attrs.get('parent', getattr(self.instance, 'parent', None))
+        tenant = request.user.tenant
+
+        qs = Department.objects.filter(tenant=tenant, name=name, parent=parent)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise DRFValidationError(
+                {'name': 'A department with this name already exists under the same parent.'}
+            )
+        return attrs
 
 
 class RoleSerializer(serializers.ModelSerializer):

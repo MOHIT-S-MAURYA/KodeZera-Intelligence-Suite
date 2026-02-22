@@ -15,18 +15,67 @@ from apps.rbac.services.authorization import RoleResolutionService, PermissionSe
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
-    """ViewSet for department management."""
-    
+    """
+    ViewSet for department management.
+
+    Security:
+      - IsTenantAdmin: only tenant admins may read/write
+      - get_queryset filters strictly to the caller's tenant (row-level isolation)
+      - perform_create injects tenant — client cannot spoof tenant ownership
+      - perform_update re-validates parent is in same tenant
+      - destroy blocks deletion of non-empty departments (has users or children)
+
+    Performance:
+      - select_related('parent'): eliminates N+1 when reading parent_name
+      - annotate user_count / children_count: single DB round-trip for counts
+    """
     serializer_class = DepartmentSerializer
     permission_classes = [IsTenantAdmin]
-    
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
     def get_queryset(self):
-        """Return departments for user's tenant."""
-        return Department.objects.filter(tenant=self.request.user.tenant)
-    
+        from django.db.models import Count
+        return (
+            Department.objects
+            .filter(tenant=self.request.user.tenant)
+            .select_related('parent')
+            .annotate(
+                user_count=Count('users', distinct=True),
+                children_count=Count('children', distinct=True),
+            )
+            .order_by('name')
+        )
+
     def perform_create(self, serializer):
-        """Create department in user's tenant."""
+        """Inject tenant — never trust client-supplied tenant."""
         serializer.save(tenant=self.request.user.tenant)
+
+    def destroy(self, request, *args, **kwargs):
+        """Block deletion of departments that still have users or child departments."""
+        dept = self.get_object()
+        if dept.user_count > 0:
+            return Response(
+                {
+                    'error': (
+                        f'Cannot delete "{dept.name}": '
+                        f'{dept.user_count} user(s) are assigned to this department. '
+                        'Reassign or remove them first.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        if dept.children_count > 0:
+            return Response(
+                {
+                    'error': (
+                        f'Cannot delete "{dept.name}": '
+                        f'it has {dept.children_count} child department(s). '
+                        'Delete or reparent them first.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
 
 
 class RoleViewSet(viewsets.ModelViewSet):

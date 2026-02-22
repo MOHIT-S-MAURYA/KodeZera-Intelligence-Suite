@@ -44,6 +44,7 @@ class Department(models.Model):
         related_name='departments'
     )
     name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
     parent = models.ForeignKey(
         'self',
         on_delete=models.CASCADE,
