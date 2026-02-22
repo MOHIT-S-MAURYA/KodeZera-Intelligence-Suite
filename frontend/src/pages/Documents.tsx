@@ -6,15 +6,8 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 
-interface Document {
-    id: number;
-    title: string;
-    type: string;
-    size: string;
-    uploadedBy: string;
-    uploadedAt: string;
-    visibility: 'public' | 'private' | 'restricted';
-}
+import { documentService } from '../services/document.service';
+import type { Document } from '../services/document.service';
 
 export const Documents: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -25,38 +18,25 @@ export const Documents: React.FC = () => {
     const [documentTitle, setDocumentTitle] = useState('');
     const [documentVisibility, setDocumentVisibility] = useState<'public' | 'private' | 'restricted'>('public');
     const [isDragging, setIsDragging] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Mock data - now stateful so we can add documents
-    const [documents, setDocuments] = useState<Document[]>([
-        {
-            id: 1,
-            title: 'Q4 Financial Report.pdf',
-            type: 'PDF',
-            size: '2.4 MB',
-            uploadedBy: 'John Doe',
-            uploadedAt: '2026-02-10',
-            visibility: 'public',
-        },
-        {
-            id: 2,
-            title: 'Product Roadmap 2026.docx',
-            type: 'DOCX',
-            size: '1.8 MB',
-            uploadedBy: 'Jane Smith',
-            uploadedAt: '2026-02-12',
-            visibility: 'restricted',
-        },
-        {
-            id: 3,
-            title: 'Team Meeting Notes.txt',
-            type: 'TXT',
-            size: '45 KB',
-            uploadedBy: 'Mike Johnson',
-            uploadedAt: '2026-02-14',
-            visibility: 'private',
-        },
-    ]);
+    const [documents, setDocuments] = useState<Document[]>([]);
+
+    React.useEffect(() => {
+        loadDocuments();
+    }, []);
+
+    const loadDocuments = async () => {
+        try {
+            const data = await documentService.getDocuments();
+            setDocuments(data);
+        } catch (error) {
+            console.error('Failed to load documents:', error);
+            alert('Failed to load documents. Please try again.');
+        }
+    };
 
     // File upload handlers
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,59 +88,72 @@ export const Documents: React.FC = () => {
         }
     };
 
-    const handleUpload = () => {
+    const handleUpload = async () => {
         if (!selectedFile || !documentTitle) {
             alert('Please select a file and enter a title');
             return;
         }
 
-        // Get file extension
-        const fileExt = selectedFile.name.split('.').pop()?.toUpperCase() || 'FILE';
+        try {
+            setIsUploading(true);
+            setUploadProgress(0);
 
-        // Format file size
-        const formatSize = (bytes: number) => {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        };
+            const uploadedDoc = await documentService.uploadDocument(
+                selectedFile,
+                documentTitle,
+                documentVisibility,
+                (progressEvent) => {
+                    if (progressEvent.total) {
+                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        setUploadProgress(percentCompleted);
+                    }
+                }
+            );
 
-        // Create new document
-        const newDocument: Document = {
-            id: documents.length + 1,
-            title: documentTitle,
-            type: fileExt,
-            size: formatSize(selectedFile.size),
-            uploadedBy: 'Current User', // In real app, get from auth
-            uploadedAt: new Date().toISOString().split('T')[0],
-            visibility: documentVisibility,
-        };
+            // Add to documents list
+            setDocuments([uploadedDoc, ...documents]);
 
-        // Add to documents list
-        setDocuments([newDocument, ...documents]);
+            // Reset form and close modal
+            setSelectedFile(null);
+            setDocumentTitle('');
+            setDocumentVisibility('public');
+            setUploadModalOpen(false);
+            setUploadProgress(0);
 
-        // Reset form and close modal
-        setSelectedFile(null);
-        setDocumentTitle('');
-        setDocumentVisibility('public');
-        setUploadModalOpen(false);
-
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        } catch (error) {
+            console.error('Failed to upload document:', error);
+            alert('Failed to upload document. Please ensure it is less than 50MB and try again.');
+        } finally {
+            setIsUploading(false);
         }
     };
 
-    const handleDeleteDocument = (id: number) => {
+    const handleDeleteDocument = async (id: number) => {
         if (confirm('Are you sure you want to delete this document?')) {
-            setDocuments(documents.filter(doc => doc.id !== id));
+            try {
+                await documentService.deleteDocument(id);
+                setDocuments(documents.filter(doc => doc.id !== id));
+            } catch (error) {
+                console.error('Failed to delete document:', error);
+                alert('Failed to delete document. Please try again.');
+            }
         }
+    };
+
+    const handleDownloadDocument = async (doc: Document) => {
+        // Since there is no dedicated Django download endpoint returning a File stream yet
+        alert(`Requesting download for: ${doc.title}. This endpoint must be implemented in the backend first.`);
     };
 
     // Filter documents
     const filteredDocuments = documents.filter(doc => {
         const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesType = typeFilter === 'all' || doc.type === typeFilter;
-        const matchesVisibility = visibilityFilter === 'all' || doc.visibility === visibilityFilter;
+        const matchesType = typeFilter === 'all' || doc.file_type === typeFilter;
+        const matchesVisibility = visibilityFilter === 'all' || doc.visibility_type === visibilityFilter;
         return matchesSearch && matchesType && matchesVisibility;
     });
 
@@ -253,17 +246,20 @@ export const Documents: React.FC = () => {
                                             <span className="font-medium text-gray-900">{doc.title}</span>
                                         </div>
                                     </td>
-                                    <td className="py-3 px-4 text-gray-600">{doc.type}</td>
-                                    <td className="py-3 px-4 text-gray-600">{doc.size}</td>
-                                    <td className="py-3 px-4 text-gray-600">{doc.uploadedBy}</td>
-                                    <td className="py-3 px-4 text-gray-600">{doc.uploadedAt}</td>
-                                    <td className="py-3 px-4">{getVisibilityBadge(doc.visibility)}</td>
+                                    <td className="py-3 px-4 text-gray-600">{doc.file_type}</td>
+                                    <td className="py-3 px-4 text-gray-600">{(doc.file_size / 1024).toFixed(1)} KB</td>
+                                    <td className="py-3 px-4 text-gray-600">{doc.uploaded_by?.first_name} {doc.uploaded_by?.last_name}</td>
+                                    <td className="py-3 px-4 text-gray-600">{new Date(doc.created_at).toLocaleDateString()}</td>
+                                    <td className="py-3 px-4">{getVisibilityBadge(doc.visibility_type)}</td>
                                     <td className="py-3 px-4">
                                         <div className="flex items-center gap-2">
                                             <button className="p-1.5 text-gray-600 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors">
                                                 <Eye className="w-4 h-4" />
                                             </button>
-                                            <button className="p-1.5 text-gray-600 hover:text-info-600 hover:bg-info-50 rounded transition-colors">
+                                            <button
+                                                className="p-1.5 text-gray-600 hover:text-info-600 hover:bg-info-50 rounded transition-colors"
+                                                onClick={() => handleDownloadDocument(doc)}
+                                            >
                                                 <Download className="w-4 h-4" />
                                             </button>
                                             <button
@@ -346,6 +342,7 @@ export const Documents: React.FC = () => {
                             className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
                             value={documentVisibility}
                             onChange={(e) => setDocumentVisibility(e.target.value as 'public' | 'private' | 'restricted')}
+                            disabled={isUploading}
                         >
                             <option value="public">Public</option>
                             <option value="private">Private</option>
@@ -353,12 +350,27 @@ export const Documents: React.FC = () => {
                         </select>
                     </div>
 
+                    {isUploading && (
+                        <div className="space-y-2 pt-2">
+                            <div className="flex justify-between text-sm font-medium text-gray-700">
+                                <span>Uploading...</span>
+                                <span>{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                    className="bg-brand-500 h-2 rounded-full transition-all duration-300 ease-out"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-4">
-                        <Button variant="secondary" className="flex-1" onClick={() => setUploadModalOpen(false)}>
+                        <Button type="button" variant="secondary" className="flex-1" onClick={(e) => { e.preventDefault(); setUploadModalOpen(false); }} disabled={isUploading}>
                             Cancel
                         </Button>
-                        <Button variant="primary" className="flex-1" onClick={handleUpload}>
-                            Upload
+                        <Button type="button" variant="primary" className="flex-1" onClick={(e) => { e.preventDefault(); handleUpload(); }} loading={isUploading} disabled={isUploading}>
+                            {isUploading ? 'Uploading...' : 'Upload'}
                         </Button>
                     </div>
                 </div>

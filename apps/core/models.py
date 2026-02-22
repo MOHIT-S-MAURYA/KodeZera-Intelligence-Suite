@@ -423,3 +423,105 @@ class SystemAuditLog(models.Model):
     def __str__(self):
         user = self.performed_by.email if self.performed_by else 'System'
         return f"{self.action} by {user} at {self.timestamp}"
+
+
+class AIProviderConfig(models.Model):
+    """
+    Singleton model for platform-wide AI provider configuration.
+    Platform Owner can update this from the UI to switch between
+    OpenAI, HuggingFace, Anthropic, and Ollama without touching .env.
+    Only one row is ever created (enforced via get_or_create in service layer).
+    """
+
+    LLM_PROVIDERS = [
+        ('openai',       'OpenAI'),
+        ('huggingface',  'HuggingFace Inference API'),
+        ('anthropic',    'Anthropic'),
+        ('ollama',       'Ollama (Local)'),
+    ]
+
+    EMBEDDING_PROVIDERS = [
+        ('openai',               'OpenAI'),
+        ('huggingface',          'HuggingFace Inference API'),
+        ('sentence_transformers','Sentence Transformers (Local)'),
+    ]
+
+    # ── LLM settings ──────────────────────────────────────────
+    llm_provider = models.CharField(
+        max_length=30, choices=LLM_PROVIDERS, default='openai',
+        help_text='Which LLM provider to use for chat responses.'
+    )
+    llm_model = models.CharField(
+        max_length=200, default='gpt-3.5-turbo',
+        help_text='Model identifier, e.g. gpt-4, mistralai/Mistral-7B-Instruct-v0.1, llama3'
+    )
+    llm_api_key = models.CharField(
+        max_length=500, blank=True, default='',
+        help_text='API key for the LLM provider (stored in DB, shown masked in UI).'
+    )
+    llm_api_base = models.CharField(
+        max_length=500, blank=True, default='',
+        help_text='Custom API base URL (required for Ollama, optional for HuggingFace endpoints).'
+    )
+
+    # ── Embedding settings ────────────────────────────────────
+    embedding_provider = models.CharField(
+        max_length=30, choices=EMBEDDING_PROVIDERS, default='openai',
+        help_text='Which provider to use for document/query embeddings.'
+    )
+    embedding_model = models.CharField(
+        max_length=200, default='text-embedding-3-small',
+        help_text='Embedding model identifier.'
+    )
+    embedding_api_key = models.CharField(
+        max_length=500, blank=True, default='',
+        help_text='API key for the embedding provider (can differ from LLM key).'
+    )
+    embedding_api_base = models.CharField(
+        max_length=500, blank=True, default='',
+        help_text='Custom API base URL for the embedding provider.'
+    )
+
+    # ── Rate / token limits ───────────────────────────────────
+    max_tokens_per_request = models.IntegerField(
+        default=1000, help_text='Maximum tokens in a single LLM response.'
+    )
+    requests_per_minute = models.IntegerField(
+        default=60, help_text='Global rate limit for LLM requests.'
+    )
+
+    # ── Metadata ──────────────────────────────────────────────
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        'User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ai_config_updates'
+    )
+
+    class Meta:
+        db_table = 'ai_provider_config'
+        verbose_name = 'AI Provider Configuration'
+
+    def __str__(self):
+        return f"AI Config: LLM={self.llm_provider}/{self.llm_model}, Embed={self.embedding_provider}/{self.embedding_model}"
+
+    @classmethod
+    def get_config(cls):
+        """
+        Return the singleton config, creating it with defaults if it doesn't exist.
+        Always use this method instead of objects.first() to avoid None checks.
+        """
+        config, _ = cls.objects.get_or_create(id=1)
+        return config
+
+    def llm_api_key_masked(self) -> str:
+        """Return masked key for display in the UI."""
+        if not self.llm_api_key:
+            return ''
+        return self.llm_api_key[:6] + '***' + self.llm_api_key[-2:]
+
+    def embedding_api_key_masked(self) -> str:
+        """Return masked embedding key for display in the UI."""
+        if not self.embedding_api_key:
+            return ''
+        return self.embedding_api_key[:6] + '***' + self.embedding_api_key[-2:]
+

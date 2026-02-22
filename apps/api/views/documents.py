@@ -17,6 +17,7 @@ from apps.api.serializers import (
 from apps.api.permissions import HasPermission
 from apps.documents.tasks import process_document_task, delete_document_embeddings_task
 from apps.core.exceptions import DocumentAccessDeniedError
+from apps.api.views.dashboard import invalidate_dashboard_cache
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -30,53 +31,37 @@ class DocumentViewSet(viewsets.ModelViewSet):
         """Return only documents accessible by the user."""
         return DocumentAccessService.get_accessible_documents(self.request.user)
     
+    parser_classes = [MultiPartParser, FormParser]
+
     @method_decorator(ratelimit(key='user', rate=settings.DOCUMENT_UPLOAD_RATE_LIMIT, method='POST'))
-    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
-    def upload(self, request):
-        """
-        Upload a document.
-        Triggers async processing.
-        """
+    def create(self, request, *args, **kwargs):
+        """Standard REST create endpoint - handles multipart document upload."""
         serializer = DocumentUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
         file = serializer.validated_data['file']
         title = serializer.validated_data.get('title', file.name)
         department_id = serializer.validated_data.get('department')
         classification_level = serializer.validated_data.get('classification_level', 0)
         visibility_type = serializer.validated_data.get('visibility_type', 'restricted')
-        
-        # Validate file size
         if file.size > settings.MAX_UPLOAD_SIZE:
-            return Response(
-                {'error': f'File size exceeds maximum allowed size of {settings.MAX_UPLOAD_SIZE} bytes'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Save file
-        file_path = self._save_file(file, request.user.tenant.id)
-        
-        # Create document record
+            return Response({'error': f'File too large'}, status=status.HTTP_400_BAD_REQUEST)
+        file_path = self._save_file(file, request.user.tenant.id if request.user.tenant else 'platform')
         document = Document.objects.create(
             tenant=request.user.tenant,
-            title=title,
-            file_path=file_path,
-            file_size=file.size,
-            file_type=os.path.splitext(file.name)[1],
-            uploaded_by=request.user,
-            department_id=department_id,
-            classification_level=classification_level,
-            visibility_type=visibility_type,
-            status='pending'
+            title=title, file_path=file_path, file_size=file.size,
+            file_type=os.path.splitext(file.name)[1], uploaded_by=request.user,
+            department_id=department_id, classification_level=classification_level,
+            visibility_type=visibility_type, status='pending'
         )
-        
-        # Trigger async processing
         process_document_task.delay(str(document.id))
-        
-        return Response(
-            DocumentSerializer(document).data,
-            status=status.HTTP_201_CREATED
-        )
+        invalidate_dashboard_cache(request.user.id)
+        return Response(DocumentSerializer(document).data, status=status.HTTP_201_CREATED)
+
+    @method_decorator(ratelimit(key='user', rate=settings.DOCUMENT_UPLOAD_RATE_LIMIT, method='POST'))
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def upload(self, request):
+        """Legacy upload action - delegates to create() for backward compatibility."""
+        return self.create(request)
     
     def _save_file(self, file, tenant_id):
         """Save uploaded file to storage."""
@@ -112,7 +97,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         # Trigger async embedding deletion
         delete_document_embeddings_task.delay(str(document.id))
-        
+        invalidate_dashboard_cache(request.user.id)
+
         # Delete document
         document.delete()
         

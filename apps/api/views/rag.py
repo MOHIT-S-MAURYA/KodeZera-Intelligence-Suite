@@ -2,31 +2,53 @@
 RAG query views.
 """
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, renderer_classes
 from rest_framework.response import Response
+from rest_framework.renderers import BaseRenderer
 from django.conf import settings
 from django_ratelimit.decorators import ratelimit
 from apps.rag.services.rag_query import RAGQueryService
 from apps.api.serializers import RAGQuerySerializer, RAGResponseSerializer
+from django.http import StreamingHttpResponse
+
+
+class ServerSentEventRenderer(BaseRenderer):
+    """
+    Custom DRF renderer that accepts the text/event-stream media type,
+    allowing DRF content negotiation to pass through for SSE endpoints.
+    """
+    media_type = 'text/event-stream'
+    format = 'sse'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        # The StreamingHttpResponse bypasses DRF rendering, so this is
+        # never actually called, but its presence prevents the 406 error.
+        return data
 
 
 @api_view(['POST'])
+@renderer_classes([ServerSentEventRenderer])
 @ratelimit(key='user', rate=settings.RAG_QUERY_RATE_LIMIT, method='POST')
 def rag_query_view(request):
     """
     RAG query endpoint.
-    Rate limited to prevent abuse.
+    Returns Server-Sent Events (SSE) stream for real-time text generation.
     """
     serializer = RAGQuerySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    
+
     question = serializer.validated_data['question']
-    
-    # Execute RAG pipeline
+    session_id = serializer.validated_data.get('session_id')
+
     rag_service = RAGQueryService()
-    result = rag_service.query(user=request.user, question=question)
-    
-    # Serialize response
-    response_serializer = RAGResponseSerializer(result)
-    
-    return Response(response_serializer.data)
+
+    stream_generator = rag_service.query_stream(
+        user=request.user,
+        question=question,
+        session_id=session_id
+    )
+
+    return StreamingHttpResponse(
+        stream_generator,
+        content_type='text/event-stream'
+    )

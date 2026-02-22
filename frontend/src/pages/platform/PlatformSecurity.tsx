@@ -1,7 +1,6 @@
 import React from 'react';
 import { ShieldAlert, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
 
 export const PlatformSecurity: React.FC = () => {
     return (

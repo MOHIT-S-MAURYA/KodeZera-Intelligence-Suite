@@ -1,11 +1,12 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
+    timeout: 15000,      // 15 s hard ceiling — prevents silent hangs
     headers: {
         'Content-Type': 'application/json',
     },
@@ -26,6 +27,21 @@ api.interceptors.request.use(
 );
 
 // Response interceptor for error handling and token refresh
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+
+    failedQueue = [];
+};
+
 api.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
@@ -33,7 +49,23 @@ api.interceptors.response.use(
 
         // If 401 and not already retried, try to refresh token
         if (error.response?.status === 401 && !originalRequest._retry) {
+            if (isRefreshing) {
+                return new Promise(function (resolve, reject) {
+                    failedQueue.push({ resolve, reject });
+                })
+                    .then((token) => {
+                        if (originalRequest.headers) {
+                            originalRequest.headers.Authorization = `Bearer ${token}`;
+                        }
+                        return api(originalRequest);
+                    })
+                    .catch((err) => {
+                        return Promise.reject(err);
+                    });
+            }
+
             originalRequest._retry = true;
+            isRefreshing = true;
 
             try {
                 const refreshToken = localStorage.getItem('refreshToken');
@@ -49,14 +81,21 @@ api.interceptors.response.use(
                         originalRequest.headers.Authorization = `Bearer ${access}`;
                     }
 
+                    processQueue(null, access);
                     return api(originalRequest);
+                } else {
+                    // No refresh token, logout
+                    throw new Error('No refresh token available');
                 }
             } catch (refreshError) {
+                processQueue(refreshError, null);
                 // Refresh failed, logout user
                 localStorage.removeItem('accessToken');
                 localStorage.removeItem('refreshToken');
                 window.location.href = '/login';
                 return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
             }
         }
 

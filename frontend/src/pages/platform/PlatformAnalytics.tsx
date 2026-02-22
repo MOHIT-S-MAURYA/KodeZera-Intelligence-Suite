@@ -1,28 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Recharts from 'recharts';
 import { BarChart3, Users, Clock, Database } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import platformOwnerService, { type AnalyticsDataPoint, type TenantListItem } from '../../services/platformOwner.service';
 
-// Mock Data Generators
-const generateDateLabels = (days: number) => {
-    return Array.from({ length: days }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (days - 1 - i));
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    });
-};
 
-const generateData = (days: number) => {
-    const labels = generateDateLabels(days);
-    return labels.map(label => ({
-        date: label,
-        queries: Math.floor(Math.random() * 5000) + 1000,
-        failed: Math.floor(Math.random() * 50),
-        tokens: Math.floor(Math.random() * 1000000) + 500000,
-        latency: Math.floor(Math.random() * 200) + 50,
-        users: Math.floor(Math.random() * 100) + 20,
-    }));
-};
 
 interface CustomTooltipProps {
     active?: boolean;
@@ -60,55 +43,175 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 };
 
 export const PlatformAnalytics: React.FC = () => {
-    const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+    const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'custom'>('7d');
+    const [selectedTenant, setSelectedTenant] = useState<string>('all');
+    const [startDate, setStartDate] = useState<string>('');
+    const [endDate, setEndDate] = useState<string>('');
+    const [data, setData] = useState<AnalyticsDataPoint[]>([]);
+    const [tenants, setTenants] = useState<TenantListItem[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-    const data = generateData(days);
+    // Fetch Tenants
+    useEffect(() => {
+        const fetchTenants = async () => {
+            try {
+                const response = await platformOwnerService.getTenants();
+                setTenants(response.tenants);
+            } catch (error) {
+                console.error("Failed to fetch tenants", error);
+            }
+        };
+        fetchTenants();
+    }, []);
+
+    // Fetch Analytics
+    useEffect(() => {
+        const fetchAnalytics = async () => {
+            setLoading(true);
+            try {
+                const filters: any = {
+                    tenant_id: selectedTenant,
+                };
+
+                if (timeRange === 'custom') {
+                    if (startDate && endDate) {
+                        filters.start_date = startDate;
+                        filters.end_date = endDate;
+                    }
+                } else {
+                    filters.days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+                }
+
+                // Initial load with custom range might be empty if dates not set
+                if (timeRange === 'custom' && (!startDate || !endDate)) {
+                    setLoading(false);
+                    return;
+                }
+
+                const response = await platformOwnerService.getAnalytics(filters);
+                setData(response);
+            } catch (error) {
+                console.error("Failed to fetch analytics", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // Debounce for custom dates
+        const timer = setTimeout(() => {
+            fetchAnalytics();
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [timeRange, selectedTenant, startDate, endDate]);
+
 
     // Calculate totals for summary cards
     const totalQueries = data.reduce((acc, curr) => acc + curr.queries, 0);
-    const avgLatency = Math.round(data.reduce((acc, curr) => acc + curr.latency, 0) / days);
-    const activeUsers = data[data.length - 1].users; // Last day's active users
+    const avgLatency = data.length > 0 ? Math.round(data.reduce((acc, curr) => acc + curr.latency, 0) / data.length) : 0;
+    const activeUsers = data.length > 0 ? data[data.length - 1].users : 0; // Last day's active users
     const totalTokens = data.reduce((acc, curr) => acc + curr.tokens, 0);
+
+    if (loading && data.length === 0) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
             {/* Header & Controls */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Usage Analytics</h1>
-                    <p className="text-gray-600 mt-1">Platform-wide usage metrics and trends</p>
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">Usage Analytics</h1>
+                        <p className="text-gray-600 mt-1">Platform-wide usage metrics and trends</p>
+                        {selectedTenant !== 'all' && (
+                            <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-800">
+                                Tenant ID: {selectedTenant}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Tenant Selector */}
+                        <div className="w-64">
+                            <SearchableSelect
+                                options={[
+                                    { label: 'All Tenants', value: 'all' },
+                                    ...tenants.map(t => ({ label: t.name, value: t.id }))
+                                ]}
+                                value={selectedTenant}
+                                onChange={(value) => setSelectedTenant(value)}
+                                placeholder="Select Tenant..."
+                            />
+                        </div>
+
+                        <div className="flex items-center bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
+                            <button
+                                onClick={() => setTimeRange('7d')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === '7d'
+                                    ? 'bg-brand-50 text-brand-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                    }`}
+                            >
+                                7 Days
+                            </button>
+                            <button
+                                onClick={() => setTimeRange('30d')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === '30d'
+                                    ? 'bg-brand-50 text-brand-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                    }`}
+                            >
+                                30 Days
+                            </button>
+                            <button
+                                onClick={() => setTimeRange('90d')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === '90d'
+                                    ? 'bg-brand-50 text-brand-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                    }`}
+                            >
+                                90 Days
+                            </button>
+                            <button
+                                onClick={() => setTimeRange('custom')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === 'custom'
+                                    ? 'bg-brand-50 text-brand-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Custom
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex items-center bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
-                    <button
-                        onClick={() => setTimeRange('7d')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === '7d'
-                            ? 'bg-brand-50 text-brand-700'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                    >
-                        7 Days
-                    </button>
-                    <button
-                        onClick={() => setTimeRange('30d')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === '30d'
-                            ? 'bg-brand-50 text-brand-700'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                    >
-                        30 Days
-                    </button>
-                    <button
-                        onClick={() => setTimeRange('90d')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeRange === '90d'
-                            ? 'bg-brand-50 text-brand-700'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                    >
-                        90 Days
-                    </button>
-                </div>
+                {/* Custom Date Range Inputs */}
+                {timeRange === 'custom' && (
+                    <div className="flex items-center gap-2 justify-end animate-in fade-in slide-in-from-top-1 duration-200">
+                        <span className="text-sm text-gray-600">From:</span>
+                        <input
+                            type="date"
+                            value={startDate}
+                            max={endDate || new Date().toISOString().split('T')[0]} // Can't be after end date or today
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-brand-500 focus:border-brand-500"
+                        />
+                        <span className="text-sm text-gray-600">To:</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            min={startDate} // Can't be before start date
+                            max={new Date().toISOString().split('T')[0]} // Can't be in the future
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-brand-500 focus:border-brand-500"
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Summary Cards */}

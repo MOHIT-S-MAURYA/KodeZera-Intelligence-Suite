@@ -1,4 +1,5 @@
-import React, { HTMLAttributes, ReactNode } from 'react';
+import React from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import clsx from 'clsx';
 
 export type CardVariant = 'default' | 'glass' | 'elevated';

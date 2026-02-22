@@ -96,6 +96,25 @@ export interface AuditLogsFilters {
     action?: string;
     tenant_id?: string;
     days?: number;
+    limit?: number;
+    offset?: number;
+}
+
+export interface AnalyticsDataPoint {
+    date: string;
+    full_date: string;
+    queries: number;
+    failed: number;
+    latency: number;
+    tokens: number;
+    users: number;
+}
+
+export interface AnalyticsFilter {
+    tenant_id?: string;
+    days?: number;
+    start_date?: string;
+    end_date?: string;
 }
 
 class PlatformOwnerService {
@@ -138,10 +157,30 @@ class PlatformOwnerService {
         if (filters?.days) {
             params.append('days', filters.days.toString());
         }
+        if (filters?.limit) {
+            params.append('limit', filters.limit.toString());
+        }
+        if (filters?.offset) {
+            params.append('offset', filters.offset.toString());
+        }
 
         const response = await api.get<AuditLogsResponse>(
             `/platform/audit-logs/?${params.toString()}`
         );
+        return response.data;
+    }
+
+    /**
+     * Get analytics data
+     */
+    async getAnalytics(filters: AnalyticsFilter): Promise<AnalyticsDataPoint[]> {
+        const params = new URLSearchParams();
+        if (filters.tenant_id) params.append('tenant_id', filters.tenant_id);
+        if (filters.days) params.append('days', filters.days.toString());
+        if (filters.start_date) params.append('start_date', filters.start_date);
+        if (filters.end_date) params.append('end_date', filters.end_date);
+
+        const response = await api.get<AnalyticsDataPoint[]>(`/platform/analytics/?${params.toString()}`);
         return response.data;
     }
 }

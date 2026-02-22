@@ -1,6 +1,7 @@
 """
 Middleware for tenant isolation and audit logging.
 """
+import threading
 from django.utils.deprecation import MiddlewareMixin
 from apps.core.models import AuditLog
 
@@ -66,23 +67,27 @@ class AuditLoggingMiddleware(MiddlewareMixin):
         else:
             ip_address = request.META.get('REMOTE_ADDR')
         
-        # Create audit log asynchronously (in production, use Celery)
-        try:
-            AuditLog.objects.create(
-                tenant=request.tenant,
-                user=request.user,
-                action=action,
-                resource_type=resource_type,
-                metadata={
-                    'path': request.path,
-                    'method': request.method,
-                },
-                ip_address=ip_address,
-                user_agent=request.META.get('HTTP_USER_AGENT', '')[:500]
-            )
-        except Exception:
-            # Don't fail the request if audit logging fails
-            pass
+        # Write audit log in a background thread so it never adds latency to
+        # the HTTP response.  Daemon=True means it's silently reaped on process
+        # exit without blocking graceful shutdown.
+        def _write():
+            try:
+                AuditLog.objects.create(
+                    tenant=request.tenant,
+                    user=request.user,
+                    action=action,
+                    resource_type=resource_type,
+                    metadata={
+                        'path': request.path,
+                        'method': request.method,
+                    },
+                    ip_address=ip_address,
+                    user_agent=request.META.get('HTTP_USER_AGENT', '')[:500]
+                )
+            except Exception:
+                pass
+
+        threading.Thread(target=_write, daemon=True).start()
         
         return response
     

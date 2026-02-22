@@ -26,9 +26,10 @@ def login_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Authenticate user
+    # Single query fetches user + tenant in one JOIN — avoids a second DB hit
+    # for the tenant.is_active check below.
     try:
-        user = User.objects.get(email=email)
+        user = User.objects.select_related('tenant').get(email=email)
     except User.DoesNotExist:
         return Response(
             {'error': 'Invalid credentials'},

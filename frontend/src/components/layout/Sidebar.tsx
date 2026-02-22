@@ -91,6 +91,7 @@ export const Sidebar: React.FC = () => {
                         <NavLink
                             key={item.path}
                             to={item.path}
+                            end={item.path === '/platform' || item.path === '/dashboard'}
                             onClick={() => {
                                 // Close sidebar on mobile after navigation
                                 if (window.innerWidth < 1024) {
