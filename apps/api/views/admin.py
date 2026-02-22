@@ -131,7 +131,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         if user.pk == request.user.pk:
             return Response(
                 {'error': 'You cannot delete your own account.'},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_403_FORBIDDEN,   # 403 not 400: request is valid, action is forbidden
             )
         return super().destroy(request, *args, **kwargs)
 
