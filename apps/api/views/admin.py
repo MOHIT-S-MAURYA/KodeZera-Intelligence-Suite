@@ -4,10 +4,10 @@ Admin views for tenant administrators.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from apps.core.models import Department, User
+from apps.core.models import AuditLog, Department, User
 from apps.rbac.models import Role, Permission, UserRole, RolePermission
 from apps.api.serializers import (
-    DepartmentSerializer, RoleSerializer, PermissionSerializer,
+    AuditLogSerializer, DepartmentSerializer, RoleSerializer, PermissionSerializer,
     UserRoleSerializer, RolePermissionSerializer, UserManagementSerializer,
 )
 from apps.api.permissions import IsTenantAdmin
@@ -79,43 +79,113 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
 
 class RoleViewSet(viewsets.ModelViewSet):
-    """ViewSet for role management."""
-    
+    """
+    ViewSet for role management.
+
+    Security:
+      - IsTenantAdmin: only tenant admins may read/write
+      - get_queryset filters strictly to the caller's tenant (row-level isolation)
+      - perform_create injects tenant — client cannot spoof tenant ownership
+      - destroy blocks deletion of roles that still have users assigned
+      - PUT excluded: partial updates only via PATCH
+
+    Performance:
+      - select_related('parent') eliminates N+1 for parent_name
+      - annotate user_count/permission_count in a single DB round-trip
+    """
     serializer_class = RoleSerializer
     permission_classes = [IsTenantAdmin]
-    
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
     def get_queryset(self):
-        """Return roles for user's tenant."""
-        return Role.objects.filter(tenant=self.request.user.tenant)
-    
+        from django.db.models import Count
+        return (
+            Role.objects
+            .filter(tenant=self.request.user.tenant)
+            .select_related('parent')
+            .annotate(
+                user_count=Count('user_roles', distinct=True),
+                permission_count=Count('role_permissions', distinct=True),
+            )
+            .order_by('name')
+        )
+
     def perform_create(self, serializer):
-        """Create role in user's tenant."""
-        # Check for circular hierarchy
-        parent = serializer.validated_data.get('parent')
-        if parent:
-            # Ensure parent is in same tenant
-            if parent.tenant != self.request.user.tenant:
-                from rest_framework.exceptions import ValidationError
-                raise ValidationError("Parent role must be in the same tenant")
-        
+        """Inject tenant — never trust client-supplied tenant."""
         serializer.save(tenant=self.request.user.tenant)
-    
+
+    def destroy(self, request, *args, **kwargs):
+        """Block deletion of roles that still have users assigned."""
+        role = self.get_object()
+        if role.user_count > 0:
+            return Response(
+                {
+                    'error': (
+                        f'Cannot delete "{role.name}": '
+                        f'{role.user_count} user(s) are assigned to this role. '
+                        'Reassign or remove them first.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'])
     def assign_permissions(self, request, pk=None):
         """Assign permissions to a role."""
         role = self.get_object()
         permission_ids = request.data.get('permission_ids', [])
 
-        # Bulk-insert in one query instead of N individual get_or_create calls.
         RolePermission.objects.bulk_create(
             [RolePermission(role=role, permission_id=perm_id) for perm_id in permission_ids],
             ignore_conflicts=True,
         )
 
-        # Invalidate cache for all users with this role
         RoleResolutionService.invalidate_tenant_cache(role.tenant.id)
-
         return Response({'status': 'permissions assigned'})
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only ViewSet exposing AuditLog entries scoped to the requesting tenant.
+
+    Security:
+      - IsTenantAdmin: only tenant admins may view logs
+      - get_queryset filters strictly to the caller's tenant
+      - Read-only: logs are immutable records
+
+    Filtering (query params):
+      - ?action=login       filter by action type
+      - ?resource_type=document  filter by resource type
+      - ?user_id=<uuid>     filter by a specific user
+      - ?date_from=YYYY-MM-DD  entries from this date (inclusive)
+      - ?date_to=YYYY-MM-DD    entries up to this date (inclusive)
+    """
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsTenantAdmin]
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        qs = (
+            AuditLog.objects
+            .filter(tenant=self.request.user.tenant)
+            .select_related('user')
+            .defer('user_agent')   # potentially large; not surfaced in API
+            .order_by('-created_at')
+        )
+
+        params = self.request.query_params
+        if action_filter := params.get('action'):
+            qs = qs.filter(action=action_filter)
+        if resource_type := params.get('resource_type'):
+            qs = qs.filter(resource_type=resource_type)
+        if user_id := params.get('user_id'):
+            qs = qs.filter(user_id=user_id)
+        if date_from := params.get('date_from'):
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to := params.get('date_to'):
+            qs = qs.filter(created_at__date__lte=date_to)
+        return qs
 
 
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):

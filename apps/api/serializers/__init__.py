@@ -2,7 +2,7 @@
 Serializers for API.
 """
 from rest_framework import serializers
-from apps.core.models import User, Tenant, Department
+from apps.core.models import User, Tenant, Department, AuditLog
 from apps.rbac.models import Role, Permission, UserRole, RolePermission
 from apps.documents.models import Document, DocumentAccess
 
@@ -202,12 +202,67 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 
 class RoleSerializer(serializers.ModelSerializer):
-    """Serializer for Role model."""
-    
+    """
+    Full serializer for Role management.
+
+    Read-only computed fields:
+      - parent_name:      human-readable name of the parent role
+      - user_count:       number of users directly assigned to this role
+      - permission_count: number of permissions directly on this role
+
+    Security:
+      - validate_parent enforces same-tenant ownership and no self-parenting
+      - validate enforces unique (tenant, name) with friendly error message
+    """
+    parent_name      = serializers.SerializerMethodField()
+    user_count       = serializers.IntegerField(read_only=True, default=0)
+    permission_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Role
-        fields = ['id', 'name', 'description', 'parent', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = [
+            'id', 'name', 'description',
+            'parent', 'parent_name',
+            'user_count', 'permission_count',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'parent_name', 'user_count', 'permission_count', 'created_at']
+        extra_kwargs = {
+            'parent':      {'required': False, 'allow_null': True},
+            'description': {'required': False},
+        }
+
+    def get_parent_name(self, obj):
+        return obj.parent.name if obj.parent_id else None
+
+    def validate_parent(self, value):
+        """Prevent cross-tenant parent assignment and self-parenting."""
+        if value is None:
+            return value
+        request = self.context.get('request')
+        if request and value.tenant_id != request.user.tenant_id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Parent role must belong to the same tenant.')
+        instance = self.instance
+        if instance and value.pk == instance.pk:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError('A role cannot be its own parent.')
+        return value
+
+    def validate(self, attrs):
+        """Enforce unique (tenant, name) with a friendly error message."""
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        request = self.context.get('request')
+        if not request:
+            return attrs
+        name   = attrs.get('name', getattr(self.instance, 'name', None))
+        tenant = request.user.tenant
+        qs = Role.objects.filter(tenant=tenant, name=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise DRFValidationError({'name': 'A role with this name already exists in your tenant.'})
+        return attrs
 
 
 class PermissionSerializer(serializers.ModelSerializer):
@@ -266,6 +321,33 @@ class RAGResponseSerializer(serializers.Serializer):
         child=serializers.DictField()
     )
     metadata = serializers.DictField(required=False)
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for AuditLog.
+    Adds human-readable user identity fields.
+    """
+    user_email = serializers.SerializerMethodField()
+    user_name  = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'user', 'user_email', 'user_name',
+            'action', 'resource_type', 'resource_id',
+            'metadata', 'ip_address', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_user_email(self, obj):
+        return obj.user.email if obj.user_id else None
+
+    def get_user_name(self, obj):
+        if not obj.user_id:
+            return 'System'
+        u = obj.user
+        return (f"{u.first_name} {u.last_name}".strip()) or u.email
 
 
 class UserRoleSerializer(serializers.ModelSerializer):

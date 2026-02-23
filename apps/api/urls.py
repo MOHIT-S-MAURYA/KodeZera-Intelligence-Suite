@@ -7,8 +7,8 @@ from apps.api.views.auth import login_view, refresh_token_view
 from apps.api.views.documents import DocumentViewSet, DocumentAccessViewSet
 from apps.api.views.rag import rag_query_view
 from apps.api.views.admin import (
-    DepartmentViewSet, RoleViewSet, PermissionViewSet, UserRoleViewSet,
-    UserManagementViewSet,
+    AuditLogViewSet, DepartmentViewSet, RoleViewSet, PermissionViewSet,
+    UserRoleViewSet, UserManagementViewSet,
 )
 from apps.api.views.platform_owner import (
     platform_overview, tenants_list, system_health, audit_logs_list,
@@ -27,6 +27,7 @@ router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'permissions', PermissionViewSet, basename='permission')
 router.register(r'users', UserManagementViewSet, basename='user')
 router.register(r'user-roles', UserRoleViewSet, basename='user-role')
+router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'rag/sessions', ChatSessionViewSet, basename='chat-session')
 router.register(r'rag/folders', ChatFolderViewSet, basename='chat-folder')
 
