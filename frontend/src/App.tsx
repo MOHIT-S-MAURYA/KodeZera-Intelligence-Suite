@@ -7,6 +7,7 @@ import { useUIStore } from './store/ui.store';
 import { useAuthStore } from './store/auth.store';
 import { PageLoader } from './components/ui/Spinner';
 import authService from './services/auth.service';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // SmartRedirect: sends authenticated users to the right dashboard based on their role.
 // Unauthenticated users always go to /login.
@@ -56,212 +57,215 @@ function App() {
     <BrowserRouter>
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      {/* Suspense boundary catches lazy-chunk loading; PageLoader shown during chunk fetch */}
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
+      {/* ErrorBoundary prevents blank pages when any lazy page throws */}
+      <ErrorBoundary>
+        {/* Suspense boundary catches lazy-chunk loading; PageLoader shown during chunk fetch */}
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
 
-          {/* Protected routes */}
-          {/* Platform Owner Routes */}
-          <Route
-            path="/platform"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformDashboard />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/platform/tenants"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformTenants />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected routes */}
+            {/* Platform Owner Routes */}
+            <Route
+              path="/platform"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformDashboard />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/platform/tenants"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformTenants />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/platform/analytics"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformAnalytics />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/platform/security"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformSecurity />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/platform/ai-config"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformAIConfig />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/platform/permissions"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformPermissions />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/platform/audit-logs"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformAuditLogs />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/platform/support"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <PlatformSupport />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/platform/analytics"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformAnalytics />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/platform/security"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformSecurity />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/platform/ai-config"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformAIConfig />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/platform/permissions"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformPermissions />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/platform/audit-logs"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformAuditLogs />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/platform/support"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PlatformSupport />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Tenant Dashboard */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Dashboard />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            {/* Tenant Dashboard */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Dashboard />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/chat"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Chat />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/chat"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Chat />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/documents"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Documents />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/documents"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Documents />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/users"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Users />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Users />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/departments"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Departments />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/departments"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Departments />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/roles"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Roles />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/roles"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Roles />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/audit-logs"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <AuditLogs />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/audit-logs"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <AuditLogs />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Profile />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Profile />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Settings />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Settings />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/notifications"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <Notifications />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Notifications />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Default redirect */}
-          <Route path="/" element={<SmartRedirect />} />
-          <Route path="*" element={<SmartRedirect />} />
-        </Routes>
-      </Suspense>
+            {/* Default redirect */}
+            <Route path="/" element={<SmartRedirect />} />
+            <Route path="*" element={<SmartRedirect />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

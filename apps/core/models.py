@@ -544,9 +544,21 @@ class SupportTicket(models.Model):
         ('resolved', 'Resolved'),
     ]
 
+    CATEGORY_CHOICES = [
+        ('bug', 'Bug / Error'),
+        ('feature', 'Feature Request'),
+        ('access', 'Access Issue'),
+        ('performance', 'Performance Problem'),
+        ('data', 'Data Issue'),
+        ('other', 'Other'),
+    ]
+
     id = models.CharField(max_length=20, primary_key=True, editable=False)
     subject = models.CharField(max_length=255)
     description = models.TextField()
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='other')
+    # Stores auto-captured context: tenant_id, user_id, page_url, browser, timestamp
+    context_info = models.JSONField(default=dict, blank=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='support_tickets', null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_tickets')
     

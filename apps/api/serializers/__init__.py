@@ -5,6 +5,8 @@ from rest_framework import serializers
 from apps.core.models import User, Tenant, Department, AuditLog
 from apps.rbac.models import Role, Permission, UserRole, RolePermission
 from apps.documents.models import Document, DocumentAccess
+from apps.api.serializers.support import SupportTicketSerializer  # noqa: F401
+
 
 
 class UserSerializer(serializers.ModelSerializer):

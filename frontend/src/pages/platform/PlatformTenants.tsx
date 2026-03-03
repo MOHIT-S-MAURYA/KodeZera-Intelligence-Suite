@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import {
     Building2, Plus, Search, MoreVertical, Users, FileText,
-    AlertCircle, Eye, Pencil, Trash2, Copy, CheckCircle2
+    AlertCircle, Eye, Power, PowerOff, Trash2, Copy, CheckCircle2,
+    Calendar, X, TriangleAlert,
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +13,149 @@ import { Input } from '../../components/ui/Input';
 import platformOwnerService from '../../services/platformOwner.service';
 import type { TenantListItem } from '../../services/platformOwner.service';
 
+// ─── Inline ConfirmDialog (rendered via portal, no browser dialogs) ─────────
+interface ConfirmDialogProps {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+    onCancel: () => void;
+}
+const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
+    isOpen, title, message, confirmLabel = 'Confirm', danger = false, onConfirm, onCancel,
+}) => {
+    if (!isOpen) return null;
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-in">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto
+                    ${danger ? 'bg-red-100' : 'bg-amber-100'}`}>
+                    <TriangleAlert className={`w-6 h-6 ${danger ? 'text-red-600' : 'text-amber-600'}`} />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">{title}</h3>
+                <p className="text-sm text-gray-600 text-center mb-6">{message}</p>
+                <div className="flex gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-colors
+                            ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                    >
+                        {confirmLabel}
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+// ─── View Details Panel ──────────────────────────────────────────────────────
+interface DetailRowProps { label: string; value: React.ReactNode; }
+const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
+    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+        <span className="text-sm text-gray-500">{label}</span>
+        <span className="text-sm font-medium text-gray-900 text-right">{value}</span>
+    </div>
+);
+
+interface ViewDetailsPanelProps {
+    tenant: TenantListItem | null;
+    onClose: () => void;
+}
+const ViewDetailsPanel: React.FC<ViewDetailsPanelProps> = ({ tenant, onClose }) => {
+    if (!tenant) return null;
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md animate-scale-in">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-lg">
+                            {tenant.name.charAt(0)}
+                        </div>
+                        <div>
+                            <h2 className="text-base font-semibold text-gray-900">{tenant.name}</h2>
+                            <p className="text-xs text-gray-500">@{tenant.slug}</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-4">
+                    <DetailRow label="Status" value={
+                        <Badge variant={tenant.is_active ? 'success' : 'default'}>
+                            {tenant.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                    } />
+                    <DetailRow label="Total Users" value={
+                        <span className="flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5 text-gray-400" />{tenant.users_count}
+                        </span>
+                    } />
+                    <DetailRow label="Documents" value={
+                        <span className="flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5 text-gray-400" />{tenant.documents_count}
+                        </span>
+                    } />
+                    <DetailRow label="Queries Today" value={tenant.queries_today ?? '—'} />
+                    <DetailRow label="Storage Used" value={
+                        tenant.storage_used_bytes
+                            ? `${(tenant.storage_used_bytes / (1024 * 1024)).toFixed(1)} MB`
+                            : '0 MB'
+                    } />
+                    <DetailRow label="Created" value={
+                        <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                            {new Date(tenant.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </span>
+                    } />
+                    <DetailRow label="Tenant ID" value={
+                        <span className="font-mono text-xs text-gray-500 select-all">{tenant.id}</span>
+                    } />
+                </div>
+
+                <div className="px-6 pb-5">
+                    <button
+                        onClick={onClose}
+                        className="w-full px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 transition-colors"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+// ─── Inline error/feedback banner ───────────────────────────────────────────
+const ActionError: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
+    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+        <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {message}
+        </div>
+        <button onClick={onClose} className="text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
+    </div>
+);
+
+// ─── Form interfaces ─────────────────────────────────────────────────────────
 interface CreateTenantForm {
     name: string;
     slug: string;
@@ -26,10 +171,27 @@ interface CredentialResult {
     email_sent: boolean;
 }
 
+// ─── Confirm dialog state ────────────────────────────────────────────────────
+interface ConfirmState {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    danger: boolean;
+    onConfirm: () => void;
+}
+const CLOSED_CONFIRM: ConfirmState = {
+    isOpen: false, title: '', message: '', confirmLabel: 'Confirm', danger: false, onConfirm: () => { },
+};
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export const PlatformTenants: React.FC = () => {
     const [tenants, setTenants] = useState<TenantListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    // Create tenant modal
     const [modalOpen, setModalOpen] = useState(false);
     const [creating, setCreating] = useState(false);
     const [formData, setFormData] = useState<CreateTenantForm>({
@@ -37,15 +199,21 @@ export const PlatformTenants: React.FC = () => {
     });
     const [formError, setFormError] = useState<string | null>(null);
 
-    // Credentials modal state (shown after successful creation)
+    // Credentials modal (after creation)
     const [credentials, setCredentials] = useState<CredentialResult | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
 
-    // Action menu state
+    // View details
+    const [viewTenant, setViewTenant] = useState<TenantListItem | null>(null);
+
+    // Confirm dialog
+    const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
+
+    // Action dropdown
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Close action menu on outside click
+    // Close dropdown on outside click
     useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -66,27 +234,20 @@ export const PlatformTenants: React.FC = () => {
             setLoading(false);
         }
     };
-
     useEffect(() => { loadTenants(); }, []);
 
+    // ─ Create form ─
     const handleOpenModal = () => {
         setFormData({ name: '', slug: '', admin_email: '', is_active: true });
         setFormError(null);
         setModalOpen(true);
     };
-
-    const handleCloseModal = () => {
-        setModalOpen(false);
-        setFormError(null);
-    };
+    const handleCloseModal = () => { setModalOpen(false); setFormError(null); };
 
     const handleInputChange = (field: keyof CreateTenantForm, value: string | boolean) => {
         if (field === 'name' && typeof value === 'string') {
             const autoSlug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            setFormData(prev => ({
-                ...prev, name: value,
-                slug: prev.slug === '' ? autoSlug : prev.slug,
-            }));
+            setFormData(prev => ({ ...prev, name: value, slug: prev.slug === '' ? autoSlug : prev.slug }));
         } else {
             setFormData(prev => ({ ...prev, [field]: value }));
         }
@@ -94,12 +255,12 @@ export const PlatformTenants: React.FC = () => {
 
     const validateForm = (): string | null => {
         if (!formData.name.trim()) return 'Organization name is required';
-        if (formData.name.trim().length > 255) return 'Organization name must be 255 characters or fewer';
+        if (formData.name.trim().length > 255) return 'Name must be 255 characters or fewer';
         if (!formData.slug.trim()) return 'Slug is required';
         if (formData.slug.length < 3) return 'Slug must be at least 3 characters';
         if (formData.slug.length > 100) return 'Slug must be 100 characters or fewer';
         if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(formData.slug))
-            return 'Slug must contain only lowercase letters, numbers, and hyphens; cannot start or end with a hyphen';
+            return 'Slug must use lowercase letters, numbers, hyphens; cannot start or end with a hyphen';
         if (!formData.admin_email.trim()) return 'Admin email is required';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.admin_email)) return 'Invalid email format';
         if (tenants.some(t => t.slug === formData.slug)) return 'A tenant with this slug already exists';
@@ -109,7 +270,6 @@ export const PlatformTenants: React.FC = () => {
     const handleCreateTenant = async () => {
         const err = validateForm();
         if (err) { setFormError(err); return; }
-
         setCreating(true);
         setFormError(null);
         try {
@@ -118,8 +278,6 @@ export const PlatformTenants: React.FC = () => {
                 slug: formData.slug,
                 admin_email: formData.admin_email,
             });
-
-            // Instant UI update — prepend the new tenant without a full reload
             const newTenant: TenantListItem = {
                 id: result.id,
                 name: result.name,
@@ -132,8 +290,6 @@ export const PlatformTenants: React.FC = () => {
                 queries_today: 0,
             };
             setTenants(prev => [newTenant, ...prev]);
-
-            // Close form and show credentials modal
             handleCloseModal();
             setCredentials({
                 tenantName: result.name,
@@ -144,14 +300,11 @@ export const PlatformTenants: React.FC = () => {
             });
         } catch (error: any) {
             const data = error?.response?.data;
-            // Backend returns either {error: 'string'} or {errors: {field: 'msg'}}
             let msg = 'Failed to create tenant. Please try again.';
-            if (typeof data?.error === 'string') {
-                msg = data.error;
-            } else if (data?.errors && typeof data.errors === 'object') {
-                // Show the first field-level error message from the validation object
-                const firstMsg = Object.values(data.errors)[0];
-                if (typeof firstMsg === 'string') msg = firstMsg;
+            if (typeof data?.error === 'string') msg = data.error;
+            else if (data?.errors && typeof data.errors === 'object') {
+                const first = Object.values(data.errors)[0];
+                if (typeof first === 'string') msg = first;
             }
             setFormError(msg);
         } finally {
@@ -165,34 +318,55 @@ export const PlatformTenants: React.FC = () => {
         setTimeout(() => setCopiedField(null), 2000);
     };
 
-    // --- Action menu handlers ---
+    // ─ Action menu handlers — open custom dialog, don't use browser alert/confirm ─
     const handleViewTenant = (tenant: TenantListItem) => {
         setOpenMenuId(null);
-        alert(`Tenant: ${tenant.name}\nSlug: ${tenant.slug}\nUsers: ${tenant.users_count}\nStatus: ${tenant.is_active ? 'Active' : 'Inactive'}`);
+        setViewTenant(tenant);
     };
 
-    const handleToggleActive = async (tenant: TenantListItem) => {
+    const handleToggleActive = (tenant: TenantListItem) => {
         setOpenMenuId(null);
-        const action = tenant.is_active ? 'deactivate' : 'activate';
-        if (!confirm(`Are you sure you want to ${action} "${tenant.name}"?`)) return;
-        try {
-            // PATCH is_active via the existing endpoint (extend if needed)
-            await platformOwnerService.updateTenant(tenant.id, { is_active: !tenant.is_active });
-            setTenants(prev => prev.map(t => t.id === tenant.id ? { ...t, is_active: !tenant.is_active } : t));
-        } catch (e: any) {
-            alert(e?.response?.data?.error || 'Failed to update tenant.');
-        }
+        const willDeactivate = tenant.is_active;
+        setConfirm({
+            isOpen: true,
+            title: willDeactivate ? 'Deactivate Tenant' : 'Activate Tenant',
+            message: willDeactivate
+                ? `Deactivating "${tenant.name}" will prevent all its users from logging in. Continue?`
+                : `Reactivating "${tenant.name}" will restore access for all its users. Continue?`,
+            confirmLabel: willDeactivate ? 'Deactivate' : 'Activate',
+            danger: willDeactivate,
+            onConfirm: async () => {
+                setConfirm(CLOSED_CONFIRM);
+                try {
+                    await platformOwnerService.updateTenant(tenant.id, { is_active: !tenant.is_active });
+                    setTenants(prev => prev.map(t =>
+                        t.id === tenant.id ? { ...t, is_active: !tenant.is_active } : t
+                    ));
+                } catch (e: any) {
+                    setActionError(e?.response?.data?.error || 'Failed to update tenant.');
+                }
+            },
+        });
     };
 
-    const handleDeleteTenant = async (tenant: TenantListItem) => {
+    const handleDeleteTenant = (tenant: TenantListItem) => {
         setOpenMenuId(null);
-        if (!confirm(`Are you sure you want to permanently delete "${tenant.name}"? This cannot be undone.`)) return;
-        try {
-            await platformOwnerService.deleteTenant(tenant.id);
-            setTenants(prev => prev.filter(t => t.id !== tenant.id));
-        } catch (e: any) {
-            alert(e?.response?.data?.error || 'Failed to delete tenant.');
-        }
+        setConfirm({
+            isOpen: true,
+            title: 'Delete Tenant',
+            message: `Permanently delete "${tenant.name}"? All data including users, documents, and configurations will be removed. This cannot be undone.`,
+            confirmLabel: 'Delete',
+            danger: true,
+            onConfirm: async () => {
+                setConfirm(CLOSED_CONFIRM);
+                try {
+                    await platformOwnerService.deleteTenant(tenant.id);
+                    setTenants(prev => prev.filter(t => t.id !== tenant.id));
+                } catch (e: any) {
+                    setActionError(e?.response?.data?.error || 'Failed to delete tenant.');
+                }
+            },
+        });
     };
 
     const filteredTenants = tenants.filter(t =>
@@ -200,9 +374,15 @@ export const PlatformTenants: React.FC = () => {
         t.slug.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-
     return (
         <div className="space-y-6">
+            {/* Custom dialogs (portals) */}
+            <ConfirmDialog
+                {...confirm}
+                onCancel={() => setConfirm(CLOSED_CONFIRM)}
+            />
+            <ViewDetailsPanel tenant={viewTenant} onClose={() => setViewTenant(null)} />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -215,7 +395,12 @@ export const PlatformTenants: React.FC = () => {
                 </Button>
             </div>
 
-            {/* ── Create Tenant Modal ── */}
+            {/* Action error banner */}
+            {actionError && (
+                <ActionError message={actionError} onClose={() => setActionError(null)} />
+            )}
+
+            {/* Create Tenant Modal */}
             <Modal isOpen={modalOpen} onClose={handleCloseModal} title="Create New Tenant" size="lg">
                 <div className="space-y-4">
                     {formError && (
@@ -224,7 +409,6 @@ export const PlatformTenants: React.FC = () => {
                             {formError}
                         </div>
                     )}
-
                     <Input
                         label="Organization Name"
                         value={formData.name}
@@ -232,7 +416,6 @@ export const PlatformTenants: React.FC = () => {
                         placeholder="Enter organization name"
                         required
                     />
-
                     <div>
                         <Input
                             label="Slug / Domain"
@@ -243,20 +426,19 @@ export const PlatformTenants: React.FC = () => {
                         />
                         <p className="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only</p>
                     </div>
-
-                    <Input
-                        label="Admin Email"
-                        type="email"
-                        value={formData.admin_email}
-                        onChange={(e) => handleInputChange('admin_email', e.target.value)}
-                        placeholder="admin@example.com"
-                        required
-                    />
-                    <p className="text-xs text-gray-500 -mt-2">
-                        A temporary admin account will be created and credentials sent to this email.
-                    </p>
-
-
+                    <div>
+                        <Input
+                            label="Admin Email"
+                            type="email"
+                            value={formData.admin_email}
+                            onChange={(e) => handleInputChange('admin_email', e.target.value)}
+                            placeholder="admin@example.com"
+                            required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            A temporary admin account will be created. Credentials will be shared with you after creation.
+                        </p>
+                    </div>
                     <div className="flex justify-end gap-3 pt-4">
                         <Button variant="outline" onClick={handleCloseModal} disabled={creating}>Cancel</Button>
                         <Button variant="primary" onClick={handleCreateTenant} loading={creating}>Create Tenant</Button>
@@ -264,8 +446,8 @@ export const PlatformTenants: React.FC = () => {
                 </div>
             </Modal>
 
-            {/* ── Credentials Modal (shown after successful creation) ── */}
-            < Modal
+            {/* Credentials Modal */}
+            <Modal
                 isOpen={!!credentials}
                 onClose={() => setCredentials(null)}
                 title="Tenant Created Successfully"
@@ -279,15 +461,13 @@ export const PlatformTenants: React.FC = () => {
                                 <p className="text-xs mt-0.5">
                                     {credentials.email_sent
                                         ? 'Credentials have been emailed to the admin.'
-                                        : 'Email could not be sent — please share credentials manually.'}
+                                        : 'Email not sent — share credentials manually.'}
                                 </p>
                             </div>
                         </div>
-
                         <p className="text-sm text-gray-600">
-                            Please share these temporary credentials with the admin user. They should change the password on first login.
+                            Share these temporary credentials with the admin. They should change the password on first login.
                         </p>
-
                         {[
                             { label: 'Username', value: credentials.username, id: 'username' },
                             { label: 'Email', value: credentials.email, id: 'email' },
@@ -304,21 +484,22 @@ export const PlatformTenants: React.FC = () => {
                                         className="p-2 text-gray-500 hover:text-brand-600 transition-colors"
                                         title="Copy"
                                     >
-                                        {copiedField === id ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                        {copiedField === id
+                                            ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                            : <Copy className="w-4 h-4" />}
                                     </button>
                                 </div>
                             </div>
                         ))}
-
                         <div className="flex justify-end pt-2">
                             <Button variant="primary" onClick={() => setCredentials(null)}>Done</Button>
                         </div>
                     </div>
                 )}
-            </Modal >
+            </Modal>
 
             {/* Search */}
-            < Card >
+            <Card>
                 <div className="flex items-center gap-4">
                     <div className="flex-1 relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -327,111 +508,135 @@ export const PlatformTenants: React.FC = () => {
                             placeholder="Search tenants..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
                         />
                     </div>
+                    <span className="text-sm text-gray-500 shrink-0">
+                        {filteredTenants.length} of {tenants.length}
+                    </span>
                 </div>
-            </Card >
+            </Card>
 
             {/* Tenants List */}
-            {
-                loading ? (
-                    <Card>
-                        <div className="text-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto" />
-                            <p className="text-gray-600 mt-4">Loading tenants...</p>
-                        </div>
-                    </Card>
-                ) : (
-                    <div className="grid gap-4" ref={menuRef}>
-                        {filteredTenants.map((tenant) => (
-                            <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0">
-                                            <Building2 className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900">{tenant.name}</h3>
-                                            <p className="text-sm text-gray-500">@{tenant.slug}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-6">
-                                        <div className="text-center hidden sm:block">
-                                            <div className="flex items-center gap-1 text-gray-600">
-                                                <Users className="w-4 h-4" />
-                                                <span className="text-sm font-medium">{tenant.users_count}</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500">Users</p>
-                                        </div>
-
-                                        <div className="text-center hidden sm:block">
-                                            <div className="flex items-center gap-1 text-gray-600">
-                                                <FileText className="w-4 h-4" />
-                                                <span className="text-sm font-medium">{tenant.documents_count}</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500">Documents</p>
-                                        </div>
-
-                                        <Badge variant={tenant.is_active ? 'success' : 'default'}>
-                                            {tenant.is_active ? 'Active' : 'Inactive'}
-                                        </Badge>
-
-                                        {/* ── Action Menu ── */}
-                                        <div className="relative">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setOpenMenuId(openMenuId === tenant.id ? null : tenant.id);
-                                                }}
-                                                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                                                aria-label="Actions"
-                                            >
-                                                <MoreVertical className="w-5 h-5" />
-                                            </button>
-
-                                            {openMenuId === tenant.id && (
-                                                <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
-                                                    <button
-                                                        onClick={() => handleViewTenant(tenant)}
-                                                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                                    >
-                                                        <Eye className="w-4 h-4" /> View Details
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleActive(tenant)}
-                                                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                                    >
-                                                        <Pencil className="w-4 h-4" />
-                                                        {tenant.is_active ? 'Deactivate' : 'Activate'}
-                                                    </button>
-                                                    <hr className="my-1 border-gray-100" />
-                                                    <button
-                                                        onClick={() => handleDeleteTenant(tenant)}
-                                                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" /> Delete Tenant
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </Card>
-                        ))}
-
-                        {filteredTenants.length === 0 && (
-                            <Card>
-                                <div className="text-center py-12">
-                                    <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                    <p className="text-gray-600">No tenants found</p>
-                                </div>
-                            </Card>
-                        )}
+            {loading ? (
+                <Card>
+                    <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-600 mx-auto" />
+                        <p className="text-gray-600 mt-4">Loading tenants...</p>
                     </div>
-                )
-            }
-        </div >
+                </Card>
+            ) : (
+                <div className="grid gap-4" ref={menuRef}>
+                    {filteredTenants.map((tenant) => (
+                        <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
+                            <div className="flex items-center justify-between">
+                                {/* Left: identity */}
+                                <div className="flex items-center gap-4 min-w-0">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-lg">
+                                        {tenant.name.charAt(0)}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-base font-semibold text-gray-900 truncate">{tenant.name}</h3>
+                                        <p className="text-sm text-gray-500">@{tenant.slug}</p>
+                                    </div>
+                                </div>
+
+                                {/* Right: stats + actions */}
+                                <div className="flex items-center gap-5 flex-shrink-0 ml-4">
+                                    {/* Users */}
+                                    <div className="text-center hidden sm:block">
+                                        <div className="flex items-center gap-1 text-gray-700 justify-center">
+                                            <Users className="w-4 h-4 text-gray-400" />
+                                            <span className="text-sm font-semibold">{tenant.users_count}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-400">Users</p>
+                                    </div>
+
+                                    {/* Documents */}
+                                    <div className="text-center hidden sm:block">
+                                        <div className="flex items-center gap-1 text-gray-700 justify-center">
+                                            <FileText className="w-4 h-4 text-gray-400" />
+                                            <span className="text-sm font-semibold">{tenant.documents_count}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-400">Docs</p>
+                                    </div>
+
+                                    {/* Status badge */}
+                                    <Badge variant={tenant.is_active ? 'success' : 'default'}>
+                                        {tenant.is_active ? 'Active' : 'Inactive'}
+                                    </Badge>
+
+                                    {/* ── Action Menu ── */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenMenuId(openMenuId === tenant.id ? null : tenant.id);
+                                            }}
+                                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                            aria-label="Actions"
+                                        >
+                                            <MoreVertical className="w-5 h-5" />
+                                        </button>
+
+                                        {openMenuId === tenant.id && (
+                                            <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1.5 animate-fade-in">
+                                                {/* View Details */}
+                                                <button
+                                                    onClick={() => handleViewTenant(tenant)}
+                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                >
+                                                    <Eye className="w-4 h-4 text-gray-400" />
+                                                    View Details
+                                                </button>
+
+                                                {/* Activate / Deactivate */}
+                                                <button
+                                                    onClick={() => handleToggleActive(tenant)}
+                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                >
+                                                    {tenant.is_active
+                                                        ? <PowerOff className="w-4 h-4 text-amber-500" />
+                                                        : <Power className="w-4 h-4 text-green-500" />}
+                                                    {tenant.is_active ? 'Deactivate' : 'Activate'}
+                                                </button>
+
+                                                <hr className="my-1 border-gray-100" />
+
+                                                {/* Delete */}
+                                                <button
+                                                    onClick={() => handleDeleteTenant(tenant)}
+                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                    Delete Tenant
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    ))}
+
+                    {filteredTenants.length === 0 && (
+                        <Card>
+                            <div className="text-center py-12">
+                                <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                <p className="text-gray-600 font-medium">No tenants found</p>
+                                {searchTerm && (
+                                    <p className="text-sm text-gray-400 mt-1">
+                                        Try a different search term or <button
+                                            onClick={() => setSearchTerm('')}
+                                            className="text-brand-600 underline"
+                                        >clear the search</button>.
+                                    </p>
+                                )}
+                            </div>
+                        </Card>
+                    )}
+                </div>
+            )}
+        </div>
     );
 };
