@@ -9,15 +9,18 @@ export interface LoginResponse {
     access: string;
     refresh: string;
     user: {
-        id: number;
+        id: string;
         email: string;
+        username: string;
         first_name: string;
         last_name: string;
+        full_name: string;
+        is_tenant_admin: boolean;
         is_superuser?: boolean;
         is_staff?: boolean;
         isPlatformOwner?: boolean;
         tenant?: {
-            id: number;
+            id: string;
             name: string;
         } | null;
     };

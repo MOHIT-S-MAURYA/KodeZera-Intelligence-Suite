@@ -87,3 +87,32 @@ def refresh_token_view(request):
     from rest_framework_simplejwt.views import TokenRefreshView
     view = TokenRefreshView.as_view()
     return view(request._request)
+
+
+from rest_framework.permissions import IsAuthenticated
+from apps.api.serializers import UserSerializer
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def me_view(request):
+    """
+    Endpoint for users to fetch or update their own profile.
+    Supports updating first_name, last_name, and profile_metadata.
+    """
+    user = request.user
+    if request.method == 'GET':
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+    
+    # PUT or PATCH
+    # Only allow safe fields to be updated by the user themselves
+    allowed_data = {
+        key: value for key, value in request.data.items()
+        if key in ['first_name', 'last_name', 'profile_metadata']
+    }
+    
+    serializer = UserSerializer(user, data=allowed_data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

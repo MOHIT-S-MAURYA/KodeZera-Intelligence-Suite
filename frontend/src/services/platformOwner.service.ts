@@ -40,10 +40,15 @@ export interface TenantListItem {
     created_at: string;
     users_count: number;
     documents_count: number;
-    plan: string;
-    subscription_status: string;
     storage_used_bytes: number;
     queries_today: number;
+    // Returned only on creation
+    admin_credentials?: {
+        username: string;
+        email: string;
+        temporary_password: string;
+    };
+    email_sent?: boolean;
 }
 
 export interface TenantsListResponse {
@@ -132,6 +137,29 @@ class PlatformOwnerService {
     async getTenants(): Promise<TenantsListResponse> {
         const response = await api.get<TenantsListResponse>('/platform/tenants/');
         return response.data;
+    }
+
+    /**
+     * Create a new tenant (auto-creates admin user and sends credentials email)
+     */
+    async createTenant(data: { name: string; slug: string; admin_email: string }): Promise<TenantListItem> {
+        const response = await api.post<TenantListItem>('/platform/tenants/', data);
+        return response.data;
+    }
+
+    /**
+     * Update a tenant (e.g. toggle is_active)
+     */
+    async updateTenant(tenantId: string, data: Partial<TenantListItem>): Promise<TenantListItem> {
+        const response = await api.patch<TenantListItem>(`/platform/tenants/${tenantId}/`, data);
+        return response.data;
+    }
+
+    /**
+     * Delete a tenant permanently
+     */
+    async deleteTenant(tenantId: string): Promise<void> {
+        await api.delete(`/platform/tenants/${tenantId}/`);
     }
 
     /**

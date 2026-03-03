@@ -146,6 +146,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_login = models.DateTimeField(null=True, blank=True)
+    profile_metadata = models.JSONField(default=dict, blank=True)
 
     objects = UserManager()
 
@@ -525,4 +526,58 @@ class AIProviderConfig(models.Model):
         if not self.embedding_api_key:
             return ''
         return self.embedding_api_key[:6] + '***' + self.embedding_api_key[-2:]
+
+
+class SupportTicket(models.Model):
+    """
+    Support tickets created by users and managed by platform owners.
+    """
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+    ]
+
+    id = models.CharField(max_length=20, primary_key=True, editable=False)
+    subject = models.CharField(max_length=255)
+    description = models.TextField()
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='support_tickets', null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_tickets')
+    
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'support_tickets'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['created_by']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            # Generate a simple ticket ID like T-1001
+            last_ticket = SupportTicket.objects.order_by('-created_at').first()
+            if last_ticket and last_ticket.id.startswith('T-'):
+                try:
+                    last_num = int(last_ticket.id.split('-')[1])
+                    self.id = f"T-{last_num + 1}"
+                except ValueError:
+                    self.id = f"T-1001"
+            else:
+                self.id = "T-1001"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"[{self.id}] {self.subject} ({self.status})"
 

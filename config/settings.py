@@ -177,13 +177,24 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 
 # Qdrant Configuration
+# Set QDRANT_LOCAL_PATH for a persistent local store (no server needed).
+# Leave empty to use QDRANT_URL (remote server) or fall back to in-memory.
 QDRANT_URL = config('QDRANT_URL', default='http://localhost:6333')
 QDRANT_API_KEY = config('QDRANT_API_KEY', default='')
-QDRANT_COLLECTION_NAME = 'kodezera_documents'
+QDRANT_LOCAL_PATH = config('QDRANT_LOCAL_PATH', default=str(BASE_DIR / 'qdrant_data'))
+QDRANT_COLLECTION_NAME = config('QDRANT_COLLECTION_NAME', default='kodezera_documents')
 
-# OpenAI Configuration
+# Embedding Configuration
+# Provider: sentence_transformers (default, local, no key), openai, huggingface, dev
+# VECTOR_DIMENSION must match the model output dimension:
+#   all-MiniLM-L6-v2 (sentence_transformers) → 384
+#   text-embedding-3-small (openai)           → 1536
+EMBEDDING_PROVIDER = config('EMBEDDING_PROVIDER', default='sentence_transformers')
+EMBEDDING_MODEL = config('EMBEDDING_MODEL', default='all-MiniLM-L6-v2')
+VECTOR_DIMENSION = config('VECTOR_DIMENSION', default=384, cast=int)
+
+# OpenAI / LLM Configuration
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
-EMBEDDING_MODEL = config('EMBEDDING_MODEL', default='text-embedding-3-small')
 LLM_MODEL = config('LLM_MODEL', default='gpt-4-turbo-preview')
 
 # RAG Configuration
@@ -196,6 +207,18 @@ RAG_CONTEXT_MAX_TOKENS = 2000
 RATELIMIT_ENABLE = config('RATELIMIT_ENABLE', default=True, cast=bool)
 RAG_QUERY_RATE_LIMIT = config('RAG_QUERY_RATE_LIMIT', default='10/m')
 DOCUMENT_UPLOAD_RATE_LIMIT = config('DOCUMENT_UPLOAD_RATE_LIMIT', default='20/h')
+
+# Frontend URL (used in emails)
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+
+# Email — in dev print to console; set SMTP vars in .env for prod
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@kodezera.com')
 
 # Logging
 LOGGING = {

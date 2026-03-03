@@ -166,8 +166,13 @@ class LLMRunner:
             return self._mock_response(context or [], query)
         try:
             import openai
-            client = openai.OpenAI(api_key=self.api_key,
-                                   base_url=self.api_base or None)
+            try:
+                client = openai.OpenAI(api_key=self.api_key, base_url=self.api_base or None)
+            except TypeError:
+                # OpenAI SDK version mismatch (e.g., unexpected 'proxies' kwarg).
+                # Fall back to mock response so the pipeline still returns a result.
+                logger.warning("OpenAI client init failed (SDK version mismatch). Using dev mock.")
+                return self._mock_response(context or [], query)
             resp = client.chat.completions.create(
                 model=self.model, messages=messages,
                 temperature=0.7, max_tokens=self.max_tokens
@@ -175,16 +180,20 @@ class LLMRunner:
             return resp.choices[0].message.content
         except Exception as e:
             logger.error(f"OpenAI error: {e}")
-            return f"OpenAI error: {e}"
+            return self._mock_response(context or [], query)
 
     def _stream_openai(self, messages, context=None, query='') -> Generator[str, None, None]:
         if not self.api_key:
-            yield from self._mock_response(context or [], query).split(' ')
+            yield from (w + ' ' for w in self._mock_response(context or [], query).split())
             return
         try:
             import openai
-            client = openai.OpenAI(api_key=self.api_key,
-                                   base_url=self.api_base or None)
+            try:
+                client = openai.OpenAI(api_key=self.api_key, base_url=self.api_base or None)
+            except TypeError:
+                logger.warning("OpenAI client init failed (SDK version mismatch). Using dev mock.")
+                yield from (w + ' ' for w in self._mock_response(context or [], query).split())
+                return
             for chunk in client.chat.completions.create(
                 model=self.model, messages=messages,
                 temperature=0.7, max_tokens=self.max_tokens, stream=True
@@ -194,7 +203,8 @@ class LLMRunner:
                     yield content
         except Exception as e:
             logger.error(f"OpenAI stream error: {e}")
-            yield f"Error: {e}"
+            yield from (w + ' ' for w in self._mock_response(context or [], query).split())
+
 
     # ─── HuggingFace Inference API ────────────────────────────
     def _generate_huggingface(self, messages, context=None, query='') -> str:

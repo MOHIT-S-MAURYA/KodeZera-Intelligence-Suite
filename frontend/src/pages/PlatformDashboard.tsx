@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Crown, Building2, Users, Activity, Database, Shield, TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -9,6 +10,7 @@ import type { PlatformOverview, TenantsListResponse, SystemHealth } from '../ser
 
 export const PlatformDashboard: React.FC = () => {
     const { user } = useAuthStore();
+    const navigate = useNavigate();
     const [overview, setOverview] = useState<PlatformOverview | null>(null);
     const [tenants, setTenants] = useState<TenantsListResponse | null>(null);
     const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
@@ -115,7 +117,7 @@ export const PlatformDashboard: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <Button variant="primary">
+                <Button variant="primary" onClick={() => navigate('/platform/tenants')}>
                     <Building2 className="w-5 h-5 mr-2" />
                     Create Tenant
                 </Button>
@@ -250,7 +252,7 @@ export const PlatformDashboard: React.FC = () => {
                                         <div>
                                             <p className="font-medium text-gray-900">{tenant.name}</p>
                                             <p className="text-sm text-gray-500">
-                                                {tenant.users_count} users • {tenant.documents_count} docs • {tenant.plan}
+                                                {tenant.users_count} users • {tenant.documents_count} docs
                                             </p>
                                         </div>
                                     </div>

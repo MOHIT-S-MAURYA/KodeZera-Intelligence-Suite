@@ -1,74 +1,152 @@
 """
 Qdrant vector database service.
-Automatically falls back to an in-memory Qdrant instance if the server is unavailable.
+
+Connection priority:
+  1. Local persistent path  (QDRANT_LOCAL_PATH in settings) — no server, data persists
+  2. Remote Qdrant server   (QDRANT_URL / QDRANT_API_KEY in settings)
+  3. In-memory              — last resort dev fallback (data lost on restart)
+
+A module-level singleton (_QDRANT_CLIENT) is used so the entire Python process
+shares one QdrantClient. This is critical for local-path mode: qdrant-client
+uses exclusive file locking — two clients pointing at the same directory crash.
+
+Vector dimension is read from settings.VECTOR_DIMENSION so it automatically
+adapts to whatever embedding provider is configured:
+  SentenceTransformers all-MiniLM-L6-v2 → 384  (default)
+  OpenAI text-embedding-3-small           → 1536
 """
+import os
 import uuid
-import random
+import threading
 from typing import List, Dict, Any
+
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, MatchAny
+from qdrant_client.models import (
+    Distance, VectorParams, PointStruct,
+    Filter, FieldCondition, MatchValue, MatchAny,
+)
 from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Embed dimension used across the whole app
-VECTOR_DIMENSION = 1536  # OpenAI text-embedding-3-small / text-embedding-ada-002
+# Module-level singleton — shared by all VectorStoreService instances in this process.
+_QDRANT_CLIENT: QdrantClient | None = None
+_CLIENT_LOCK = threading.Lock()
+
+
+def _get_vector_dimension() -> int:
+    """Read the configured vector dimension from settings."""
+    return getattr(settings, 'VECTOR_DIMENSION', 384)
 
 
 def _create_client() -> QdrantClient:
     """
-    Try to connect to the configured Qdrant server.
-    If it is unreachable (e.g. in local dev without Docker), fall back
-    to an in-memory Qdrant instance so the rest of the app remains functional.
+    Return the process-wide singleton QdrantClient.
+
+    Priority:
+      1. Local persistent path  (QDRANT_LOCAL_PATH set and non-empty)
+      2. Remote Qdrant server   (QDRANT_URL set)
+      3. In-memory              (fallback — warns the user)
     """
-    qdrant_url = getattr(settings, 'QDRANT_URL', 'http://localhost:6333')
-    qdrant_key = getattr(settings, 'QDRANT_API_KEY', '') or None  # empty string → None
+    global _QDRANT_CLIENT
 
-    # First try the real server
-    try:
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_key, timeout=3)
-        client.get_collections()  # health-check
-        logger.info(f"Connected to Qdrant server at {qdrant_url}")
+    # Double-checked locking for thread safety
+    if _QDRANT_CLIENT is not None:
+        return _QDRANT_CLIENT
+
+    with _CLIENT_LOCK:
+        if _QDRANT_CLIENT is not None:
+            return _QDRANT_CLIENT
+
+        local_path: str = getattr(settings, 'QDRANT_LOCAL_PATH', '').strip()
+        qdrant_url: str = getattr(settings, 'QDRANT_URL', 'http://localhost:6333')
+        qdrant_key = (getattr(settings, 'QDRANT_API_KEY', '') or '').strip() or None
+
+        # ── 1. Local persistent path ──────────────────────────────────────────
+        if local_path:
+            os.makedirs(local_path, exist_ok=True)
+            client = QdrantClient(path=local_path)
+            logger.info(f"Qdrant: using local persistent store at '{local_path}'")
+            _QDRANT_CLIENT = client
+            return client
+
+        # ── 2. Remote Qdrant server ───────────────────────────────────────────
+        try:
+            client = QdrantClient(url=qdrant_url, api_key=qdrant_key, timeout=5)
+            client.get_collections()          # quick health-check
+            logger.info(f"Qdrant: connected to remote server at {qdrant_url}")
+            _QDRANT_CLIENT = client
+            return client
+        except Exception as e:
+            logger.warning(
+                f"Qdrant server at {qdrant_url} is unreachable ({type(e).__name__}: {e}). "
+                "Falling back to in-memory Qdrant — data will NOT persist across restarts. "
+                "Set QDRANT_LOCAL_PATH=qdrant_data in .env to enable persistence."
+            )
+
+        # ── 3. In-memory fallback ─────────────────────────────────────────────
+        client = QdrantClient(location=":memory:")
+        logger.info("Qdrant: using in-memory store (dev fallback).")
+        _QDRANT_CLIENT = client
         return client
-    except Exception as e:
-        logger.warning(
-            f"Qdrant server at {qdrant_url} is unreachable ({e}). "
-            "Falling back to in-memory Qdrant (data will NOT persist across restarts)."
-        )
-
-    # Fall back to in-memory mode
-    client = QdrantClient(location=":memory:")
-    logger.info("Using in-memory Qdrant (dev mode).")
-    return client
 
 
 class VectorStoreService:
-    """Service for interacting with Qdrant vector database."""
+    """
+    Service for interacting with Qdrant vector database.
+
+    All instances in the same Python process share the same underlying
+    QdrantClient singleton (_QDRANT_CLIENT), which is required for local-path
+    mode where file-level locking is used by the qdrant-client library.
+    """
 
     def __init__(self):
-        """Initialize Qdrant client with automatic fallback to in-memory."""
         self.client = _create_client()
         self.collection_name = getattr(settings, 'QDRANT_COLLECTION_NAME', 'kodezera_documents')
+        self._dim = _get_vector_dimension()
         self._ensure_collection()
 
-    def _ensure_collection(self):
-        """Ensure collection exists, create if not."""
-        try:
-            collections = self.client.get_collections().collections
-            collection_names = [c.name for c in collections]
+    # ── Collection management ─────────────────────────────────────────────────
 
-            if self.collection_name not in collection_names:
+    def _ensure_collection(self):
+        """Create the collection if it does not already exist."""
+        try:
+            existing = {c.name for c in self.client.get_collections().collections}
+            if self.collection_name not in existing:
                 self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=VectorParams(
-                        size=VECTOR_DIMENSION,
-                        distance=Distance.COSINE
-                    )
+                        size=self._dim,
+                        distance=Distance.COSINE,
+                    ),
                 )
-                logger.info(f"Created Qdrant collection: {self.collection_name}")
+                logger.info(
+                    f"Qdrant: created collection '{self.collection_name}' "
+                    f"(dim={self._dim}, COSINE)"
+                )
+            else:
+                logger.debug(f"Qdrant: collection '{self.collection_name}' already exists.")
         except Exception as e:
-            logger.error(f"Error ensuring collection: {e}")
+            logger.error(f"Qdrant: error ensuring collection: {e}")
+
+    def recreate_collection(self):
+        """
+        Drop and recreate the collection.
+        Use when the vector dimension changes (e.g. switching embedding model).
+        This will delete ALL stored vectors — be careful!
+        """
+        try:
+            existing = {c.name for c in self.client.get_collections().collections}
+            if self.collection_name in existing:
+                self.client.delete_collection(self.collection_name)
+                logger.info(f"Qdrant: dropped collection '{self.collection_name}'.")
+            self._ensure_collection()
+        except Exception as e:
+            logger.error(f"Qdrant: error recreating collection: {e}")
+            raise
+
+    # ── Write ─────────────────────────────────────────────────────────────────
 
     def store_embeddings(
         self,
@@ -76,86 +154,90 @@ class VectorStoreService:
         tenant_id: uuid.UUID,
         department_id: uuid.UUID,
         classification_level: int,
-        chunks: List[Dict[str, Any]]
+        chunks: List[Dict[str, Any]],
     ) -> List[str]:
         """
-        Store document embeddings in Qdrant with metadata.
+        Store document embedding chunks in Qdrant.
 
-        Args:
-            document_id: UUID of document
-            tenant_id: UUID of tenant
-            department_id: UUID of department (can be None)
-            classification_level: Classification level (0-5)
-            chunks: List of dicts with 'text', 'embedding', 'chunk_index'
+        Each *chunk* dict must contain:
+            - 'text'        : str — source text (stored as payload preview)
+            - 'embedding'   : List[float] — must be length VECTOR_DIMENSION
+            - 'chunk_index' : int
 
         Returns:
-            List of vector IDs created
+            List of vector IDs (one per chunk).
         """
-        points = []
-        vector_ids = []
+        if not chunks:
+            return []
+
+        points: List[PointStruct] = []
+        vector_ids: List[str] = []
 
         for chunk in chunks:
+            embedding = chunk['embedding']
+
+            # Guard: skip chunks whose embedding dimension doesn't match the collection.
+            if len(embedding) != self._dim:
+                logger.error(
+                    f"Chunk {chunk.get('chunk_index')} has dim={len(embedding)}, "
+                    f"collection expects dim={self._dim}. Skipping."
+                )
+                continue
+
             vector_id = str(uuid.uuid4())
             vector_ids.append(vector_id)
-
-            point = PointStruct(
-                id=vector_id,
-                vector=chunk['embedding'],
-                payload={
-                    'tenant_id': str(tenant_id),
-                    'document_id': str(document_id),
-                    'department_id': str(department_id) if department_id else None,
-                    'classification_level': classification_level,
-                    'chunk_index': chunk['chunk_index'],
-                    'text': chunk['text'][:1000],  # Store preview
-                }
+            points.append(
+                PointStruct(
+                    id=vector_id,
+                    vector=embedding,
+                    payload={
+                        'tenant_id': str(tenant_id),
+                        'document_id': str(document_id),
+                        'department_id': str(department_id) if department_id else None,
+                        'classification_level': classification_level,
+                        'chunk_index': chunk['chunk_index'],
+                        'text': chunk['text'][:1000],
+                    },
+                )
             )
-            points.append(point)
+
+        if not points:
+            return []
 
         try:
-            self.client.upsert(
-                collection_name=self.collection_name,
-                points=points
-            )
-            logger.info(f"Stored {len(points)} vectors for document {document_id}")
-            return vector_ids
+            self.client.upsert(collection_name=self.collection_name, points=points)
+            logger.info(f"Qdrant: stored {len(points)} vectors for document {document_id}")
         except Exception as e:
-            logger.error(f"Error storing embeddings: {e}")
+            logger.error(f"Qdrant: error storing embeddings for {document_id}: {e}")
             raise
+
+        return vector_ids
+
+    # ── Read ──────────────────────────────────────────────────────────────────
 
     def search_vectors(
         self,
         query_embedding: List[float],
         tenant_id: uuid.UUID,
         document_ids: List[uuid.UUID],
-        top_k: int = 5
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """
-        Search vectors with mandatory filtering by tenant and documents.
-
-        Args:
-            query_embedding: Query vector
-            tenant_id: UUID of tenant (MANDATORY)
-            document_ids: List of accessible document UUIDs (MANDATORY)
-            top_k: Number of results to return
+        Semantic similarity search with mandatory tenant + document-level filters.
 
         Returns:
-            List of search results with text and metadata
+            List of {text, document_id, chunk_index, score} dicts.
         """
         if not document_ids:
             return []
 
-        # Build filter - MANDATORY tenant and document filtering
         search_filter = Filter(
             must=[
-                FieldCondition(
-                    key="tenant_id",
-                    match=MatchValue(value=str(tenant_id))
-                ),
+                FieldCondition(key="tenant_id", match=MatchValue(value=str(tenant_id))),
                 FieldCondition(
                     key="document_id",
-                    match=MatchAny(any=[str(doc_id) for doc_id in document_ids])
-                )
+                    match=MatchAny(any=[str(d) for d in document_ids]),
+                ),
             ]
         )
 
@@ -164,9 +246,9 @@ class VectorStoreService:
                 collection_name=self.collection_name,
                 query_vector=query_embedding,
                 query_filter=search_filter,
-                limit=top_k
+                limit=top_k,
+                with_payload=True,
             )
-
             return [
                 {
                     'text': hit.payload.get('text', ''),
@@ -177,17 +259,50 @@ class VectorStoreService:
                 for hit in results
             ]
         except Exception as e:
-            logger.error(f"Error searching vectors: {e}")
+            logger.error(f"Qdrant: vector search error: {e}")
             from apps.core.exceptions import VectorSearchError
-            raise VectorSearchError(f"Vector search failed: {str(e)}")
+            raise VectorSearchError(f"Vector search failed: {e}")
+
+    def get_chunks_by_index(
+        self,
+        document_id: str,
+        chunk_indices: List[int],
+    ) -> List[Dict[str, Any]]:
+        """Fetch specific chunks by index for context-window expansion (no ANN search)."""
+        if not chunk_indices:
+            return []
+
+        scroll_filter = Filter(
+            must=[
+                FieldCondition(key="document_id", match=MatchValue(value=str(document_id))),
+                FieldCondition(key="chunk_index", match=MatchAny(any=chunk_indices)),
+            ]
+        )
+
+        try:
+            records, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=scroll_filter,
+                limit=len(chunk_indices),
+                with_payload=True,
+                with_vectors=False,
+            )
+            return [
+                {
+                    'text': r.payload.get('text', ''),
+                    'document_id': r.payload.get('document_id'),
+                    'chunk_index': r.payload.get('chunk_index'),
+                }
+                for r in records
+            ]
+        except Exception as e:
+            logger.error(f"Qdrant: error fetching chunks by index: {e}")
+            return []
+
+    # ── Delete ────────────────────────────────────────────────────────────────
 
     def delete_document_vectors(self, document_id: uuid.UUID):
-        """
-        Delete all vectors for a document.
-
-        Args:
-            document_id: UUID of document
-        """
+        """Delete all stored vectors for a given document."""
         try:
             self.client.delete(
                 collection_name=self.collection_name,
@@ -195,64 +310,27 @@ class VectorStoreService:
                     must=[
                         FieldCondition(
                             key="document_id",
-                            match=MatchValue(value=str(document_id))
+                            match=MatchValue(value=str(document_id)),
                         )
                     ]
-                )
-            )
-            logger.info(f"Deleted vectors for document {document_id}")
-        except Exception as e:
-            logger.error(f"Error deleting vectors: {e}")
-
-    def get_chunks_by_index(
-        self,
-        document_id: str,
-        chunk_indices: List[int]
-    ) -> List[Dict[str, Any]]:
-        """
-        Fetch specific chunks for a document by their indices to build context windows.
-
-        Args:
-            document_id: UUID of document
-            chunk_indices: List of integer indices to fetch
-
-        Returns:
-            List of chunk contents
-        """
-        if not chunk_indices:
-            return []
-
-        search_filter = Filter(
-            must=[
-                FieldCondition(
-                    key="document_id",
-                    match=MatchValue(value=str(document_id))
                 ),
-                FieldCondition(
-                    key="chunk_index",
-                    match=MatchAny(any=chunk_indices)
-                )
-            ]
-        )
-
-        try:
-            # We use scroll since we know exactly which metadata we want, no vector search needed
-            records, _ = self.client.scroll(
-                collection_name=self.collection_name,
-                scroll_filter=search_filter,
-                limit=len(chunk_indices),
-                with_payload=True,
-                with_vectors=False
             )
-
-            return [
-                {
-                    'text': record.payload.get('text', ''),
-                    'document_id': record.payload.get('document_id'),
-                    'chunk_index': record.payload.get('chunk_index'),
-                }
-                for record in records
-            ]
+            logger.info(f"Qdrant: deleted vectors for document {document_id}")
         except Exception as e:
-            logger.error(f"Error fetching specific chunks: {e}")
-            return []
+            logger.error(f"Qdrant: error deleting vectors for {document_id}: {e}")
+
+    # ── Health ────────────────────────────────────────────────────────────────
+
+    def get_collection_info(self) -> Dict[str, Any]:
+        """Return basic stats about the collection (useful for health checks)."""
+        try:
+            info = self.client.get_collection(self.collection_name)
+            return {
+                'name': self.collection_name,
+                'vector_dim': self._dim,
+                'points_count': info.points_count,
+                'indexed_vectors': info.indexed_vectors_count,
+                'status': str(info.status),
+            }
+        except Exception as e:
+            return {'error': str(e)}

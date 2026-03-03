@@ -57,6 +57,14 @@ def process_document_task(self, document_id: str):
             chunk['embedding'] = embeddings[i]
         
         # Step 4: Store in Qdrant
+        # First, clean up any old vectors for this document (safe re-processing)
+        try:
+            from apps.rag.models import VectorChunk
+            VectorChunk.objects.filter(document=document).delete()
+            vector_store.delete_document_vectors(document.id)
+        except Exception as clean_err:
+            logger.warning(f"Could not clean up old vectors for {document_id}: {clean_err}")
+
         vector_ids = vector_store.store_embeddings(
             document_id=document.id,
             tenant_id=document.tenant.id,

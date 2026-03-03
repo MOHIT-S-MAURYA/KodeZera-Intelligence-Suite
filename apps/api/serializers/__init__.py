@@ -13,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'department', 'is_tenant_admin', 'is_active', 'created_at']
+                  'department', 'is_tenant_admin', 'is_active', 'created_at', 'profile_metadata']
         read_only_fields = ['id', 'created_at']
 
 
@@ -368,3 +368,22 @@ class RolePermissionSerializer(serializers.ModelSerializer):
         model = RolePermission
         fields = ['id', 'role', 'permission', 'permission_name', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+from apps.core.models import SupportTicket
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    """Serializer for SupportTicket model."""
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
+
+    class Meta:
+        model = SupportTicket
+        fields = [
+            'id', 'subject', 'description', 
+            'tenant', 'tenant_name', 
+            'created_by', 'created_by_name', 
+            'priority', 'status', 
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'tenant', 'created_by', 'created_at', 'updated_at']

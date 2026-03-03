@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
@@ -43,30 +44,34 @@ export const Modal: React.FC<ModalProps> = ({
         xl: 'max-w-4xl',
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    // Render via portal so the modal always attaches to document.body,
+    // completely escaping any overflow / transform stacking contexts in the layout.
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[5vh] px-4 pb-8 animate-fade-in">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 glass-dark"
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                 onClick={onClose}
             />
 
-            {/* Modal */}
+            {/* Modal panel — solid white, centred, scrollable if content is tall */}
             <div
                 className={clsx(
-                    'relative w-full glass rounded-2xl shadow-2xl animate-scale-in',
+                    'relative w-full bg-white rounded-2xl shadow-2xl animate-scale-in',
+                    'max-h-[90vh] overflow-y-auto',
                     sizeStyles[size]
                 )}
             >
                 {/* Header */}
                 {title && (
-                    <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                        <h2 className="text-title-lg font-semibold text-gray-900">{title}</h2>
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
                         <button
                             onClick={onClose}
-                            className="text-gray-400 hover:text-gray-600 transition-colors"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                            aria-label="Close"
                         >
-                            <X className="w-6 h-6" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
                 )}
@@ -76,6 +81,7 @@ export const Modal: React.FC<ModalProps> = ({
                     {children}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

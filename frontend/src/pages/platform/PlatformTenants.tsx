@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Building2, Plus, Search, MoreVertical, Users, FileText, CreditCard, AlertCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Building2, Plus, Search, MoreVertical, Users, FileText,
+    AlertCircle, Eye, Pencil, Trash2, Copy, CheckCircle2
+} from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -12,8 +15,15 @@ interface CreateTenantForm {
     name: string;
     slug: string;
     admin_email: string;
-    plan: string;
     is_active: boolean;
+}
+
+interface CredentialResult {
+    tenantName: string;
+    username: string;
+    email: string;
+    temporary_password: string;
+    email_sent: boolean;
 }
 
 export const PlatformTenants: React.FC = () => {
@@ -23,15 +33,27 @@ export const PlatformTenants: React.FC = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [creating, setCreating] = useState(false);
     const [formData, setFormData] = useState<CreateTenantForm>({
-        name: '',
-        slug: '',
-        admin_email: '',
-        plan: 'basic',
-        is_active: true,
+        name: '', slug: '', admin_email: '', is_active: true,
     });
+    const [formError, setFormError] = useState<string | null>(null);
 
+    // Credentials modal state (shown after successful creation)
+    const [credentials, setCredentials] = useState<CredentialResult | null>(null);
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+
+    // Action menu state
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Close action menu on outside click
     useEffect(() => {
-        loadTenants();
+        const handler = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setOpenMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
     }, []);
 
     const loadTenants = async () => {
@@ -45,37 +67,25 @@ export const PlatformTenants: React.FC = () => {
         }
     };
 
+    useEffect(() => { loadTenants(); }, []);
+
     const handleOpenModal = () => {
-        setFormData({
-            name: '',
-            slug: '',
-            admin_email: '',
-            plan: 'basic',
-            is_active: true,
-        });
+        setFormData({ name: '', slug: '', admin_email: '', is_active: true });
+        setFormError(null);
         setModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setModalOpen(false);
-        setFormData({
-            name: '',
-            slug: '',
-            admin_email: '',
-            plan: 'basic',
-            is_active: true,
-        });
+        setFormError(null);
     };
 
     const handleInputChange = (field: keyof CreateTenantForm, value: string | boolean) => {
         if (field === 'name' && typeof value === 'string') {
-            // Auto-generate slug from name
             const autoSlug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
             setFormData(prev => ({
-                ...prev,
-                name: value,
-                // Auto-update slug only if it's currently empty or was auto-generated
-                slug: prev.slug === '' ? autoSlug : prev.slug
+                ...prev, name: value,
+                slug: prev.slug === '' ? autoSlug : prev.slug,
             }));
         } else {
             setFormData(prev => ({ ...prev, [field]: value }));
@@ -84,73 +94,112 @@ export const PlatformTenants: React.FC = () => {
 
     const validateForm = (): string | null => {
         if (!formData.name.trim()) return 'Organization name is required';
+        if (formData.name.trim().length > 255) return 'Organization name must be 255 characters or fewer';
         if (!formData.slug.trim()) return 'Slug is required';
-        if (!/^[a-z0-9-]+$/.test(formData.slug)) return 'Slug must contain only lowercase letters, numbers, and hyphens';
+        if (formData.slug.length < 3) return 'Slug must be at least 3 characters';
+        if (formData.slug.length > 100) return 'Slug must be 100 characters or fewer';
+        if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(formData.slug))
+            return 'Slug must contain only lowercase letters, numbers, and hyphens; cannot start or end with a hyphen';
         if (!formData.admin_email.trim()) return 'Admin email is required';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.admin_email)) return 'Invalid email format';
-
-        // Check for duplicate slug
-        if (tenants.some(t => t.slug === formData.slug)) {
-            return 'A tenant with this slug already exists';
-        }
-
+        if (tenants.some(t => t.slug === formData.slug)) return 'A tenant with this slug already exists';
         return null;
     };
 
     const handleCreateTenant = async () => {
-        const error = validateForm();
-        if (error) {
-            alert(error);
-            return;
-        }
+        const err = validateForm();
+        if (err) { setFormError(err); return; }
 
         setCreating(true);
+        setFormError(null);
         try {
-            // TODO: Call backend API when endpoint is available
-            // await platformOwnerService.createTenant(formData);
-
-            // For now, add to local state
-            const newTenant: TenantListItem = {
-                id: `temp-${Date.now()}`,
+            const result = await platformOwnerService.createTenant({
                 name: formData.name,
                 slug: formData.slug,
-                is_active: formData.is_active,
-                created_at: new Date().toISOString(),
-                users_count: 0,
+                admin_email: formData.admin_email,
+            });
+
+            // Instant UI update — prepend the new tenant without a full reload
+            const newTenant: TenantListItem = {
+                id: result.id,
+                name: result.name,
+                slug: result.slug,
+                is_active: result.is_active,
+                created_at: result.created_at,
+                users_count: 1,
                 documents_count: 0,
-                plan: formData.plan,
-                subscription_status: 'active',
                 storage_used_bytes: 0,
                 queries_today: 0,
             };
+            setTenants(prev => [newTenant, ...prev]);
 
-            setTenants([newTenant, ...tenants]);
+            // Close form and show credentials modal
             handleCloseModal();
-
-            // Show success message
-            alert(`Tenant "${formData.name}" created successfully!`);
-        } catch (error) {
-            console.error('Failed to create tenant:', error);
-            alert('Failed to create tenant. Please try again.');
+            setCredentials({
+                tenantName: result.name,
+                username: result.admin_credentials!.username,
+                email: result.admin_credentials!.email,
+                temporary_password: result.admin_credentials!.temporary_password,
+                email_sent: result.email_sent ?? false,
+            });
+        } catch (error: any) {
+            const data = error?.response?.data;
+            // Backend returns either {error: 'string'} or {errors: {field: 'msg'}}
+            let msg = 'Failed to create tenant. Please try again.';
+            if (typeof data?.error === 'string') {
+                msg = data.error;
+            } else if (data?.errors && typeof data.errors === 'object') {
+                // Show the first field-level error message from the validation object
+                const firstMsg = Object.values(data.errors)[0];
+                if (typeof firstMsg === 'string') msg = firstMsg;
+            }
+            setFormError(msg);
         } finally {
             setCreating(false);
         }
     };
 
-    const filteredTenants = tenants.filter(tenant =>
-        tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.slug.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const copyToClipboard = async (text: string, field: string) => {
+        await navigator.clipboard.writeText(text);
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(null), 2000);
+    };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'active': return 'success';
-            case 'trial': return 'info';
-            case 'suspended': return 'warning';
-            case 'cancelled': return 'error';
-            default: return 'default';
+    // --- Action menu handlers ---
+    const handleViewTenant = (tenant: TenantListItem) => {
+        setOpenMenuId(null);
+        alert(`Tenant: ${tenant.name}\nSlug: ${tenant.slug}\nUsers: ${tenant.users_count}\nStatus: ${tenant.is_active ? 'Active' : 'Inactive'}`);
+    };
+
+    const handleToggleActive = async (tenant: TenantListItem) => {
+        setOpenMenuId(null);
+        const action = tenant.is_active ? 'deactivate' : 'activate';
+        if (!confirm(`Are you sure you want to ${action} "${tenant.name}"?`)) return;
+        try {
+            // PATCH is_active via the existing endpoint (extend if needed)
+            await platformOwnerService.updateTenant(tenant.id, { is_active: !tenant.is_active });
+            setTenants(prev => prev.map(t => t.id === tenant.id ? { ...t, is_active: !tenant.is_active } : t));
+        } catch (e: any) {
+            alert(e?.response?.data?.error || 'Failed to update tenant.');
         }
     };
+
+    const handleDeleteTenant = async (tenant: TenantListItem) => {
+        setOpenMenuId(null);
+        if (!confirm(`Are you sure you want to permanently delete "${tenant.name}"? This cannot be undone.`)) return;
+        try {
+            await platformOwnerService.deleteTenant(tenant.id);
+            setTenants(prev => prev.filter(t => t.id !== tenant.id));
+        } catch (e: any) {
+            alert(e?.response?.data?.error || 'Failed to delete tenant.');
+        }
+    };
+
+    const filteredTenants = tenants.filter(t =>
+        t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.slug.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
 
     return (
         <div className="space-y-6">
@@ -166,9 +215,16 @@ export const PlatformTenants: React.FC = () => {
                 </Button>
             </div>
 
-            {/* Create Tenant Modal */}
+            {/* ── Create Tenant Modal ── */}
             <Modal isOpen={modalOpen} onClose={handleCloseModal} title="Create New Tenant" size="lg">
                 <div className="space-y-4">
+                    {formError && (
+                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            {formError}
+                        </div>
+                    )}
+
                     <Input
                         label="Organization Name"
                         value={formData.name}
@@ -181,7 +237,7 @@ export const PlatformTenants: React.FC = () => {
                         <Input
                             label="Slug / Domain"
                             value={formData.slug}
-                            onChange={(e) => handleInputChange('slug', e.target.value)}
+                            onChange={(e) => handleInputChange('slug', e.target.value.toLowerCase())}
                             placeholder="organization-slug"
                             required
                         />
@@ -196,48 +252,73 @@ export const PlatformTenants: React.FC = () => {
                         placeholder="admin@example.com"
                         required
                     />
+                    <p className="text-xs text-gray-500 -mt-2">
+                        A temporary admin account will be created and credentials sent to this email.
+                    </p>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Subscription Plan
-                        </label>
-                        <select
-                            value={formData.plan}
-                            onChange={(e) => handleInputChange('plan', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                        >
-                            <option value="basic">Basic</option>
-                            <option value="pro">Pro</option>
-                            <option value="enterprise">Enterprise</option>
-                        </select>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id="is_active"
-                            checked={formData.is_active}
-                            onChange={(e) => handleInputChange('is_active', e.target.checked)}
-                            className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-2 focus:ring-brand-500"
-                        />
-                        <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
-                            Active (tenant can access the platform)
-                        </label>
-                    </div>
 
                     <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={handleCloseModal} disabled={creating}>
-                            Cancel
-                        </Button>
-                        <Button variant="primary" onClick={handleCreateTenant} loading={creating}>
-                            Create Tenant
-                        </Button>
+                        <Button variant="outline" onClick={handleCloseModal} disabled={creating}>Cancel</Button>
+                        <Button variant="primary" onClick={handleCreateTenant} loading={creating}>Create Tenant</Button>
                     </div>
                 </div>
             </Modal>
 
-            {/* Search and Filters */}
-            <Card>
+            {/* ── Credentials Modal (shown after successful creation) ── */}
+            < Modal
+                isOpen={!!credentials}
+                onClose={() => setCredentials(null)}
+                title="Tenant Created Successfully"
+            >
+                {credentials && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                            <div>
+                                <p className="font-medium">"{credentials.tenantName}" created!</p>
+                                <p className="text-xs mt-0.5">
+                                    {credentials.email_sent
+                                        ? 'Credentials have been emailed to the admin.'
+                                        : 'Email could not be sent — please share credentials manually.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <p className="text-sm text-gray-600">
+                            Please share these temporary credentials with the admin user. They should change the password on first login.
+                        </p>
+
+                        {[
+                            { label: 'Username', value: credentials.username, id: 'username' },
+                            { label: 'Email', value: credentials.email, id: 'email' },
+                            { label: 'Temporary Password', value: credentials.temporary_password, id: 'password' },
+                        ].map(({ label, value, id }) => (
+                            <div key={id}>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 px-3 py-2 bg-gray-100 rounded-lg text-sm font-mono text-gray-800">
+                                        {value}
+                                    </code>
+                                    <button
+                                        onClick={() => copyToClipboard(value, id)}
+                                        className="p-2 text-gray-500 hover:text-brand-600 transition-colors"
+                                        title="Copy"
+                                    >
+                                        {copiedField === id ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+
+                        <div className="flex justify-end pt-2">
+                            <Button variant="primary" onClick={() => setCredentials(null)}>Done</Button>
+                        </div>
+                    </div>
+                )}
+            </Modal >
+
+            {/* Search */}
+            < Card >
                 <div className="flex items-center gap-4">
                     <div className="flex-1 relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -246,82 +327,111 @@ export const PlatformTenants: React.FC = () => {
                             placeholder="Search tenants..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
                         />
                     </div>
                 </div>
-            </Card>
+            </Card >
 
             {/* Tenants List */}
-            {loading ? (
-                <Card>
-                    <div className="text-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto"></div>
-                        <p className="text-gray-600 mt-4">Loading tenants...</p>
+            {
+                loading ? (
+                    <Card>
+                        <div className="text-center py-12">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto" />
+                            <p className="text-gray-600 mt-4">Loading tenants...</p>
+                        </div>
+                    </Card>
+                ) : (
+                    <div className="grid gap-4" ref={menuRef}>
+                        {filteredTenants.map((tenant) => (
+                            <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0">
+                                            <Building2 className="w-6 h-6 text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900">{tenant.name}</h3>
+                                            <p className="text-sm text-gray-500">@{tenant.slug}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-center hidden sm:block">
+                                            <div className="flex items-center gap-1 text-gray-600">
+                                                <Users className="w-4 h-4" />
+                                                <span className="text-sm font-medium">{tenant.users_count}</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500">Users</p>
+                                        </div>
+
+                                        <div className="text-center hidden sm:block">
+                                            <div className="flex items-center gap-1 text-gray-600">
+                                                <FileText className="w-4 h-4" />
+                                                <span className="text-sm font-medium">{tenant.documents_count}</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500">Documents</p>
+                                        </div>
+
+                                        <Badge variant={tenant.is_active ? 'success' : 'default'}>
+                                            {tenant.is_active ? 'Active' : 'Inactive'}
+                                        </Badge>
+
+                                        {/* ── Action Menu ── */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenMenuId(openMenuId === tenant.id ? null : tenant.id);
+                                                }}
+                                                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                                aria-label="Actions"
+                                            >
+                                                <MoreVertical className="w-5 h-5" />
+                                            </button>
+
+                                            {openMenuId === tenant.id && (
+                                                <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                                                    <button
+                                                        onClick={() => handleViewTenant(tenant)}
+                                                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        <Eye className="w-4 h-4" /> View Details
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleActive(tenant)}
+                                                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                        {tenant.is_active ? 'Deactivate' : 'Activate'}
+                                                    </button>
+                                                    <hr className="my-1 border-gray-100" />
+                                                    <button
+                                                        onClick={() => handleDeleteTenant(tenant)}
+                                                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" /> Delete Tenant
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+
+                        {filteredTenants.length === 0 && (
+                            <Card>
+                                <div className="text-center py-12">
+                                    <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                    <p className="text-gray-600">No tenants found</p>
+                                </div>
+                            </Card>
+                        )}
                     </div>
-                </Card>
-            ) : (
-                <div className="grid gap-4">
-                    {filteredTenants.map((tenant) => (
-                        <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
-                                        <Building2 className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900">{tenant.name}</h3>
-                                        <p className="text-sm text-gray-500">@{tenant.slug}</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-6">
-                                    <div className="text-center">
-                                        <div className="flex items-center gap-1 text-gray-600">
-                                            <Users className="w-4 h-4" />
-                                            <span className="text-sm font-medium">{tenant.users_count}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500">Users</p>
-                                    </div>
-
-                                    <div className="text-center">
-                                        <div className="flex items-center gap-1 text-gray-600">
-                                            <FileText className="w-4 h-4" />
-                                            <span className="text-sm font-medium">{tenant.documents_count}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500">Documents</p>
-                                    </div>
-
-                                    <div className="text-center">
-                                        <div className="flex items-center gap-1 text-gray-600">
-                                            <CreditCard className="w-4 h-4" />
-                                            <span className="text-sm font-medium">{tenant.plan || 'No Plan'}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500">Plan</p>
-                                    </div>
-
-                                    <Badge variant={getStatusColor(tenant.subscription_status) as any}>
-                                        {tenant.subscription_status}
-                                    </Badge>
-
-                                    <button className="text-gray-400 hover:text-gray-600">
-                                        <MoreVertical className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
-                        </Card>
-                    ))}
-
-                    {filteredTenants.length === 0 && (
-                        <Card>
-                            <div className="text-center py-12">
-                                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-600">No tenants found</p>
-                            </div>
-                        </Card>
-                    )}
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };

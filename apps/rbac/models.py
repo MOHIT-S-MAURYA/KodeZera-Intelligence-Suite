@@ -172,3 +172,30 @@ class UserRole(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.role.name}"
+
+
+# ─── Signals: keep RBAC permission cache in sync ─────────────────────────────
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
+@receiver(post_save, sender=UserRole)
+@receiver(post_delete, sender=UserRole)
+def invalidate_user_rbac_cache(sender, instance, **kwargs):
+    """
+    Whenever a UserRole is created, updated or deleted, immediately bust the
+    cached role and permission lookups for that user so that the next request
+    returns fresh data and never serves stale permissions.
+    """
+    try:
+        from django.core.cache import cache
+        user_id = instance.user_id
+        # Role resolution cache
+        cache.delete(f"user:{user_id}:roles")
+        # Broad permission cache (delete all known permission patterns)
+        resource_types = ['document', 'role', 'user', 'department', 'audit_log', 'tenant']
+        actions = ['create', 'read', 'update', 'delete', 'manage', 'upload', 'download', 'share', 'query']
+        for rt in resource_types:
+            for ac in actions:
+                cache.delete(f"user:{user_id}:perm:{rt}:{ac}")
+    except Exception:
+        pass  # Never let a cache error break a DB write

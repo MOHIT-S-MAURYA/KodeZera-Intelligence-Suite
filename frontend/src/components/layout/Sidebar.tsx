@@ -10,7 +10,6 @@ import {
     FileSearch,
     X,
     Crown,
-    CreditCard,
     BarChart3,
     ShieldAlert,
     Brain,
@@ -41,7 +40,6 @@ const tenantNavItems: NavItem[] = [
 const platformOwnerNavItems: NavItem[] = [
     { name: 'Dashboard', path: '/platform', icon: <Crown className="w-5 h-5" /> },
     { name: 'Tenants', path: '/platform/tenants', icon: <Building2 className="w-5 h-5" /> },
-    { name: 'Subscriptions', path: '/platform/subscriptions', icon: <CreditCard className="w-5 h-5" /> },
     { name: 'Usage Analytics', path: '/platform/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Security', path: '/platform/security', icon: <ShieldAlert className="w-5 h-5" /> },
     { name: 'AI Configuration', path: '/platform/ai-config', icon: <Brain className="w-5 h-5" /> },
