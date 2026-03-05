@@ -5,6 +5,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { auditLogService, AUDIT_ACTIONS } from '../services/auditlog.service';
+import { getApiError } from '../utils/errors';
 import type { AuditLogEntry, AuditLogFilters, AuditAction } from '../services/auditlog.service';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,8 +69,8 @@ export const AuditLogs: React.FC = () => {
             if (dateTo)   filters.date_to   = dateTo;
             const data = await auditLogService.getAll(filters);
             setLogs(data);
-        } catch {
-            setError('Failed to load audit logs. Check your connection and try again.');
+        } catch (err) {
+            setError(getApiError(err, 'Failed to load audit logs. Check your connection and try again.'));
         } finally {
             setLoading(false);
         }

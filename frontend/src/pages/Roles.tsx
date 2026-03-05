@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { roleService } from '../services/role.service';
+import { getApiError } from '../utils/errors';
 import type {
     RoleRecord,
     CreateRolePayload,
@@ -63,8 +64,8 @@ export const Roles: React.FC = () => {
         try {
             const data = await roleService.getAll();
             setRoles(data);
-        } catch {
-            setError('Failed to load roles. Check your connection and try again.');
+        } catch (err) {
+            setError(getApiError(err, 'Failed to load roles. Check your connection and try again.'));
         } finally {
             setLoading(false);
         }

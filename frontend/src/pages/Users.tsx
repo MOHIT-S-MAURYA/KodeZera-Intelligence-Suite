@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { useAuthStore } from '../store/auth.store';
 import { userService } from '../services/user.service';
+import { getApiError } from '../utils/errors';
 import type { UserRecord, CreateUserPayload, UpdateUserPayload } from '../services/user.service';
 import api from '../services/api';
 
@@ -74,8 +75,8 @@ export const Users: React.FC = () => {
             setRoles((rd as { results?: RoleOption[] }).results ?? (rd as RoleOption[]));
             const dd = deptsRes.data as { results?: DeptOption[] } | DeptOption[];
             setDepartments((dd as { results?: DeptOption[] }).results ?? (dd as DeptOption[]));
-        } catch {
-            setError('Failed to load users. Please try again.');
+        } catch (err) {
+            setError(getApiError(err, 'Failed to load users. Please try again.'));
         } finally {
             setLoading(false);
         }

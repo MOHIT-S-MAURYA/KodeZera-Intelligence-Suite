@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { departmentService } from '../services/department.service';
+import { getApiError } from '../utils/errors';
 import type {
     DepartmentRecord,
     CreateDepartmentPayload,
@@ -69,8 +70,8 @@ export const Departments: React.FC = () => {
         try {
             const data = await departmentService.getAll();
             setDepartments(data);
-        } catch {
-            setError('Failed to load departments. Please try again.');
+        } catch (err) {
+            setError(getApiError(err, 'Failed to load departments. Please try again.'));
         } finally {
             setLoading(false);
         }
