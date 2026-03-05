@@ -50,10 +50,14 @@ const platformOwnerNavItems: NavItem[] = [
 
 export const Sidebar: React.FC = () => {
     const { sidebarOpen, setSidebarOpen } = useUIStore();
-    const { isPlatformOwner } = useAuthStore();
+    const { isPlatformOwner, user } = useAuthStore();
 
-    // Determine which navigation items to show
-    const navItems = isPlatformOwner ? platformOwnerNavItems : tenantNavItems;
+    // Determine which navigation items to show;
+    // for tenant users filter out adminOnly items unless the user is a tenant admin.
+    const allItems = isPlatformOwner ? platformOwnerNavItems : tenantNavItems;
+    const navItems = isPlatformOwner
+        ? allItems
+        : allItems.filter(item => !item.adminOnly || !!user?.is_tenant_admin);
 
     return (
         <>
@@ -73,13 +77,20 @@ export const Sidebar: React.FC = () => {
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                 )}
             >
-                {/* Mobile close button */}
-                <div className="lg:hidden flex justify-end p-4">
+                {/* Brand header — visible on all screen sizes */}
+                <div className="flex items-center justify-between px-5 h-16 flex-shrink-0 border-b border-gray-800">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg gradient-primary flex-shrink-0 flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">K</span>
+                        </div>
+                        <span className="text-white font-semibold text-sm truncate">Kodezera</span>
+                    </div>
                     <button
                         onClick={() => setSidebarOpen(false)}
-                        className="text-gray-400 hover:text-white"
+                        className="lg:hidden text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                        aria-label="Close sidebar"
                     >
-                        <X className="w-6 h-6" />
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
