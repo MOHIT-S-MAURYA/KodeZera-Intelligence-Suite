@@ -2,12 +2,14 @@
 Document management views.
 """
 import os
+import mimetypes
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
+from django.http import FileResponse, Http404
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 from apps.documents.models import Document, DocumentAccess
@@ -112,6 +114,36 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         return file_path
     
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """
+        Serve the original file as a download.
+        GET /api/v1/documents/{id}/download/
+        Access is already enforced by get_queryset (only accessible documents
+        are visible to the user), so a 404 here means either the document
+        doesn't exist or the user doesn't have permission.
+        """
+        document = self.get_object()  # raises 404 if not accessible
+
+        if not document.file_path or not os.path.exists(document.file_path):
+            raise Http404('File not found on server.')
+
+        # Determine MIME type from extension, fall back to octet-stream
+        mime_type, _ = mimetypes.guess_type(document.file_path)
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+
+        # Build a safe filename: use document title + original extension
+        ext = os.path.splitext(document.file_path)[1]
+        safe_title = "".join(c if c.isalnum() or c in ' ._-' else '_' for c in document.title)
+        download_filename = f"{safe_title}{ext}"
+
+        file_handle = open(document.file_path, 'rb')
+        response = FileResponse(file_handle, content_type=mime_type)
+        response['Content-Disposition'] = f'attachment; filename="{download_filename}"'
+        response['Content-Length'] = os.path.getsize(document.file_path)
+        return response
+
     def destroy(self, request, *args, **kwargs):
         """Delete document and its embeddings."""
         document = self.get_object()

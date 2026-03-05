@@ -10,7 +10,7 @@
  *      • Custom <Modal> for delete confirmation
  *  - Added loading skeleton while fetching documents
  *  - Added proper empty-state UI (icon + message) for zero documents
- *  - Download button is disabled with a tooltip until the backend endpoint exists
+ *  - Download button calls GET /api/v1/documents/{id}/download/ and triggers a browser save
  *  - Success toast on successful upload
  */
 
@@ -180,6 +180,17 @@ export const Documents: React.FC = () => {
             addToast('error', 'Failed to upload document. Please try again.');
         } finally {
             setIsUploading(false);
+        }
+    };
+
+    // ── Download ──────────────────────────────────────────────────────────
+    const handleDownload = async (doc: Document) => {
+        try {
+            const ext = doc.file_type || '';
+            const filename = doc.title.endsWith(ext) ? doc.title : `${doc.title}${ext}`;
+            await documentService.downloadDocument(doc.id, filename);
+        } catch {
+            addToast('error', 'Failed to download document. Please try again.');
         }
     };
 
@@ -356,11 +367,11 @@ export const Documents: React.FC = () => {
                                                     >
                                                         <Eye className="w-4 h-4" />
                                                     </button>
-                                                    {/* Download — disabled until backend endpoint is implemented */}
+                                                    {/* Download */}
                                                     <button
-                                                        title="Download coming soon"
-                                                        disabled
-                                                        className="p-1.5 text-gray-300 cursor-not-allowed rounded"
+                                                        title="Download document"
+                                                        className="p-1.5 text-gray-500 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors"
+                                                        onClick={() => handleDownload(doc)}
                                                     >
                                                         <Download className="w-4 h-4" />
                                                     </button>

@@ -26,6 +26,20 @@ export const documentService = {
         await api.delete(`/documents/${id}/`);
     },
 
+    downloadDocument: async (id: number, filename: string): Promise<void> => {
+        const response = await api.get(`/documents/${id}/download/`, {
+            responseType: 'blob',
+        });
+        const url = URL.createObjectURL(response.data as Blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+
     uploadDocument: async (
         file: File,
         title: string,
