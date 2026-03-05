@@ -440,6 +440,7 @@ class AIProviderConfig(models.Model):
         ('huggingface',  'HuggingFace Inference API'),
         ('anthropic',    'Anthropic'),
         ('ollama',       'Ollama (Local)'),
+        ('local',        'Local Transformers (No API key)'),
     ]
 
     EMBEDDING_PROVIDERS = [

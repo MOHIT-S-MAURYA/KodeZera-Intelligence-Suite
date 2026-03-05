@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
-    Building2, Plus, Search, MoreVertical, Users, FileText,
+    Plus, Search, MoreVertical, Users, FileText,
     AlertCircle, Eye, Power, PowerOff, Trash2, Copy, CheckCircle2,
     Calendar, X, TriangleAlert,
 } from 'lucide-react';

@@ -199,7 +199,7 @@ interface CreateTicketProps {
     onCreated: (ticket: Ticket) => void;
 }
 
-const CreateTicketPanel: React.FC<CreateTicketProps> = ({ user, onClose, onCreated }) => {
+const CreateTicketPanel: React.FC<CreateTicketProps> = ({ onClose, onCreated }) => {
     const [form, setForm] = useState({
         subject: '', description: '', priority: 'medium', category: 'bug',
     });
@@ -507,7 +507,7 @@ export const PlatformSupport: React.FC = () => {
                                 <div className="flex items-start gap-4">
                                     {/* Status dot */}
                                     <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${ticket.status === 'resolved' ? 'bg-green-500' :
-                                            ticket.status === 'in_progress' ? 'bg-amber-500' : 'bg-red-500'
+                                        ticket.status === 'in_progress' ? 'bg-amber-500' : 'bg-red-500'
                                         }`} />
 
                                     <div className="flex-1 min-w-0">

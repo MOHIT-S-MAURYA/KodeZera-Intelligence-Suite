@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Django
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+*.log
+local_settings.py
+
+# Frontend build artifacts (built inside Docker from source)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Qdrant local data (vector embeddings — large, tenant-specific)
+qdrant_data/
+
+# Design files
+design/
+
+# Scripts
+scripts/
+
+# Documentation
+*.md
+!README.md

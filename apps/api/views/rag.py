@@ -9,7 +9,12 @@ from django.conf import settings
 from django_ratelimit.decorators import ratelimit
 from apps.rag.services.rag_query import RAGQueryService
 from apps.api.serializers import RAGQuerySerializer, RAGResponseSerializer
+from apps.core.quota import check_tenant_query_quota
+from apps.core.throttle import TenantQueryThrottle, UserQueryThrottle
 from django.http import StreamingHttpResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ServerSentEventRenderer(BaseRenderer):
@@ -33,12 +38,25 @@ def rag_query_view(request):
     """
     RAG query endpoint.
     Returns Server-Sent Events (SSE) stream for real-time text generation.
+
+    Enforces:
+    - Per-user rate limit  (django-ratelimit, from settings.RAG_QUERY_RATE_LIMIT)
+    - Per-tenant daily quota (TENANT_DAILY_QUERY_LIMIT; platform owners exempt)
     """
+    # ── Tenant quota enforcement ──────────────────────────────────────────────
+    # Raises PermissionDenied with structured error if quota exceeded.
+    check_tenant_query_quota(request.user)
+
     serializer = RAGQuerySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
     question = serializer.validated_data['question']
     session_id = serializer.validated_data.get('session_id')
+
+    logger.info(
+        "RAG query | user=%s tenant=%s session=%s",
+        request.user.id, getattr(request.user, 'tenant_id', 'platform'), session_id,
+    )
 
     rag_service = RAGQueryService()
 

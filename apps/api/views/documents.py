@@ -6,6 +6,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
@@ -21,17 +22,47 @@ from apps.api.views.dashboard import invalidate_dashboard_cache
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
-    """ViewSet for document management."""
-    
+    """
+    ViewSet for document management.
+
+    Permission strategy:
+      - list / retrieve: any authenticated tenant member (access-level filtering
+        is already applied in get_queryset via DocumentAccessService — only
+        documents the user is entitled to see are returned).
+      - create / update / partial_update / destroy: still require the
+        role-based ('document', <action>) RBAC permission.
+    """
+
     serializer_class = DocumentSerializer
-    permission_classes = [HasPermission]
-    required_permission = ('document', 'read')
-    
+    parser_classes = [MultiPartParser, FormParser]
+
+    # Default: authenticated users can read; write actions check RBAC below.
+    permission_classes = [IsAuthenticated]
+
+    # Mapping of action → (resource_type, action) for write operations.
+    _WRITE_PERMISSIONS = {
+        'create':         ('document', 'create'),
+        'upload':         ('document', 'create'),
+        'update':         ('document', 'update'),
+        'partial_update': ('document', 'update'),
+        'destroy':        ('document', 'delete'),
+    }
+
+    def get_permissions(self):
+        """Return permission instances appropriate for the current action."""
+        required = self._WRITE_PERMISSIONS.get(self.action)
+        if required:
+            perm = HasPermission()
+            perm.required_permission = required
+            # Attach required_permission to the view so HasPermission can read it.
+            self.required_permission = required
+            return [perm]
+        # list / retrieve / any other read action: just authentication.
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         """Return only documents accessible by the user."""
         return DocumentAccessService.get_accessible_documents(self.request.user)
-    
-    parser_classes = [MultiPartParser, FormParser]
 
     @method_decorator(ratelimit(key='user', rate=settings.DOCUMENT_UPLOAD_RATE_LIMIT, method='POST'))
     def create(self, request, *args, **kwargs):

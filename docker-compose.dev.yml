@@ -1,0 +1,83 @@
+version: '3.8'
+
+# ─── Development docker-compose ───────────────────────────────────────────────
+# Simplified — no PgBouncer, no Nginx, source-mounted for hot reload.
+# Usage: docker-compose -f docker-compose.dev.yml up
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: kodezera_db
+      POSTGRES_USER: kodezera
+      POSTGRES_PASSWORD: kodezera123
+    volumes:
+      - postgres_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U kodezera" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    volumes:
+      - qdrant_dev:/qdrant/storage
+    ports:
+      - "6333:6333"
+
+  backend:
+    build: .
+    # Use runserver in dev for hot-reload
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app # Source-mount for hot reload
+      - media_dev:/app/media
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://kodezera:kodezera123@db:5432/kodezera_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - QDRANT_URL=http://qdrant:6333
+      - DEBUG=True
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    build: .
+    command: celery -A config worker --queues=default,embedding --concurrency=2 -l debug
+    volumes:
+      - .:/app
+      - media_dev:/app/media
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://kodezera:kodezera123@db:5432/kodezera_db
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_dev:
+  qdrant_dev:
+  media_dev:

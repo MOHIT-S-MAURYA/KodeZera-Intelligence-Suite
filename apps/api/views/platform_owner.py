@@ -741,6 +741,38 @@ def _detect_ollama_models() -> dict:
     return {'available': False, 'base_url': base, 'models': []}
 
 
+def _detect_local_transformers_models() -> list:
+    """
+    Return a list of text-generation models already cached in the HuggingFace
+    hub (~/.cache/huggingface/hub). Only reports what is on disk — no downloads.
+    """
+    import os
+    available = []
+    try:
+        from transformers import pipeline  # noqa: F401 — just check installed
+    except ImportError:
+        return available
+
+    cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface', 'hub')
+    if not os.path.isdir(cache_dir):
+        return available
+
+    # Well-known small chat/instruct models worth offering
+    KNOWN_LOCAL_MODELS = [
+        ('TinyLlama/TinyLlama-1.1B-Chat-v1.0', 'TinyLlama 1.1B Chat (fast, ~2GB)'),
+        ('microsoft/phi-2',                      'Phi-2 2.7B (reasoning, ~5GB)'),
+        ('stabilityai/stablelm-zephyr-3b',       'StableLM Zephyr 3B (~6GB)'),
+        ('google/gemma-2b-it',                   'Gemma 2B Instruct (~5GB)'),
+    ]
+
+    for model_id, label in KNOWN_LOCAL_MODELS:
+        slug = 'models--' + model_id.replace('/', '--')
+        if os.path.isdir(os.path.join(cache_dir, slug)):
+            available.append({'id': model_id, 'label': label, 'source': 'local_cache'})
+
+    return available
+
+
 def _probe_openai(api_key: str) -> bool:
     """Return True if the OpenAI API key works (models endpoint responds 200)."""
     if not api_key or api_key.startswith('your-') or '***' in api_key:
@@ -850,6 +882,9 @@ def available_models(request):
         {'id': 'claude-3-haiku-20240307',    'label': 'Claude 3 Haiku'},
     ]
 
+    # ── Local transformers (no API key) ───────────────────────────────────
+    local_models = _detect_local_transformers_models()
+
     return Response({
         'embedding': {
             'sentence_transformers': {
@@ -869,6 +904,11 @@ def available_models(request):
             },
         },
         'llm': {
+            'local': {
+                'available': len(local_models) > 0,
+                'models': local_models,
+                'note': 'Local inference via transformers — no API key needed. Uses cached models only.',
+            },
             'ollama': {
                 **ollama_info,
                 'note': 'Local inference — no API key. Start Ollama and pull a model.',

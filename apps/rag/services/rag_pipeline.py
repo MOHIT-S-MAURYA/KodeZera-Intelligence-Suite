@@ -28,9 +28,10 @@ class RAGPipeline:
     Ties together document retrieval and language model generation.
     """
     
-    def __init__(self, llm_provider: str = "openai", llm_model: str = None):
+    def __init__(self, llm_provider: str = None, llm_model: str = None):
         """Initialize the pipeline services."""
         self.retriever = RAGRetriever()
+        # Passing None for provider/model allows LLMRunner to read from DB config
         self.llm_runner = LLMRunner(provider=llm_provider, model=llm_model)
         
     def execute_query(self, user: User, query_text: str, session_id: str = None) -> Dict[str, Any]:

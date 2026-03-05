@@ -9,6 +9,7 @@ Supported providers:
   - huggingface  → HuggingFace Inference API (free tier available)
   - anthropic    → Anthropic Claude API
   - ollama       → Ollama local inference (no key required)
+  - local        → Local transformers pipeline (TinyLlama, no API key)
 
 Falls back to a rich contextual dev-mode mock when no API key is set.
 """
@@ -17,6 +18,10 @@ import logging
 from typing import List, Dict, Any, Generator
 
 logger = logging.getLogger(__name__)
+
+# Module-level cache for local transformers pipelines.
+# Key: "{model_id}:{device}". Avoids reloading model weights on every request.
+_LOCAL_PIPELINE_CACHE: Dict[str, Any] = {}
 
 _PLACEHOLDER_KEYS = {'', 'your-openai-api-key-here', 'sk-...', 'OPENAI_API_KEY',
                      'your-hf-api-key', 'your-anthropic-api-key'}
@@ -81,6 +86,7 @@ class LLMRunner:
             'huggingface': self._generate_huggingface,
             'anthropic':   self._generate_anthropic,
             'ollama':      self._generate_ollama,
+            'local':       self._generate_local,
         }
         fn = dispatch.get(self.provider)
         if fn:
@@ -105,6 +111,7 @@ class LLMRunner:
             'huggingface': self._stream_huggingface,
             'anthropic':   self._stream_anthropic,
             'ollama':      self._stream_ollama,
+            'local':       self._stream_local,
         }
         fn = dispatch.get(self.provider)
         if fn:
@@ -208,58 +215,142 @@ class LLMRunner:
 
     # ─── HuggingFace Inference API ────────────────────────────
     def _generate_huggingface(self, messages, context=None, query='') -> str:
-        if not self.api_key:
-            return self._mock_response(context or [], query)
         try:
             import requests as req
             base = self.api_base or f"https://api-inference.huggingface.co/models/{self.model}"
             prompt = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in messages) + "\nASSISTANT:"
-            headers = {"Authorization": f"Bearer {self.api_key}"}
+            headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
             resp = req.post(base, headers=headers,
                             json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
                             timeout=60)
+            if resp.status_code in (401, 403):
+                # If unauthenticated, fallback to a local transformers pipeline to fulfill the promise of free AI.
+                return self._generate_local_hf(prompt, context, query)
             resp.raise_for_status()
             data = resp.json()
             if isinstance(data, list) and data:
                 return data[0].get('generated_text', str(data[0]))
             return str(data)
         except Exception as e:
-            logger.error(f"HuggingFace error: {e}")
-            return f"HuggingFace error: {e}"
+            logger.error(f"HuggingFace inference API error: {e}")
+            return self._generate_local_hf(prompt if 'prompt' in locals() else query, context, query)
+
+    def _generate_local_hf(self, prompt: str, context: List[Dict[str, Any]], query: str) -> str:
+        """Fallback to local HuggingFace inference using transformers if the remote API fails/blocks."""
+        # Always use CPU inside Django request threads to avoid MPS multi-threading errors.
+        return self._run_local_pipeline(context, query, device='cpu')
+
+    def _run_local_pipeline(self, context: List[Dict[str, Any]], query: str, device: str = 'cpu') -> str:
+        """Run TinyLlama (or configured small model) via local transformers pipeline.
+        The pipeline is cached at module level so the model is only loaded once.
+        """
+        try:
+            from transformers import pipeline as hf_pipeline
+
+            # Use the configured model only if it looks small enough for local inference;
+            # otherwise fall back to the pre-cached TinyLlama 1.1B chat model.
+            local_model = (
+                self.model
+                if any(tag in self.model.lower() for tag in ('tiny', 'mini', 'small', '1b', '3b'))
+                else 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'
+            )
+
+            cache_key = f"{local_model}:{device}"
+            if cache_key not in _LOCAL_PIPELINE_CACHE:
+                logger.info(f"Loading local model '{local_model}' on {device} (first load)")
+                # Use AutoModel directly with local_files_only to avoid network calls,
+                # then wrap in a pipeline.
+                import os as _os
+                from transformers import AutoModelForCausalLM, AutoTokenizer
+                tokenizer = AutoTokenizer.from_pretrained(local_model, local_files_only=True)
+                model_obj = AutoModelForCausalLM.from_pretrained(local_model, local_files_only=True)
+                _LOCAL_PIPELINE_CACHE[cache_key] = hf_pipeline(
+                    'text-generation', model=model_obj, tokenizer=tokenizer, device=device,
+                )
+            else:
+                logger.debug(f"Using cached local model '{local_model}' on {device}")
+
+            pipe = _LOCAL_PIPELINE_CACHE[cache_key]
+
+            local_prompt = (
+                f"<|system|>\nYou are a helpful AI assistant. Answer the question based ONLY on the "
+                f"provided context. Be concise and cite sources when possible.\n"
+                f"Context:\n{self._format_context(context)}</s>\n"
+                f"<|user|>\n{query}</s>\n"
+                f"<|assistant|>\n"
+            )
+            out = pipe(local_prompt, max_new_tokens=min(self.max_tokens, 512), return_full_text=False)
+            return out[0]['generated_text'].strip()
+        except Exception as ex:
+            logger.error(f"Local pipeline failed on {device}: {ex}")
+            return self._mock_response(context or [], query)
 
     def _stream_huggingface(self, messages, context=None, query='') -> Generator[str, None, None]:
         """HuggingFace streaming via text-generation-inference SSE."""
-        if not self.api_key:
-            yield from (w + ' ' for w in self._mock_response(context or [], query).split())
-            return
         try:
             import requests as req
             base = self.api_base or f"https://api-inference.huggingface.co/models/{self.model}"
             prompt = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in messages) + "\nASSISTANT:"
-            headers = {"Authorization": f"Bearer {self.api_key}"}
-            with req.post(
+            headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+            
+            # Note: We must check status before iterating to fallback properly.
+            resp = req.post(
                 base + "/generate_stream",
                 headers=headers,
                 json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
                 stream=True, timeout=60
-            ) as resp:
-                resp.raise_for_status()
-                for line in resp.iter_lines():
-                    if line:
-                        decoded = line.decode('utf-8')
-                        if decoded.startswith('data:'):
-                            try:
-                                payload = json.loads(decoded[5:])
-                                token = payload.get('token', {}).get('text', '')
-                                if token:
-                                    yield token
-                                if payload.get('generated_text') is not None:
-                                    break
-                            except Exception:
-                                pass
+            )
+            if resp.status_code in (401, 403) or (resp.status_code == 404 and "Model" not in resp.text):
+                # Fallbck to local streaming
+                yield from self._stream_local_hf(query, context, messages)
+                return
+                
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if line:
+                    decoded = line.decode('utf-8')
+                    if decoded.startswith('data:'):
+                        try:
+                            payload = json.loads(decoded[5:])
+                            token = payload.get('token', {}).get('text', '')
+                            if token:
+                                yield token
+                            if payload.get('generated_text') is not None:
+                                break
+                        except Exception:
+                            pass
         except Exception as e:
             logger.error(f"HuggingFace stream error: {e}")
-            yield f"Error: {e}"
+            yield from self._stream_local_hf(query, context, messages)
+
+    def _stream_local_hf(self, query: str, context: List[Dict[str, Any]], messages: List[Dict[str, str]]) -> Generator[str, None, None]:
+        """Streaming fallback using local transformers. Runs synchronously; yields word-by-word."""
+        try:
+            logger.info("Starting synchronous local HF generation for stream...")
+            full_text = self._run_local_pipeline(context, query, device='cpu')
+            # Simulate token streaming word-by-word
+            words = full_text.split(' ')
+            for i, word in enumerate(words):
+                yield word + (' ' if i < len(words) - 1 else '')
+        except Exception as ex:
+            logger.error(f"Local HF streaming fallback failed: {ex}")
+            yield from (w + ' ' for w in self._mock_response(context or [], query).split())
+
+    # ─── Local (transformers, no API) ────────────────────────
+    def _generate_local(self, messages, context=None, query='') -> str:
+        """
+        Dedicated 'local' provider: run TinyLlama (or configured small model)
+        directly via transformers — no external API calls, no API key required.
+        Always uses CPU to guarantee thread safety inside Django request workers.
+        """
+        return self._run_local_pipeline(context or [], query, device='cpu')
+
+    def _stream_local(self, messages, context=None, query='') -> Generator[str, None, None]:
+        """Stream from local transformers model, word-by-word."""
+        full_text = self._run_local_pipeline(context or [], query, device='cpu')
+        words = full_text.split(' ')
+        for i, word in enumerate(words):
+            yield word + (' ' if i < len(words) - 1 else '')
 
     # ─── Anthropic ───────────────────────────────────────────
     def _generate_anthropic(self, messages, context=None, query='') -> str:

@@ -74,8 +74,8 @@ const selectCls =
 const StatusPill: React.FC<{ available: boolean; label: string }> = ({ available, label }) => (
     <span
         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${available
-                ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
-                : 'bg-gray-100 text-gray-500'
+            ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+            : 'bg-gray-100 text-gray-500'
             }`}
     >
         <span className={`w-1.5 h-1.5 rounded-full ${available ? 'bg-green-500' : 'bg-gray-400'}`} />
@@ -99,10 +99,10 @@ const ProviderButtons: React.FC<{
                     onClick={() => onSelect(id)}
                     type="button"
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-150 ${isActive
-                            ? 'bg-brand-600 border-brand-600 text-white shadow-sm'
-                            : info.available
-                                ? 'bg-white border-gray-200 text-gray-700 hover:border-brand-400 hover:text-brand-700'
-                                : 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
+                        ? 'bg-brand-600 border-brand-600 text-white shadow-sm'
+                        : info.available
+                            ? 'bg-white border-gray-200 text-gray-700 hover:border-brand-400 hover:text-brand-700'
+                            : 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
                         }`}
                 >
                     {meta[id]?.label ?? id}
@@ -182,9 +182,6 @@ const ApiKeyField: React.FC<{
 const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <label className="block text-sm font-medium text-gray-700 mb-1.5">{children}</label>
 );
-
-/** Thin horizontal divider */
-const Divider = () => <div className="border-t border-gray-100 my-1" />;
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 

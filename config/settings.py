@@ -127,6 +127,19 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ],
     'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
+    # ─── Per-tenant throttling ───────────────────────────────────────────────
+    # Applied globally; individual views can override with throttle_classes.
+    # TenantQueryThrottle keys by tenant_id — all users in a tenant share the
+    # same bucket, preventing noisy-neighbour resource exhaustion.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'apps.core.throttle.TenantQueryThrottle',
+        'apps.core.throttle.UserQueryThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'tenant_query':  config('TENANT_QUERY_RATE',  default='200/minute'),
+        'tenant_upload': config('TENANT_UPLOAD_RATE', default='50/hour'),
+        'user_query':    config('USER_QUERY_RATE',    default='30/minute'),
+    },
 }
 
 # JWT Settings
@@ -175,6 +188,14 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+# Route CPU-heavy embedding tasks to a dedicated queue so they don't
+# block real-time chat-query tasks on the default queue.
+CELERY_TASK_ROUTES = {
+    'apps.documents.tasks.process_document': {'queue': 'embedding'},
+    'apps.rag.tasks.*':                       {'queue': 'embedding'},
+}
+CELERY_TASK_DEFAULT_QUEUE = 'default'
+CELERY_TASK_QUEUES_MAX_PRIORITY = 10
 
 # Qdrant Configuration
 # Set QDRANT_LOCAL_PATH for a persistent local store (no server needed).
@@ -208,6 +229,11 @@ RATELIMIT_ENABLE = config('RATELIMIT_ENABLE', default=True, cast=bool)
 RAG_QUERY_RATE_LIMIT = config('RAG_QUERY_RATE_LIMIT', default='10/m')
 DOCUMENT_UPLOAD_RATE_LIMIT = config('DOCUMENT_UPLOAD_RATE_LIMIT', default='20/h')
 
+# Tenant Quota Enforcement
+# Max AI queries a single tenant can make per calendar day.
+# Platform owners are exempt. Set to 0 to disable.
+TENANT_DAILY_QUERY_LIMIT = config('TENANT_DAILY_QUERY_LIMIT', default=500, cast=int)
+
 # Frontend URL (used in emails)
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 
@@ -221,12 +247,17 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@kodezera.com')
 
 # Logging
+_LOG_LEVEL = 'DEBUG' if DEBUG else 'INFO'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
+            'format': '[{levelname}] {asctime} {name} {module}:{lineno} — {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {message}',
             'style': '{',
         },
     },
@@ -238,17 +269,27 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'INFO',
+        'level': _LOG_LEVEL,
     },
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'WARNING' if not DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
             'propagate': False,
         },
         'apps': {
             'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': _LOG_LEVEL,
+            'propagate': False,
+        },
+        'celery': {
+            'handlers': ['console'],
+            'level': _LOG_LEVEL,
             'propagate': False,
         },
     },

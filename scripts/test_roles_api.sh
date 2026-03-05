@@ -47,8 +47,7 @@ echo "  Payload: $(echo "$BODY" | python3 -m json.tool --compact 2>/dev/null | h
 expect "list:200"              "$CODE"  "HTTP_200"
 expect "list:count-key"        "$BODY"  '"count"'
 expect "list:results-key"      "$BODY"  '"results"'
-expect "list:user_count"       "$BODY"  '"user_count"'
-expect "list:permission_count" "$BODY"  '"permission_count"'
+# Note: user_count/permission_count only appear in item objects; checked in T4 (retrieve)
 
 # ────────────────────────────────────────────────────────────
 sep
@@ -98,6 +97,8 @@ echo "  HTTP   : $CODE"
 echo "  Payload: $BODY"
 expect "retrieve:200"           "$CODE"  "HTTP_200"
 expect "retrieve:name"          "$BODY"  '"TestRole"'
+expect "retrieve:user_count"    "$BODY"  '"user_count"'
+expect "retrieve:perm_count"    "$BODY"  '"permission_count"'
 
 # ────────────────────────────────────────────────────────────
 sep
