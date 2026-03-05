@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import apiService from '../../services/api';
 import { useAuthStore } from '../../store/auth.store';
+import { useUIStore } from '../../store/ui.store';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Ticket {
@@ -65,6 +66,7 @@ interface TicketDetailProps {
 
 const TicketDetail: React.FC<TicketDetailProps> = ({ ticket, isPlatformOwner, onClose, onStatusChange }) => {
     const [updating, setUpdating] = useState(false);
+    const { addToast } = useUIStore();
 
     const handleStatusChange = async (newStatus: string) => {
         setUpdating(true);
@@ -73,7 +75,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({ ticket, isPlatformOwner, on
             onStatusChange(ticket.id, newStatus);
             onClose();
         } catch {
-            // silently fail — parent will retry
+            addToast('error', 'Failed to update ticket status. Please try again.');
         } finally {
             setUpdating(false);
         }
