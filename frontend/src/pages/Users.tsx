@@ -7,6 +7,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { useAuthStore } from '../store/auth.store';
+import { useUIStore } from '../store/ui.store';
 import { userService } from '../services/user.service';
 import { getApiError } from '../utils/errors';
 import type { UserRecord, CreateUserPayload, UpdateUserPayload } from '../services/user.service';
@@ -53,12 +54,19 @@ export const Users: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter,  setRoleFilter]  = useState('all');
 
+    // ── Toast ───────────────────────────────────────────────────────────
+    const { addToast } = useUIStore();
+
     // ── Modal state ────────────────────────────────────────────────────────
-    const [modalOpen,   setModalOpen]   = useState(false);
-    const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
-    const [form,        setForm]        = useState<FormState>(EMPTY_FORM);
-    const [saving,      setSaving]      = useState(false);
-    const [formError,   setFormError]   = useState<string | null>(null);
+    const [modalOpen,    setModalOpen]    = useState(false);
+    const [editingUser,  setEditingUser]  = useState<UserRecord | null>(null);
+    const [form,         setForm]         = useState<FormState>(EMPTY_FORM);
+    const [saving,       setSaving]       = useState(false);
+    const [formError,    setFormError]    = useState<string | null>(null);
+
+    // ── Delete confirmation modal ──────────────────────────────────────────
+    const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
+    const [isDeleting,   setIsDeleting]   = useState(false);
 
     // ── Load data ─────────────────────────────────────────────────────────
     const loadAll = useCallback(async () => {
@@ -172,13 +180,20 @@ export const Users: React.FC = () => {
     };
 
     // ── Delete ─────────────────────────────────────────────────────────────
-    const handleDelete = async (u: UserRecord) => {
-        if (!confirm(`Delete ${u.full_name}? This cannot be undone.`)) return;
+    const confirmDelete = (u: UserRecord) => setDeleteTarget(u);
+
+    const handleDelete = async () => {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
         try {
-            await userService.remove(u.id);
-            setUsers(prev => prev.filter(x => x.id !== u.id));
+            await userService.remove(deleteTarget.id);
+            setUsers(prev => prev.filter(x => x.id !== deleteTarget.id));
+            addToast('success', `${deleteTarget.full_name} deleted.`);
+            setDeleteTarget(null);
         } catch {
-            alert('Failed to delete user.');
+            addToast('error', 'Failed to delete user. Please try again.');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -188,7 +203,7 @@ export const Users: React.FC = () => {
             const updated = await userService.toggleStatus(u.id);
             setUsers(prev => prev.map(x => x.id === updated.id ? updated : x));
         } catch {
-            alert('Failed to update status.');
+            addToast('error', 'Failed to update status. Please try again.');
         }
     };
 
@@ -312,7 +327,7 @@ export const Users: React.FC = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => handleDelete(u)}
+                                                    onClick={() => confirmDelete(u)}
                                                     disabled={u.email === me?.email}
                                                 >
                                                     Delete
@@ -332,6 +347,39 @@ export const Users: React.FC = () => {
                     </p>
                 )}
             </Card>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={!!deleteTarget}
+                onClose={() => !isDeleting && setDeleteTarget(null)}
+                title="Delete User"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-600 text-sm">
+                        Are you sure you want to delete{' '}
+                        <span className="font-semibold text-gray-900">{deleteTarget?.full_name}</span>?
+                        This action cannot be undone.
+                    </p>
+                    <div className="flex gap-3 pt-1">
+                        <Button
+                            variant="secondary"
+                            className="flex-1"
+                            onClick={() => setDeleteTarget(null)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="danger"
+                            className="flex-1"
+                            onClick={handleDelete}
+                            loading={isDeleting}
+                        >
+                            Delete
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Add / Edit Modal */}
             <Modal isOpen={modalOpen} onClose={closeModal} title={editingUser ? `Edit ${editingUser.full_name}` : 'Add New User'}>
