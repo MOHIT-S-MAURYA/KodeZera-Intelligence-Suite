@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { useUIStore } from '../store/ui.store';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -97,6 +98,14 @@ api.interceptors.response.use(
             } finally {
                 isRefreshing = false;
             }
+        }
+
+        // Global 403 handler — permission denied feedback
+        if (error.response?.status === 403) {
+            useUIStore.getState().addToast(
+                'error',
+                "You don't have permission to perform this action. Contact your administrator."
+            );
         }
 
         return Promise.reject(error);

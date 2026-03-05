@@ -4,6 +4,7 @@ import { BarChart3, Users, Clock, Database } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import platformOwnerService, { type AnalyticsDataPoint, type TenantListItem } from '../../services/platformOwner.service';
+import { useUIStore } from '../../store/ui.store';
 
 
 
@@ -43,6 +44,7 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 };
 
 export const PlatformAnalytics: React.FC = () => {
+    const { addToast } = useUIStore();
     const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'custom'>('7d');
     const [selectedTenant, setSelectedTenant] = useState<string>('all');
     const [startDate, setStartDate] = useState<string>('');
@@ -58,7 +60,7 @@ export const PlatformAnalytics: React.FC = () => {
                 const response = await platformOwnerService.getTenants();
                 setTenants(response.tenants);
             } catch (error) {
-                console.error("Failed to fetch tenants", error);
+                addToast('error', 'Failed to load tenants.');
             }
         };
         fetchTenants();
@@ -91,7 +93,7 @@ export const PlatformAnalytics: React.FC = () => {
                 const response = await platformOwnerService.getAnalytics(filters);
                 setData(response);
             } catch (error) {
-                console.error("Failed to fetch analytics", error);
+                addToast('error', 'Failed to load analytics data. Please try again.');
             } finally {
                 setLoading(false);
             }

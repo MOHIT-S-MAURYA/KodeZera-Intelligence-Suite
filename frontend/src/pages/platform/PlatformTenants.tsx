@@ -12,6 +12,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import platformOwnerService from '../../services/platformOwner.service';
 import type { TenantListItem } from '../../services/platformOwner.service';
+import { useUIStore } from '../../store/ui.store';
 
 // ─── Inline ConfirmDialog (rendered via portal, no browser dialogs) ─────────
 interface ConfirmDialogProps {
@@ -186,6 +187,7 @@ const CLOSED_CONFIRM: ConfirmState = {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export const PlatformTenants: React.FC = () => {
+    const { addToast } = useUIStore();
     const [tenants, setTenants] = useState<TenantListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -229,7 +231,7 @@ export const PlatformTenants: React.FC = () => {
             const response = await platformOwnerService.getTenants();
             setTenants(response.tenants);
         } catch (error) {
-            console.error('Failed to load tenants:', error);
+            addToast('error', 'Failed to load tenants. Please refresh the page.');
         } finally {
             setLoading(false);
         }

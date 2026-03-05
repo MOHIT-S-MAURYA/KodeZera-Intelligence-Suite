@@ -5,8 +5,10 @@ import { Badge } from '../../components/ui/Badge';
 import platformOwnerService from '../../services/platformOwner.service';
 import type { AuditLog } from '../../services/platformOwner.service';
 import { Button } from '../../components/ui/Button';
+import { useUIStore } from '../../store/ui.store';
 
 export const PlatformAuditLogs: React.FC = () => {
+    const { addToast } = useUIStore();
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -67,7 +69,7 @@ export const PlatformAuditLogs: React.FC = () => {
             }
             setTotalLogs(response.count);
         } catch (error) {
-            console.error('Failed to load audit logs:', error);
+            addToast('error', 'Failed to load audit logs. Please try again.');
         } finally {
             setLoading(false);
             setLoadingMore(false);

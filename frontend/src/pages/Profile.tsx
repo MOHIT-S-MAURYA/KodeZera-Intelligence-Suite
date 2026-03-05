@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { useAuthStore } from '../store/auth.store';
+import { useUIStore } from '../store/ui.store';
 import apiService from '../services/api';
 
 interface ProfileData {
@@ -21,6 +22,7 @@ interface ProfileData {
 
 export const Profile: React.FC = () => {
     const { user, setUser } = useAuthStore();
+    const { addToast } = useUIStore();
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -52,7 +54,7 @@ export const Profile: React.FC = () => {
                     timezone: meta.timezone || '',
                 });
             } catch (error) {
-                console.error("Failed to fetch profile", error);
+                addToast('error', 'Failed to load profile. Please refresh the page.');
             } finally {
                 setLoading(false);
             }
@@ -87,7 +89,7 @@ export const Profile: React.FC = () => {
 
             setIsEditing(false);
         } catch (error) {
-            console.error("Failed to save profile", error);
+            addToast('error', 'Failed to save profile. Please try again.');
         } finally {
             setSaving(false);
         }
