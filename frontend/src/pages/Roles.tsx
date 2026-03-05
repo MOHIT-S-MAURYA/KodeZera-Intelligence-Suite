@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { roleService } from '../services/role.service';
 import { getApiError } from '../utils/errors';
+import { useUIStore } from '../store/ui.store';
 import type {
     RoleRecord,
     CreateRolePayload,
@@ -55,6 +56,13 @@ export const Roles: React.FC = () => {
     const [editTarget, setEditTarget] = useState<RoleRecord | null>(null);
     const [form, setForm]             = useState<FormState>(EMPTY_FORM);
     const [formError, setFormError]   = useState<string | null>(null);
+
+    // Delete confirmation modal
+    const [deleteTarget, setDeleteTarget] = useState<RoleRecord | null>(null);
+    const [isDeleting,   setIsDeleting]   = useState(false);
+
+    // Toast
+    const { addToast } = useUIStore();
 
     // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -151,14 +159,21 @@ export const Roles: React.FC = () => {
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
-    const handleDelete = async (role: RoleRecord) => {
-        if (!window.confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+    const confirmDelete = (role: RoleRecord) => setDeleteTarget(role);
+
+    const handleDelete = async () => {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
         try {
-            await roleService.remove(role.id);
-            setRoles((prev) => prev.filter((r) => r.id !== role.id));
+            await roleService.remove(deleteTarget.id);
+            setRoles((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+            addToast('success', `Role "${deleteTarget.name}" deleted.`);
+            setDeleteTarget(null);
         } catch (err) {
             const axErr = err as AxiosError<{ error?: string }>;
-            alert(axErr.response?.data?.error ?? 'Delete failed.');
+            addToast('error', axErr.response?.data?.error ?? 'Failed to delete role. Please try again.');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -253,7 +268,7 @@ export const Roles: React.FC = () => {
                                                 variant="ghost" size="sm" className="flex-1"
                                                 disabled={!canDelete}
                                                 title={canDelete ? undefined : `${role.user_count} user(s) assigned — reassign first`}
-                                                onClick={() => handleDelete(role)}
+                                                onClick={() => confirmDelete(role)}
                                             >
                                                 Delete
                                             </Button>
@@ -264,6 +279,39 @@ export const Roles: React.FC = () => {
                         })
                 }
             </div>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={!!deleteTarget}
+                onClose={() => !isDeleting && setDeleteTarget(null)}
+                title="Delete Role"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-600 text-sm">
+                        Are you sure you want to delete role{' '}
+                        <span className="font-semibold text-gray-900">"{deleteTarget?.name}"</span>?
+                        This action cannot be undone.
+                    </p>
+                    <div className="flex gap-3 pt-1">
+                        <Button
+                            variant="secondary"
+                            className="flex-1"
+                            onClick={() => setDeleteTarget(null)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="danger"
+                            className="flex-1"
+                            onClick={handleDelete}
+                            loading={isDeleting}
+                        >
+                            Delete
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Create / Edit modal */}
             <Modal isOpen={modalOpen} onClose={closeModal}
