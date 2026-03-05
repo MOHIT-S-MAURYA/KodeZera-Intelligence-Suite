@@ -11,6 +11,7 @@ import {
     Eye,
     Download,
     Server,
+    AlertTriangle,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -200,8 +201,14 @@ export const Settings: React.FC = () => {
                     <Card variant="elevated">
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">Active Sessions</h3>
-                                <Button variant="outline" size="sm">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Active Sessions</h3>
+                                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        Placeholder data — session management not yet available
+                                    </p>
+                                </div>
+                                <Button variant="outline" size="sm" disabled title="Session management not yet available">
                                     Revoke All
                                 </Button>
                             </div>
@@ -230,7 +237,7 @@ export const Settings: React.FC = () => {
                                             </div>
                                         </div>
                                         {!session.current && (
-                                            <Button variant="ghost" size="sm">
+                                            <Button variant="ghost" size="sm" disabled title="Session management not yet available">
                                                 Revoke
                                             </Button>
                                         )}
@@ -243,8 +250,14 @@ export const Settings: React.FC = () => {
                     <Card variant="elevated">
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">API Keys</h3>
-                                <Button variant="primary" size="sm">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">API Keys</h3>
+                                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        Placeholder data — API key management not yet available
+                                    </p>
+                                </div>
+                                <Button variant="primary" size="sm" disabled title="API key management not yet available">
                                     Generate New Key
                                 </Button>
                             </div>
@@ -269,7 +282,7 @@ export const Settings: React.FC = () => {
                                             <Badge variant="success" size="sm">
                                                 {key.status}
                                             </Badge>
-                                            <Button variant="ghost" size="sm">
+                                            <Button variant="ghost" size="sm" disabled title="API key management not yet available">
                                                 Revoke
                                             </Button>
                                         </div>
@@ -378,7 +391,13 @@ export const Settings: React.FC = () => {
 
                     <Card variant="elevated">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">System Information</h3>
+                            <div className="flex items-center gap-3 mb-4">
+                                <h3 className="text-lg font-semibold text-gray-900">System Information</h3>
+                                <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    Preview data
+                                </span>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-4 bg-gray-50 rounded-lg">
                                     <p className="text-sm text-gray-500">Version</p>

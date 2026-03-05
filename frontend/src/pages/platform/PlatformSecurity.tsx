@@ -11,6 +11,15 @@ export const PlatformSecurity: React.FC = () => {
                 <p className="text-gray-600 mt-1">Monitor security threats and abuse patterns</p>
             </div>
 
+            {/* Placeholder banner */}
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-amber-800">
+                    <span className="font-semibold">Live monitoring not yet configured.</span>{' '}
+                    The values below are static placeholders and do not reflect real system state.
+                </p>
+            </div>
+
             {/* Security Status */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card>

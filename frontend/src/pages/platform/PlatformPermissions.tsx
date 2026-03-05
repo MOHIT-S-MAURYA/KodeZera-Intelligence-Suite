@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Shield, Users } from 'lucide-react';
+import { Lock, Shield, Users, AlertTriangle } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 
 export const PlatformPermissions: React.FC = () => {
@@ -9,6 +9,15 @@ export const PlatformPermissions: React.FC = () => {
             <div>
                 <h1 className="text-3xl font-bold text-gray-900">Global Permissions Policy</h1>
                 <p className="text-gray-600 mt-1">Configure platform-wide access controls</p>
+            </div>
+
+            {/* Placeholder banner */}
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-amber-800">
+                    <span className="font-semibold">Configurable permissions coming soon.</span>{' '}
+                    The policy rules shown below are informational only and are enforced at the API level.
+                </p>
             </div>
 
             {/* Permission Categories */}
