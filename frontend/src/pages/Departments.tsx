@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { departmentService } from '../services/department.service';
 import { getApiError } from '../utils/errors';
+import { useUIStore } from '../store/ui.store';
 import type {
     DepartmentRecord,
     CreateDepartmentPayload,
@@ -56,12 +57,19 @@ export const Departments: React.FC = () => {
     // ── Filter state ───────────────────────────────────────────────────────
     const [searchQuery, setSearchQuery] = useState('');
 
+    // ── Toast ──────────────────────────────────────────────────────────────
+    const { addToast } = useUIStore();
+
     // ── Modal state ────────────────────────────────────────────────────────
     const [modalOpen,    setModalOpen]    = useState(false);
     const [editingDept,  setEditingDept]  = useState<DepartmentRecord | null>(null);
     const [form,         setForm]         = useState<FormState>(EMPTY_FORM);
     const [saving,       setSaving]       = useState(false);
     const [formError,    setFormError]    = useState<string | null>(null);
+
+    // ── Delete confirmation modal ──────────────────────────────────────────
+    const [deleteTarget, setDeleteTarget] = useState<DepartmentRecord | null>(null);
+    const [isDeleting,   setIsDeleting]   = useState(false);
 
     // ── Load data ─────────────────────────────────────────────────────────
     const loadAll = useCallback(async () => {
@@ -159,16 +167,23 @@ export const Departments: React.FC = () => {
     };
 
     // ── Delete ─────────────────────────────────────────────────────────────
-    const handleDelete = async (d: DepartmentRecord) => {
-        if (!confirm(`Delete "${d.name}"? This cannot be undone.`)) return;
+    const confirmDelete = (d: DepartmentRecord) => setDeleteTarget(d);
+
+    const handleDelete = async () => {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
         try {
-            await departmentService.remove(d.id);
-            setDepartments(prev => prev.filter(x => x.id !== d.id));
+            await departmentService.remove(deleteTarget.id);
+            setDepartments(prev => prev.filter(x => x.id !== deleteTarget.id));
+            addToast('success', `"${deleteTarget.name}" deleted.`);
+            setDeleteTarget(null);
         } catch (err: unknown) {
             const msg =
                 (err as { response?: { data?: { error?: string } } }).response?.data?.error
-                ?? 'Failed to delete department.';
-            alert(msg);
+                ?? 'Failed to delete department. Please try again.';
+            addToast('error', msg);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -259,7 +274,7 @@ export const Departments: React.FC = () => {
                                         variant="ghost"
                                         size="sm"
                                         className="flex-1"
-                                        onClick={() => handleDelete(d)}
+                                        onClick={() => confirmDelete(d)}
                                         disabled={d.user_count > 0 || d.children_count > 0}
                                         title={
                                             d.user_count > 0
@@ -284,6 +299,39 @@ export const Departments: React.FC = () => {
                     Showing {filteredDepts.length} of {departments.length} department{departments.length !== 1 ? 's' : ''}
                 </p>
             )}
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={!!deleteTarget}
+                onClose={() => !isDeleting && setDeleteTarget(null)}
+                title="Delete Department"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-600 text-sm">
+                        Are you sure you want to delete{' '}
+                        <span className="font-semibold text-gray-900">"{deleteTarget?.name}"</span>?
+                        This action cannot be undone.
+                    </p>
+                    <div className="flex gap-3 pt-1">
+                        <Button
+                            variant="secondary"
+                            className="flex-1"
+                            onClick={() => setDeleteTarget(null)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="danger"
+                            className="flex-1"
+                            onClick={handleDelete}
+                            loading={isDeleting}
+                        >
+                            Delete
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Add / Edit Modal */}
             <Modal
