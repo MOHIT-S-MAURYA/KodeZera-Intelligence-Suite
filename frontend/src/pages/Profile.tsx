@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { User, Mail, Phone, MapPin, Calendar, Shield, Activity, Camera, RefreshCw, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Shield, Activity, Camera, RefreshCw, Lock } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -31,9 +31,6 @@ export const Profile: React.FC = () => {
     const [showPasswordForm, setShowPasswordForm] = useState(false);
     const [passwordData, setPasswordData] = useState({ current: '', newPwd: '', confirm: '' });
     const [passwordSaving, setPasswordSaving] = useState(false);
-    const [showCurrentPwd, setShowCurrentPwd] = useState(false);
-    const [showNewPwd, setShowNewPwd] = useState(false);
-    const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
     const [formData, setFormData] = useState<ProfileData>({
         first_name: '',
@@ -303,60 +300,30 @@ export const Profile: React.FC = () => {
 
                                 {showPasswordForm && (
                                     <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-                                        {/* Current password */}
-                                        <div className="relative">
-                                            <Input
-                                                label="Current Password"
-                                                type={showCurrentPwd ? 'text' : 'password'}
-                                                value={passwordData.current}
-                                                onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
-                                                leftIcon={<Lock className="w-5 h-5 ml-1" />}
-                                                placeholder="Enter your current password"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCurrentPwd((v) => !v)}
-                                                className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
-                                            >
-                                                {showCurrentPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                        {/* New password */}
-                                        <div className="relative">
-                                            <Input
-                                                label="New Password"
-                                                type={showNewPwd ? 'text' : 'password'}
-                                                value={passwordData.newPwd}
-                                                onChange={(e) => setPasswordData({ ...passwordData, newPwd: e.target.value })}
-                                                leftIcon={<Lock className="w-5 h-5 ml-1" />}
-                                                placeholder="At least 8 characters"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowNewPwd((v) => !v)}
-                                                className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
-                                            >
-                                                {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                        {/* Confirm new password */}
-                                        <div className="relative">
-                                            <Input
-                                                label="Confirm New Password"
-                                                type={showConfirmPwd ? 'text' : 'password'}
-                                                value={passwordData.confirm}
-                                                onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
-                                                leftIcon={<Lock className="w-5 h-5 ml-1" />}
-                                                placeholder="Repeat new password"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowConfirmPwd((v) => !v)}
-                                                className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
-                                            >
-                                                {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                        <Input
+                                            label="Current Password"
+                                            type="password"
+                                            value={passwordData.current}
+                                            onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
+                                            leftIcon={<Lock className="w-5 h-5 ml-1" />}
+                                            placeholder="Enter your current password"
+                                        />
+                                        <Input
+                                            label="New Password"
+                                            type="password"
+                                            value={passwordData.newPwd}
+                                            onChange={(e) => setPasswordData({ ...passwordData, newPwd: e.target.value })}
+                                            leftIcon={<Lock className="w-5 h-5 ml-1" />}
+                                            placeholder="At least 8 characters"
+                                        />
+                                        <Input
+                                            label="Confirm New Password"
+                                            type="password"
+                                            value={passwordData.confirm}
+                                            onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
+                                            leftIcon={<Lock className="w-5 h-5 ml-1" />}
+                                            placeholder="Repeat new password"
+                                        />
                                         <div className="flex justify-end pt-1">
                                             <Button
                                                 variant="primary"
