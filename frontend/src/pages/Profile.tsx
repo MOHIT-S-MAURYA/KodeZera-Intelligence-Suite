@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { User, Mail, Phone, MapPin, Calendar, Shield, Activity, Camera, RefreshCw } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Shield, Activity, Camera, RefreshCw, Lock, Eye, EyeOff } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -26,6 +26,14 @@ export const Profile: React.FC = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+
+    // Password change state
+    const [showPasswordForm, setShowPasswordForm] = useState(false);
+    const [passwordData, setPasswordData] = useState({ current: '', newPwd: '', confirm: '' });
+    const [passwordSaving, setPasswordSaving] = useState(false);
+    const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+    const [showNewPwd, setShowNewPwd] = useState(false);
+    const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
     const [formData, setFormData] = useState<ProfileData>({
         first_name: '',
@@ -97,6 +105,36 @@ export const Profile: React.FC = () => {
 
     const handleCancel = () => {
         setIsEditing(false);
+    };
+
+    const handleChangePassword = async () => {
+        if (!passwordData.current || !passwordData.newPwd || !passwordData.confirm) {
+            addToast('error', 'Please fill in all password fields.');
+            return;
+        }
+        if (passwordData.newPwd !== passwordData.confirm) {
+            addToast('error', 'New passwords do not match.');
+            return;
+        }
+        if (passwordData.newPwd.length < 8) {
+            addToast('error', 'New password must be at least 8 characters.');
+            return;
+        }
+        setPasswordSaving(true);
+        try {
+            await apiService.post('/auth/change-password/', {
+                current_password: passwordData.current,
+                new_password: passwordData.newPwd,
+            });
+            addToast('success', 'Password changed successfully.');
+            setPasswordData({ current: '', newPwd: '', confirm: '' });
+            setShowPasswordForm(false);
+        } catch (error: any) {
+            const msg = error?.response?.data?.error || 'Failed to change password. Please try again.';
+            addToast('error', msg);
+        } finally {
+            setPasswordSaving(false);
+        }
     };
 
     if (loading) {
@@ -251,10 +289,86 @@ export const Profile: React.FC = () => {
                                         <p className="font-medium text-gray-900">Password</p>
                                         <p className="text-sm text-gray-500">Regularly update your password</p>
                                     </div>
-                                    <Button variant="outline" size="sm">
-                                        Change Password
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setShowPasswordForm((v) => !v);
+                                            setPasswordData({ current: '', newPwd: '', confirm: '' });
+                                        }}
+                                    >
+                                        {showPasswordForm ? 'Cancel' : 'Change Password'}
                                     </Button>
                                 </div>
+
+                                {showPasswordForm && (
+                                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                                        {/* Current password */}
+                                        <div className="relative">
+                                            <Input
+                                                label="Current Password"
+                                                type={showCurrentPwd ? 'text' : 'password'}
+                                                value={passwordData.current}
+                                                onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
+                                                leftIcon={<Lock className="w-5 h-5 ml-1" />}
+                                                placeholder="Enter your current password"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCurrentPwd((v) => !v)}
+                                                className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+                                            >
+                                                {showCurrentPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        {/* New password */}
+                                        <div className="relative">
+                                            <Input
+                                                label="New Password"
+                                                type={showNewPwd ? 'text' : 'password'}
+                                                value={passwordData.newPwd}
+                                                onChange={(e) => setPasswordData({ ...passwordData, newPwd: e.target.value })}
+                                                leftIcon={<Lock className="w-5 h-5 ml-1" />}
+                                                placeholder="At least 8 characters"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewPwd((v) => !v)}
+                                                className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+                                            >
+                                                {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        {/* Confirm new password */}
+                                        <div className="relative">
+                                            <Input
+                                                label="Confirm New Password"
+                                                type={showConfirmPwd ? 'text' : 'password'}
+                                                value={passwordData.confirm}
+                                                onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
+                                                leftIcon={<Lock className="w-5 h-5 ml-1" />}
+                                                placeholder="Repeat new password"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowConfirmPwd((v) => !v)}
+                                                className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+                                            >
+                                                {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        <div className="flex justify-end pt-1">
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                onClick={handleChangePassword}
+                                                disabled={passwordSaving}
+                                            >
+                                                {passwordSaving ? 'Saving...' : 'Update Password'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </Card>

@@ -3,7 +3,7 @@ API URL configuration.
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from apps.api.views.auth import login_view, refresh_token_view, me_view
+from apps.api.views.auth import login_view, refresh_token_view, me_view, change_password_view
 from apps.api.views.documents import DocumentViewSet, DocumentAccessViewSet
 from apps.api.views.rag import rag_query_view
 from apps.api.views.admin import (
@@ -41,6 +41,7 @@ urlpatterns = [
     path('auth/login/', login_view, name='login'),
     path('auth/refresh/', refresh_token_view, name='refresh'),
     path('auth/me/', me_view, name='me'),
+    path('auth/change-password/', change_password_view, name='change-password'),
     
     # RAG
     path('rag/query/', rag_query_view, name='rag-query'),
