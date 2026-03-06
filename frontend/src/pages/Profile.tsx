@@ -113,6 +113,10 @@ export const Profile: React.FC = () => {
             addToast('error', 'New passwords do not match.');
             return;
         }
+        if (passwordData.newPwd === passwordData.current) {
+            addToast('error', 'New password must be different from your current password.');
+            return;
+        }
         if (passwordData.newPwd.length < 8) {
             addToast('error', 'New password must be at least 8 characters.');
             return;
