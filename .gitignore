@@ -39,3 +39,14 @@ celerybeat.pid
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Frontend build output and logs
+frontend/dist/
+frontend/vite.log
+
+# Runtime data
+dump.rdb
+qdrant_data/
+
+# One-off dev scripts (hardcoded paths)
+extract_schema.py
