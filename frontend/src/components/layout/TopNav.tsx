@@ -9,11 +9,18 @@ import authService from '../../services/auth.service';
 export const TopNav: React.FC = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuthStore();
-    const { toggleSidebar, notifications, markAllAsRead } = useUIStore();
+    const { toggleSidebar, notifications, fetchNotifications, markAllAsRead } = useUIStore();
     const [showUserMenu, setShowUserMenu] = React.useState(false);
     const [showNotifications, setShowNotifications] = React.useState(false);
 
     const unreadCount = notifications.filter(n => n.unread).length;
+
+    // Fetch real notifications on mount + poll every 60 s
+    React.useEffect(() => {
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 60_000);
+        return () => clearInterval(interval);
+    }, [fetchNotifications]);
 
     const handleLogout = () => {
         authService.logout();

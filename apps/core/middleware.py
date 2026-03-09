@@ -21,7 +21,10 @@ class TenantIsolationMiddleware(MiddlewareMixin):
             if request.tenant and not request.tenant.is_active:
                 from django.http import JsonResponse
                 return JsonResponse(
-                    {'error': 'Tenant is inactive'},
+                    {
+                        'error': 'Your organization has been deactivated by the platform owner. Please contact support.',
+                        'code': 'tenant_deactivated',
+                    },
                     status=403
                 )
         else:

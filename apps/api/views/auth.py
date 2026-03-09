@@ -45,14 +45,20 @@ def login_view(request):
     # Check if user is active
     if not user.is_active:
         return Response(
-            {'error': 'Account is inactive'},
+            {
+                'error': 'Your account has been deactivated. Please contact your administrator.',
+                'code': 'account_deactivated',
+            },
             status=status.HTTP_403_FORBIDDEN
         )
     
     # Check if tenant is active
     if user.tenant and not user.tenant.is_active:
         return Response(
-            {'error': 'Organization account is inactive'},
+            {
+                'error': 'Your organization has been deactivated by the platform owner. Please contact support.',
+                'code': 'tenant_deactivated',
+            },
             status=status.HTTP_403_FORBIDDEN
         )
     

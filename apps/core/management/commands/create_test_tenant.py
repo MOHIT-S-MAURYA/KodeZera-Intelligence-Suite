@@ -56,8 +56,11 @@ class Command(BaseCommand):
         # Create roles
         admin_role, _ = Role.objects.get_or_create(
             tenant=tenant,
-            name='Admin',
-            defaults={'description': 'Full access administrator'}
+            name=Role.SYSTEM_ADMIN_ROLE_NAME,
+            defaults={
+                'description': 'System-created administrator role with full access.',
+                'is_system_role': True,
+            }
         )
         
         manager_role, _ = Role.objects.get_or_create(
@@ -98,7 +101,6 @@ class Command(BaseCommand):
             defaults={
                 'username': 'admin',
                 'tenant': tenant,
-                'is_tenant_admin': True,
                 'is_active': True,
                 'first_name': 'Admin',
                 'last_name': 'User'

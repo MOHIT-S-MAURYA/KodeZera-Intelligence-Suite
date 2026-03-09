@@ -17,8 +17,8 @@ class TenantAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ['email', 'username', 'tenant', 'is_tenant_admin', 'is_active', 'created_at']
-    list_filter = ['is_active', 'is_tenant_admin', 'created_at']
+    list_display = ['email', 'username', 'tenant', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
     search_fields = ['email', 'username']
     raw_id_fields = ['tenant', 'department']
 

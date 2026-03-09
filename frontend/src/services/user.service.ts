@@ -22,7 +22,6 @@ export interface CreateUserPayload {
     password: string;
     department?: string | null;
     role_id?: string | null;
-    is_tenant_admin?: boolean;
 }
 
 export interface UpdateUserPayload {
@@ -31,7 +30,6 @@ export interface UpdateUserPayload {
     department?: string | null;
     role_id?: string | null;
     is_active?: boolean;
-    is_tenant_admin?: boolean;
     password?: string;
 }
 

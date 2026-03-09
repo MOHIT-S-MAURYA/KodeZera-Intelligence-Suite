@@ -102,10 +102,25 @@ api.interceptors.response.use(
 
         // Global 403 handler — permission denied feedback
         if (error.response?.status === 403) {
-            useUIStore.getState().addToast(
-                'error',
-                "You don't have permission to perform this action. Contact your administrator."
-            );
+            const data = error.response?.data as any;
+            const code = data?.code;
+
+            if (code === 'tenant_deactivated' || code === 'account_deactivated') {
+                // Tenant or user has been deactivated — force logout with clear message
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('user');
+                useUIStore.getState().addToast(
+                    'error',
+                    data?.error || 'Your account has been deactivated.',
+                );
+                window.location.href = '/login';
+            } else {
+                useUIStore.getState().addToast(
+                    'error',
+                    "You don't have permission to perform this action. Contact your administrator."
+                );
+            }
         }
 
         return Promise.reject(error);

@@ -18,6 +18,10 @@ class RoleResolutionService:
     def get_cache_key(cls, user_id: UUID) -> str:
         """Generate cache key for user roles."""
         return f"user:{user_id}:roles"
+
+    @classmethod
+    def _admin_cache_key(cls, user_id: UUID) -> str:
+        return f"user:{user_id}:is_admin"
     
     @classmethod
     def resolve_user_roles(cls, user: User) -> Set[UUID]:
@@ -61,6 +65,7 @@ class RoleResolutionService:
         """Invalidate role cache for a user."""
         cache_key = cls.get_cache_key(user_id)
         cache.delete(cache_key)
+        cache.delete(cls._admin_cache_key(user_id))
     
     @classmethod
     def invalidate_tenant_cache(cls, tenant_id: UUID):
@@ -69,6 +74,28 @@ class RoleResolutionService:
         users = User.objects.filter(tenant_id=tenant_id).values_list('id', flat=True)
         for user_id in users:
             cls.invalidate_cache(user_id)
+
+    @classmethod
+    def is_tenant_administrator(cls, user) -> bool:
+        """
+        Check if the user holds the system 'Tenant Administrator' role.
+        Replaces the old hardcoded User.is_tenant_admin boolean.
+        Cached for the same duration as role resolution.
+        """
+        cache_key = cls._admin_cache_key(user.id)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = UserRole.objects.filter(
+            user=user,
+            role__tenant_id=user.tenant_id,
+            role__is_system_role=True,
+            role__name=Role.SYSTEM_ADMIN_ROLE_NAME,
+        ).exists()
+
+        cache.set(cache_key, result, cls.CACHE_TIMEOUT)
+        return result
 
 
 class PermissionService:

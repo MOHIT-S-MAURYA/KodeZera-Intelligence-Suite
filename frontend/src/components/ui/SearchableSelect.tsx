@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Search, X } from 'lucide-react';
 
 export interface Option {
     label: string;
     value: string;
+    searchText?: string; // extra hidden text to search against
 }
 
 interface SearchableSelectProps {
@@ -12,133 +13,208 @@ interface SearchableSelectProps {
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    label?: string;
+    disabled?: boolean;
     className?: string;
+}
+
+/**
+ * Score how well `query` matches `haystack`.
+ * Returns 0 = no match, higher = better match.
+ * Supports multi-word queries: ALL words must appear somewhere.
+ */
+function scoreMatch(haystack: string, query: string): number {
+    const text = haystack.toLowerCase();
+    const q = query.toLowerCase().trim();
+    if (!q) return 1;
+
+    const words = q.split(/\s+/).filter(Boolean);
+
+    // Every word must appear somewhere in the text
+    if (!words.every(w => text.includes(w))) return 0;
+
+    let score = 1;
+    // Bonus: exact phrase substring
+    if (text.includes(q)) score += 20;
+    // Bonus: text starts with the full query
+    if (text.startsWith(q)) score += 10;
+    // Bonus: any word starts at a word-boundary
+    for (const w of words) {
+        if (new RegExp(`(?:^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(text)) score += 5;
+    }
+    // Bonus: shorter text = more specific match
+    score += Math.max(0, 50 - text.length) * 0.1;
+    return score;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     options,
     value,
     onChange,
-    placeholder = "Select...",
-    className = ""
+    placeholder = 'Search...',
+    label,
+    disabled = false,
+    className = '',
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Get selected label
     const selectedOption = options.find(opt => opt.value === value);
 
-    // Initialize search term with selected label on mount or value change
-    // But only if not currently open/editing
+    // When closed, always show the selected label (or empty)
     useEffect(() => {
-        if (!isOpen && selectedOption) {
-            setSearchTerm(selectedOption.label);
-        } else if (!isOpen && !selectedOption) {
-            setSearchTerm('');
+        if (!isOpen) {
+            setSearchTerm(selectedOption?.label ?? '');
         }
-    }, [value, selectedOption, isOpen]);
+    }, [isOpen, selectedOption]);
 
-    // Filter options
-    const filteredOptions = options.filter(opt =>
-        opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        opt.value.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    // Handle click outside to close
+    // Close on outside click
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        const handler = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
                 setIsOpen(false);
-                // Reset search term to selected value on close without selection
-                if (selectedOption) {
-                    setSearchTerm(selectedOption.label);
-                } else {
-                    setSearchTerm('');
-                }
             }
         };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [selectedOption]);
+    // Ranked filter: score each option, drop zeros, sort descending
+    const query = isOpen ? searchTerm : '';
+    const filteredOptions = query
+        ? options
+            .map(opt => {
+                const hay = `${opt.label} ${opt.value} ${opt.searchText ?? ''}`;
+                return { opt, score: scoreMatch(hay, query) };
+            })
+            .filter(({ score }) => score > 0)
+            .sort((a, b) => b.score - a.score)
+            .map(({ opt }) => opt)
+        : options; // no query → show full list in original (sorted) order
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFocus = () => {
+        if (disabled) return;
+        // Clear input so the user sees all options and starts a fresh search
+        setSearchTerm('');
+        setIsOpen(true);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
         if (!isOpen) setIsOpen(true);
     };
 
-    const handleInputFocus = () => {
+    const handleClear = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange('');
+        setSearchTerm('');
         setIsOpen(true);
-        // Select text on focus for easy replacement
-        inputRef.current?.select();
-
-        // If the current search term matches the selected option, clear it to show all options? 
-        // Or keep it to show current selection? 
-        // User asked for "Searchable", usually means typing filters the list. 
-        // If I click, I might want to see all options or just filter.
-        // Let's keep it simple: Focus opens dropdown, text remains.
+        inputRef.current?.focus();
     };
 
-    const handleOptionSelect = (option: Option) => {
-        onChange(option.value);
-        setSearchTerm(option.label);
+    const handleSelect = (opt: Option) => {
+        onChange(opt.value);
+        setSearchTerm(opt.label);
         setIsOpen(false);
     };
 
-    return (
-        <div className={`relative ${className}`} ref={dropdownRef}>
-            {/* Combobox Input */}
-            <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                    ref={inputRef}
-                    type="text"
-                    className="block w-full pl-10 pr-10 py-2 text-sm border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 placeholder-gray-400"
-                    placeholder={placeholder}
-                    value={searchTerm}
-                    onChange={handleInputChange}
-                    onFocus={handleInputFocus}
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
-                    <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
-                </div>
-            </div>
+    const handleToggle = () => {
+        if (disabled) return;
+        if (isOpen) {
+            setIsOpen(false);
+        } else {
+            setSearchTerm('');
+            setIsOpen(true);
+            setTimeout(() => inputRef.current?.focus(), 0);
+        }
+    };
 
-            {/* Dropdown Menu */}
-            {isOpen && (
-                <div className="absolute z-10 w-full mt-1 bg-white rounded-md shadow-lg border border-gray-200 max-h-60 overflow-auto">
-                    <ul className="py-1 text-base sm:text-sm focus:outline-none">
-                        {filteredOptions.length === 0 ? (
-                            <li className="px-4 py-2 text-gray-500 select-none">
-                                No results found
-                            </li>
-                        ) : (
-                            filteredOptions.map((option) => (
-                                <li
-                                    key={option.value}
-                                    className={`relative cursor-pointer select-none py-2 pl-3 pr-9 hover:bg-brand-50 ${option.value === value ? 'text-brand-600 bg-brand-50 font-medium' : 'text-gray-900'
-                                        }`}
-                                    onClick={() => handleOptionSelect(option)}
-                                >
-                                    <div className="flex flex-col">
-                                        <span className="block truncate">{option.label}</span>
-                                        {/* Show ID if explicitly searching or if it mimics the filter logic */}
-                                        {option.value !== 'all' && (
-                                            <span className="text-xs text-gray-400 truncate">ID: {option.value}</span>
-                                        )}
-                                    </div>
-                                </li>
-                            ))
-                        )}
-                    </ul>
-                </div>
+    return (
+        <div className={`w-full ${className}`}>
+            {label && (
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
             )}
+            <div className="relative" ref={dropdownRef}>
+                {/* Input row */}
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        disabled={disabled}
+                        className={`block w-full pl-10 pr-16 h-12 border border-gray-200 rounded-lg text-sm
+                            focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
+                            placeholder-gray-400 transition-all duration-150
+                            ${disabled ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white text-gray-900'}`}
+                        placeholder={placeholder}
+                        value={searchTerm}
+                        onChange={handleChange}
+                        onFocus={handleFocus}
+                        autoComplete="off"
+                        spellCheck={false}
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                        {/* Clear button — only when a value is selected */}
+                        {value && !disabled && (
+                            <button
+                                type="button"
+                                onClick={handleClear}
+                                className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                                tabIndex={-1}
+                                aria-label="Clear"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleToggle}
+                            disabled={disabled}
+                            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                            tabIndex={-1}
+                            aria-label="Toggle dropdown"
+                        >
+                            <ChevronDown className={`h-4 w-4 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Dropdown */}
+                {isOpen && !disabled && (
+                    <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
+                        {filteredOptions.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                No results for &ldquo;{searchTerm}&rdquo;
+                            </div>
+                        ) : (
+                            <ul className="py-1">
+                                {query && (
+                                    <li className="px-3 py-1 text-xs text-gray-400 border-b border-gray-100 select-none">
+                                        {filteredOptions.length} result{filteredOptions.length !== 1 ? 's' : ''}
+                                    </li>
+                                )}
+                                {filteredOptions.map(opt => (
+                                    <li
+                                        key={opt.value}
+                                        className={`px-3 py-2 text-sm cursor-pointer select-none
+                                            ${opt.value === value
+                                                ? 'bg-brand-50 text-brand-700 font-medium'
+                                                : 'text-gray-900 hover:bg-gray-50'}`}
+                                        onMouseDown={(e) => e.preventDefault()} // keep focus in input
+                                        onClick={() => handleSelect(opt)}
+                                    >
+                                        {opt.label}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

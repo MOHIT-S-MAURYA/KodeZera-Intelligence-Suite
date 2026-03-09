@@ -1,12 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { User, Mail, Phone, MapPin, Calendar, Shield, Activity, Camera, RefreshCw, Lock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Shield, Activity, Camera, RefreshCw, Lock, Calendar } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
+import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { useAuthStore } from '../store/auth.store';
+
+const FALLBACK_TIMEZONES = [
+    'UTC', 'Pacific/Midway', 'Pacific/Honolulu', 'America/Anchorage',
+    'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York',
+    'America/Sao_Paulo', 'America/Argentina/Buenos_Aires', 'Atlantic/Azores',
+    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Helsinki',
+    'Europe/Istanbul', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Dhaka',
+    'Asia/Bangkok', 'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Sydney',
+    'Pacific/Auckland',
+];
+
+function buildTimezoneOptions() {
+    const now = new Date();
+    const zones: string[] = (Intl as any).supportedValuesOf
+        ? (Intl as any).supportedValuesOf('timeZone')
+        : FALLBACK_TIMEZONES;
+
+    // Use a Map keyed by "offset|longName" to collapse duplicates.
+    // The first IANA zone encountered for each unique combo is kept.
+    const seen = new Map<string, { label: string; value: string; searchText: string; _offset: number }>();
+
+    for (const tz of zones) {
+        try {
+            const getPart = (tzName: Intl.DateTimeFormatOptions['timeZoneName']) =>
+                new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: tzName })
+                    .formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? '';
+
+            const rawOffset = getPart('shortOffset') || 'GMT+0'; // e.g. "GMT+5:30"
+            const shortCode = getPart('short');                   // e.g. "IST", "PST"
+            const longName  = getPart('long') || tz;             // e.g. "India Standard Time"
+
+            const dedupeKey = `${rawOffset}|${longName}`;
+            if (seen.has(dedupeKey)) continue;
+
+            // Only show shortCode if it is a real abbreviation, not just the offset echoed back
+            const isRealCode = shortCode && shortCode !== rawOffset && !/^GMT[+-]/.test(shortCode);
+            const codeStr = isRealCode ? ` ${shortCode}` : '';
+            const label = `(${rawOffset})${codeStr} · ${longName}`;
+            const searchText = `${rawOffset} ${shortCode} ${longName} ${tz}`.toLowerCase();
+
+            seen.set(dedupeKey, { label, value: tz, searchText, _offset: parseOffsetMinutes(rawOffset) });
+        } catch {
+            // skip unsupported zones
+        }
+    }
+
+    const opts = Array.from(seen.values());
+    // Sort west → east by offset, then alphabetically within the same offset
+    opts.sort((a, b) => a._offset !== b._offset ? a._offset - b._offset : a.label.localeCompare(b.label));
+    return opts.map(({ label, value, searchText }) => ({ label, value, searchText }));
+}
+
+function parseOffsetMinutes(offsetStr: string): number {
+    const m = offsetStr.match(/([+-])(\d{1,2}):?(\d{0,2})/);
+    if (!m) return 0;
+    const sign = m[1] === '+' ? 1 : -1;
+    return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10));
+}
+
+const TIMEZONE_OPTIONS = buildTimezoneOptions();
 import { useUIStore } from '../store/ui.store';
 import apiService from '../services/api';
 
@@ -220,6 +281,7 @@ export const Profile: React.FC = () => {
                                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                                     disabled={!isEditing}
                                     leftIcon={<User className="w-5 h-5 ml-1" />}
+                                    placeholder="Enter your first name"
                                 />
                                 <Input
                                     label="Last Name"
@@ -227,14 +289,16 @@ export const Profile: React.FC = () => {
                                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                                     disabled={!isEditing}
                                     leftIcon={<User className="w-5 h-5 ml-1" />}
+                                    placeholder="Enter your last name"
                                 />
                                 <Input
-                                    label="Email"
+                                    label="Email Address"
                                     type="email"
                                     value={formData.email}
                                     onChange={() => { }} // Note: Email is readonly directly on the user model currently
                                     disabled={true}
                                     leftIcon={<Mail className="w-5 h-5 ml-1" />}
+                                    placeholder="your@email.com"
                                 />
                                 <Input
                                     label="Phone"
@@ -252,14 +316,16 @@ export const Profile: React.FC = () => {
                                     leftIcon={<MapPin className="w-5 h-5 ml-1" />}
                                     placeholder="City, Country"
                                 />
-                                <Input
-                                    label="Timezone"
-                                    value={formData.timezone}
-                                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                                    disabled={!isEditing}
-                                    leftIcon={<Calendar className="w-5 h-5 ml-1" />}
-                                    placeholder="e.g. America/Los_Angeles"
-                                />
+                                <div>
+                                    <SearchableSelect
+                                        label="Timezone"
+                                        options={TIMEZONE_OPTIONS}
+                                        value={formData.timezone}
+                                        onChange={(val) => setFormData({ ...formData, timezone: val })}
+                                        disabled={!isEditing}
+                                        placeholder="Search timezone…"
+                                    />
+                                </div>
                             </div>
 
                             <div className="mt-4">

@@ -42,6 +42,11 @@ export const Input: React.FC<InputProps> = ({
 
     return (
         <div className="w-full">
+            {label && (
+                <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-1.5">
+                    {label}
+                </label>
+            )}
             <div className="relative">
                 {leftIcon && (
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
@@ -54,7 +59,7 @@ export const Input: React.FC<InputProps> = ({
                     type={inputType}
                     value={value}
                     defaultValue={defaultValue}
-                    placeholder={label}
+                    placeholder={props.placeholder ?? label}
                     className={clsx(
                         'w-full h-12 px-4 rounded-lg border transition-all duration-150',
                         'text-gray-900 placeholder-gray-400',

@@ -33,7 +33,8 @@ export const Login: React.FC = () => {
                 navigate('/dashboard');
             }
         } catch (error: any) {
-            addToast('error', error.response?.data?.detail || 'Login failed. Please check your credentials.');
+            const message = error.response?.data?.error || error.response?.data?.detail || 'Login failed. Please check your credentials.';
+            addToast('error', message);
         } finally {
             setLoading(false);
         }

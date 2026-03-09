@@ -23,6 +23,7 @@ export interface RoleRecord {
     description:      string;
     parent:           string | null; // UUID of parent role, or null
     parent_name:      string | null;
+    is_system_role:   boolean;
     user_count:       number;
     permission_count: number;
     created_at:       string;       // ISO-8601

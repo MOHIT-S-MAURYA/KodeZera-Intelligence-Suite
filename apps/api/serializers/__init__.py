@@ -11,12 +11,16 @@ from apps.api.serializers.support import SupportTicketSerializer  # noqa: F401
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
-    
+    is_tenant_admin = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
                   'department', 'is_tenant_admin', 'is_active', 'created_at', 'profile_metadata']
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'created_at', 'is_tenant_admin']
+
+    def get_is_tenant_admin(self, obj):
+        return obj.is_tenant_admin
 
 
 class UserManagementSerializer(serializers.ModelSerializer):
@@ -24,11 +28,15 @@ class UserManagementSerializer(serializers.ModelSerializer):
     Full serializer for the Users admin page.
     Includes computed fields for department/role names and handles
     password hashing + role assignment in a single create/update call.
+
+    is_tenant_admin is read-only — admin status is now determined by
+    whether the user holds the system 'Tenant Administrator' role.
     """
     full_name          = serializers.SerializerMethodField()
     department_name    = serializers.SerializerMethodField()
     primary_role_id    = serializers.SerializerMethodField()
     primary_role_name  = serializers.SerializerMethodField()
+    is_tenant_admin    = serializers.SerializerMethodField()
 
     # Write-only helpers — not model fields
     password = serializers.CharField(write_only=True, required=False, min_length=8)
@@ -46,7 +54,7 @@ class UserManagementSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'full_name', 'department_name',
-            'primary_role_id', 'primary_role_name', 'created_at',
+            'primary_role_id', 'primary_role_name', 'is_tenant_admin', 'created_at',
         ]
         extra_kwargs = {
             'department': {'required': False, 'allow_null': True},
@@ -67,6 +75,9 @@ class UserManagementSerializer(serializers.ModelSerializer):
     def get_primary_role_name(self, obj):
         ur = next(iter(obj.user_roles.all()), None)
         return ur.role.name if ur else None
+
+    def get_is_tenant_admin(self, obj):
+        return obj.is_tenant_admin
 
     # ── Write helpers ─────────────────────────────────────────────────────────
 
@@ -225,10 +236,11 @@ class RoleSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description',
             'parent', 'parent_name',
+            'is_system_role',
             'user_count', 'permission_count',
             'created_at',
         ]
-        read_only_fields = ['id', 'parent_name', 'user_count', 'permission_count', 'created_at']
+        read_only_fields = ['id', 'parent_name', 'is_system_role', 'user_count', 'permission_count', 'created_at']
         extra_kwargs = {
             'parent':      {'required': False, 'allow_null': True},
             'description': {'required': False},

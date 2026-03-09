@@ -21,6 +21,7 @@ from apps.api.permissions import HasPermission
 from apps.documents.tasks import process_document_task, delete_document_embeddings_task
 from apps.core.exceptions import DocumentAccessDeniedError
 from apps.api.views.dashboard import invalidate_dashboard_cache
+from apps.core.services.notifications import NotificationService
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -88,6 +89,27 @@ class DocumentViewSet(viewsets.ModelViewSet):
         )
         process_document_task.delay(str(document.id))
         invalidate_dashboard_cache(request.user.id)
+
+        # Notify the document's department (if assigned) so relevant team sees it
+        if document.department_id:
+            NotificationService.notify_department(
+                tenant_id=request.user.tenant_id,
+                department_id=document.department_id,
+                title='New Document Uploaded',
+                message=f'"{document.title}" has been uploaded to your department.',
+                category='document',
+                created_by=request.user,
+            )
+        else:
+            # No department — broadcast to entire tenant
+            NotificationService.notify_tenant(
+                tenant_id=request.user.tenant_id,
+                title='New Document Uploaded',
+                message=f'"{document.title}" has been uploaded.',
+                category='document',
+                created_by=request.user,
+            )
+
         return Response(DocumentSerializer(document).data, status=status.HTTP_201_CREATED)
 
     @method_decorator(ratelimit(key='user', rate=settings.DOCUMENT_UPLOAD_RATE_LIMIT, method='POST'))

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-03-10T00:00:00.000Z" agent="Copilot" version="24.0.0">
+  <diagram name="RAG System Architecture" id="rag-arch">
+    <mxGraphModel dx="1800" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ═══════════ USER INTERFACE LAYER ═══════════ -->
+        <mxCell id="grp_ui" value="👤 User Interface (React + TypeScript)" style="swimlane;fontStyle=1;fontSize=14;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;rounded=1;arcSize=6;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="440" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_chat" value="Chat.tsx&#xa;1500+ line component&#xa;SSE streaming UI&#xa;Folders / Sessions / Messages&#xa;Drag-and-drop, rename, search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;" vertex="1" parent="grp_ui">
+          <mxGeometry x="15" y="40" width="195" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_service" value="rag.service.ts&#xa;fetch() → SSE ReadableStream&#xa;Session CRUD&#xa;Folder CRUD&#xa;Message history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;" vertex="1" parent="grp_ui">
+          <mxGeometry x="225" y="40" width="195" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════ INGESTION PIPELINE ═══════════ -->
+        <mxCell id="grp_ingest" value="📥 Document Ingestion Pipeline" style="swimlane;fontStyle=1;fontSize=14;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;rounded=1;arcSize=6;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="480" y="20" width="780" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_upload" value="DocumentViewSet&#xa;.create()&#xa;Multipart upload&#xa;Rate: 20/h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="10" y="40" width="110" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_celery" value="Celery Task&#xa;process_document&#xa;_task()&#xa;max_retries=3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="130" y="40" width="110" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_extract" value="Extract Text&#xa;PDF (PyPDF2)&#xa;DOCX (python-docx)&#xa;TXT (plain)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="250" y="40" width="110" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_chunk" value="Chunk Text&#xa;tiktoken cl100k&#xa;500 tokens&#xa;50 overlap" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="370" y="40" width="110" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_embed" value="Embed Chunks&#xa;Batch embedding&#xa;Dimension validation&#xa;Pad/truncate guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="490" y="40" width="110" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_store" value="Store in Qdrant&#xa;Upsert points&#xa;Payload: tenant,&#xa;doc, dept, chunk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="610" y="40" width="110" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ig_track" value="VectorChunk&#xa;DB tracking&#xa;text_preview&#xa;token_count" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e;dashed=1;" vertex="1" parent="grp_ingest">
+          <mxGeometry x="610" y="130" width="110" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Ingestion arrows -->
+        <mxCell id="ig_e1" edge="1" source="ig_upload" target="ig_celery" parent="grp_ingest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ig_e2" edge="1" source="ig_celery" target="ig_extract" parent="grp_ingest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ig_e3" edge="1" source="ig_extract" target="ig_chunk" parent="grp_ingest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ig_e4" edge="1" source="ig_chunk" target="ig_embed" parent="grp_ingest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ig_e5" edge="1" source="ig_embed" target="ig_store" parent="grp_ingest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ig_e6" edge="1" source="ig_store" target="ig_track" parent="grp_ingest" style="dashed=1;"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ═══════════ QUERY PIPELINE ═══════════ -->
+        <mxCell id="grp_query" value="🔍 RAG Query Pipeline (RAGPipeline)" style="swimlane;fontStyle=1;fontSize=14;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;rounded=1;arcSize=6;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="20" y="230" width="1240" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_rate" value="Rate Limit&#xa;10/min/user&#xa;django-ratelimit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="10" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_quota" value="Tenant Quota&#xa;500 queries/day&#xa;UsageMetrics check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="120" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_session" value="Session Mgmt&#xa;get_or_create&#xa;ChatSession&#xa;20-msg history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="230" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_access" value="Doc Access&#xa;RBAC resolution&#xa;5-rule filter&#xa;Redis cached 15m" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="340" y="40" width="110" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_embed" value="Query Embed&#xa;Same provider&#xa;as ingestion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="460" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_search" value="Vector Search&#xa;Qdrant ANN&#xa;COSINE sim&#xa;top_k=5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="570" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_context" value="Context Expand&#xa;±1 surrounding&#xa;chunks merged&#xa;into full_text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="680" y="40" width="110" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_llm" value="LLM Generation&#xa;System + User prompt&#xa;Context + History&#xa;Stream tokens via SSE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;fontStyle=1;" vertex="1" parent="grp_query">
+          <mxGeometry x="800" y="35" width="130" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_save" value="Persist&#xa;ChatMessage&#xa;+ sources JSON" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="940" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="q_audit" value="Audit Log&#xa;user, query,&#xa;source count" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#f59e0b;" vertex="1" parent="grp_query">
+          <mxGeometry x="1050" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Confidence badges -->
+        <mxCell id="q_conf" value="Confidence Scoring&#xa;>0.85 = high | >0.75 = medium | else = low" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fefce8;strokeColor=#eab308;dashed=1;fontSize=10;" vertex="1" parent="grp_query">
+          <mxGeometry x="570" y="120" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <!-- Query arrows -->
+        <mxCell id="qe1" edge="1" source="q_rate" target="q_quota" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe2" edge="1" source="q_quota" target="q_session" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe3" edge="1" source="q_session" target="q_access" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe4" edge="1" source="q_access" target="q_embed" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe5" edge="1" source="q_embed" target="q_search" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe6" edge="1" source="q_search" target="q_context" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe7" edge="1" source="q_context" target="q_llm" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe8" edge="1" source="q_llm" target="q_save" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="qe9" edge="1" source="q_save" target="q_audit" parent="grp_query"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ═══════════ PROVIDERS ═══════════ -->
+        <mxCell id="grp_prov" value="🤖 LLM &amp; Embedding Providers" style="swimlane;fontStyle=1;fontSize=14;fillColor=#f3e8ff;strokeColor=#9333ea;strokeWidth=2;rounded=1;arcSize=6;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="20" y="460" width="620" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="prov_st" value="⭐ SentenceTransformers&#xa;all-MiniLM-L6-v2&#xa;384 dim | LOCAL | Default&#xa;Cached in-process" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#a855f7;fontStyle=1;" vertex="1" parent="grp_prov">
+          <mxGeometry x="10" y="40" width="145" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="prov_oai" value="OpenAI Embeddings&#xa;text-embedding-3-small&#xa;1536 dim" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#a855f7;" vertex="1" parent="grp_prov">
+          <mxGeometry x="165" y="40" width="135" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="prov_hf" value="HuggingFace API&#xa;feature-extraction&#xa;Inference endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#a855f7;" vertex="1" parent="grp_prov">
+          <mxGeometry x="310" y="40" width="135" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="prov_dev" value="Dev Mock&#xa;SHA256 pseudo&#xa;Pipeline testing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#a855f7;dashed=1;" vertex="1" parent="grp_prov">
+          <mxGeometry x="455" y="40" width="120" height="70" as="geometry"/>
+        </mxCell>
+        <!-- LLM providers row -->
+        <mxCell id="llm_oai" value="OpenAI GPT&#xa;Chat Completions&#xa;Stream support" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#7c3aed;" vertex="1" parent="grp_prov">
+          <mxGeometry x="10" y="130" width="110" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="llm_ant" value="Anthropic&#xa;Claude API&#xa;Stream" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#7c3aed;" vertex="1" parent="grp_prov">
+          <mxGeometry x="130" y="130" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="llm_oll" value="Ollama&#xa;Local LLMs&#xa;No API key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#7c3aed;" vertex="1" parent="grp_prov">
+          <mxGeometry x="240" y="130" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="llm_loc" value="Local Transformers&#xa;TinyLlama 1.1B&#xa;CPU only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#7c3aed;" vertex="1" parent="grp_prov">
+          <mxGeometry x="350" y="130" width="110" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="llm_mock" value="Dev Mock&#xa;Rich context&#xa;preview" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#7c3aed;dashed=1;" vertex="1" parent="grp_prov">
+          <mxGeometry x="470" y="130" width="100" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════ DATA STORES ═══════════ -->
+        <mxCell id="grp_data" value="💾 Data Stores" style="swimlane;fontStyle=1;fontSize=14;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2;rounded=1;arcSize=6;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="660" y="460" width="600" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="ds_qdrant" value="Qdrant&#xa;Vector DB&#xa;Local/Remote/Memory" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#ef4444;size=10;" vertex="1" parent="grp_data">
+          <mxGeometry x="10" y="30" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ds_sqlite" value="SQLite&#xa;Documents, Sessions&#xa;Messages, Chunks" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#ef4444;size=10;" vertex="1" parent="grp_data">
+          <mxGeometry x="150" y="30" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ds_redis" value="Redis&#xa;Access cache 15m&#xa;Role resolution" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#ef4444;size=10;" vertex="1" parent="grp_data">
+          <mxGeometry x="290" y="30" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ds_files" value="File System&#xa;media/{tenant}/&#xa;Original files" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#ef4444;size=10;" vertex="1" parent="grp_data">
+          <mxGeometry x="430" y="30" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════ RBAC ACCESS CONTROL ═══════════ -->
+        <mxCell id="grp_rbac" value="🔒 Document Access Control (5-Rule Resolution)" style="swimlane;fontStyle=1;fontSize=14;fillColor=#e0f2fe;strokeColor=#0284c7;strokeWidth=2;rounded=1;arcSize=6;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="660" y="580" width="600" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="rb1" value="Public docs&#xa;visibility=public&#xa;status=completed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9ff;strokeColor=#38bdf8;fontSize=10;" vertex="1" parent="grp_rbac">
+          <mxGeometry x="10" y="35" width="100" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="rb2" value="Own uploads&#xa;uploaded_by=user&#xa;status=completed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9ff;strokeColor=#38bdf8;fontSize=10;" vertex="1" parent="grp_rbac">
+          <mxGeometry x="120" y="35" width="100" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="rb3" value="Role grants&#xa;DocumentAccess&#xa;type=role" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9ff;strokeColor=#38bdf8;fontSize=10;" vertex="1" parent="grp_rbac">
+          <mxGeometry x="230" y="35" width="100" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="rb4" value="Dept grants&#xa;DocumentAccess&#xa;+ancestors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9ff;strokeColor=#38bdf8;fontSize=10;" vertex="1" parent="grp_rbac">
+          <mxGeometry x="340" y="35" width="100" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="rb5" value="User grants&#xa;DocumentAccess&#xa;type=user" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9ff;strokeColor=#38bdf8;fontSize=10;" vertex="1" parent="grp_rbac">
+          <mxGeometry x="450" y="35" width="100" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════ CROSS-GROUP EDGES ═══════════ -->
+        <!-- UI → Ingestion -->
+        <mxCell id="x1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#2563eb;strokeWidth=2;" edge="1" source="ui_service" target="ig_upload" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- UI → Query -->
+        <mxCell id="x2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d97706;strokeWidth=2;" edge="1" source="ui_service" target="q_rate" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

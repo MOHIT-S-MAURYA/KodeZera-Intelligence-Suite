@@ -18,6 +18,9 @@ from apps.api.views.platform_owner import (
 from apps.api.views.chat import ChatSessionViewSet, ChatFolderViewSet
 from apps.api.views.dashboard import dashboard_view
 from apps.api.views.support import SupportTicketViewSet
+from apps.api.views.notifications import (
+    notification_list, notification_mark_read, notification_mark_all_read, notification_dismiss,
+)
 
 # Create router
 router = DefaultRouter()
@@ -45,6 +48,12 @@ urlpatterns = [
     
     # RAG
     path('rag/query/', rag_query_view, name='rag-query'),
+
+    # Notifications
+    path('notifications/', notification_list, name='notification-list'),
+    path('notifications/read-all/', notification_mark_all_read, name='notification-read-all'),
+    path('notifications/<uuid:notification_id>/read/', notification_mark_read, name='notification-read'),
+    path('notifications/<uuid:notification_id>/', notification_dismiss, name='notification-dismiss'),
     
     # Platform Owner (superuser only)
     path('platform/overview/', platform_overview, name='platform-overview'),

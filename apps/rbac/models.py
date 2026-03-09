@@ -11,7 +11,13 @@ class Role(models.Model):
     """
     Role model with inheritance support.
     Roles can inherit from parent roles.
+
+    System roles (is_system_role=True) are auto-created per tenant
+    and cannot be deleted by tenant admins.  The "Tenant Administrator"
+    system role replaces the old hardcoded is_tenant_admin boolean.
     """
+    SYSTEM_ADMIN_ROLE_NAME = 'Tenant Administrator'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(
         Tenant,
@@ -26,6 +32,10 @@ class Role(models.Model):
         null=True,
         blank=True,
         related_name='children'
+    )
+    is_system_role = models.BooleanField(
+        default=False,
+        help_text='System roles are auto-created and cannot be deleted.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

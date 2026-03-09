@@ -12,6 +12,7 @@ from apps.api.serializers import (
 )
 from apps.api.permissions import IsTenantAdmin
 from apps.rbac.services.authorization import RoleResolutionService, PermissionService
+from apps.core.services.notifications import NotificationService
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -48,7 +49,15 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Inject tenant — never trust client-supplied tenant."""
-        serializer.save(tenant=self.request.user.tenant)
+        dept = serializer.save(tenant=self.request.user.tenant)
+        # Notify tenant admins about the new department
+        NotificationService.notify_tenant(
+            tenant_id=self.request.user.tenant_id,
+            title='New Department Created',
+            message=f'Department "{dept.name}" has been created.',
+            category='department',
+            created_by=self.request.user,
+        )
 
     def destroy(self, request, *args, **kwargs):
         """Block deletion of departments that still have users or child departments."""
@@ -112,11 +121,24 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Inject tenant — never trust client-supplied tenant."""
-        serializer.save(tenant=self.request.user.tenant)
+        role = serializer.save(tenant=self.request.user.tenant)
+        # Notify tenant admins about the new role
+        NotificationService.notify_tenant(
+            tenant_id=self.request.user.tenant_id,
+            title='New Role Created',
+            message=f'Role "{role.name}" has been created.',
+            category='role',
+            created_by=self.request.user,
+        )
 
     def destroy(self, request, *args, **kwargs):
-        """Block deletion of roles that still have users assigned."""
+        """Block deletion of system roles and roles that still have users assigned."""
         role = self.get_object()
+        if role.is_system_role:
+            return Response(
+                {'error': f'Cannot delete "{role.name}": it is a system role and cannot be removed.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if role.user_count > 0:
             return Response(
                 {
@@ -253,6 +275,32 @@ class UserManagementViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,   # 403 not 400: request is valid, action is forbidden
             )
         return super().destroy(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        """Create user and send targeted notifications."""
+        new_user = serializer.save()
+        tenant_id = self.request.user.tenant_id
+        admin = self.request.user
+
+        # 1. Notify the new employee
+        NotificationService.notify_user(
+            tenant_id=tenant_id,
+            user_id=new_user.id,
+            title='Welcome!',
+            message=f'Your account has been created. Welcome to {admin.tenant.name}!',
+            category='user_management',
+            created_by=admin,
+        )
+        # 2. Notify their department (team members learn about the new hire)
+        if new_user.department_id:
+            NotificationService.notify_department(
+                tenant_id=tenant_id,
+                department_id=new_user.department_id,
+                title='New Team Member',
+                message=f'{new_user.full_name} has joined the {new_user.department.name} team.',
+                category='user_management',
+                created_by=admin,
+            )
 
     @action(detail=True, methods=['post'], url_path='toggle-status')
     def toggle_status(self, request, pk=None):

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, RefreshCw, Users as UsersIcon, Shield, Lock } from 'lucide-react';
+import { Search, Plus, RefreshCw, Users as UsersIcon, Shield, Lock, ShieldCheck } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -228,7 +228,7 @@ export const Roles: React.FC = () => {
                             </div>
                         )
                         : filtered.map((role) => {
-                            const canDelete = role.user_count === 0;
+                            const canDelete = role.user_count === 0 && !role.is_system_role;
                             return (
                                 <Card key={role.id} hover>
                                     <CardHeader>
@@ -236,12 +236,20 @@ export const Roles: React.FC = () => {
                                             <div className="w-12 h-12 rounded-lg bg-brand-100 flex items-center justify-center">
                                                 <Shield className="w-6 h-6 text-brand-600" />
                                             </div>
-                                            {role.parent_name && (
-                                                <Badge variant="default" className="text-xs flex items-center gap-1">
-                                                    <Lock className="w-3 h-3 inline mr-1" />
-                                                    {role.parent_name}
-                                                </Badge>
-                                            )}
+                                            <div className="flex gap-1.5">
+                                                {role.is_system_role && (
+                                                    <Badge variant="brand" className="text-xs flex items-center gap-1">
+                                                        <ShieldCheck className="w-3 h-3 inline mr-0.5" />
+                                                        System
+                                                    </Badge>
+                                                )}
+                                                {role.parent_name && (
+                                                    <Badge variant="default" className="text-xs flex items-center gap-1">
+                                                        <Lock className="w-3 h-3 inline mr-1" />
+                                                        {role.parent_name}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
                                     </CardHeader>
                                     <CardContent>
@@ -261,13 +269,15 @@ export const Roles: React.FC = () => {
                                         </div>
                                         <div className="flex gap-2">
                                             <Button variant="ghost" size="sm" className="flex-1"
+                                                disabled={role.is_system_role}
+                                                title={role.is_system_role ? 'System roles cannot be edited' : undefined}
                                                 onClick={() => openEdit(role)}>
                                                 Edit
                                             </Button>
                                             <Button
                                                 variant="ghost" size="sm" className="flex-1"
                                                 disabled={!canDelete}
-                                                title={canDelete ? undefined : `${role.user_count} user(s) assigned — reassign first`}
+                                                title={role.is_system_role ? 'System roles cannot be deleted' : canDelete ? undefined : `${role.user_count} user(s) assigned — reassign first`}
                                                 onClick={() => confirmDelete(role)}
                                             >
                                                 Delete

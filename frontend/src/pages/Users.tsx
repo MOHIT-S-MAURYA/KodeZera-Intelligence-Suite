@@ -25,7 +25,6 @@ interface FormState {
     password:        string;
     department:      string;
     role_id:         string;
-    is_tenant_admin: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -35,7 +34,6 @@ const EMPTY_FORM: FormState = {
     password:        '',
     department:      '',
     role_id:         '',
-    is_tenant_admin: false,
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -117,7 +115,6 @@ export const Users: React.FC = () => {
             password:        '',
             department:      u.department ?? '',
             role_id:         u.primary_role_id ?? '',
-            is_tenant_admin: u.is_tenant_admin,
         });
         setFormError(null);
         setModalOpen(true);
@@ -147,7 +144,6 @@ export const Users: React.FC = () => {
                     last_name:       form.last_name,
                     department:      form.department || null,
                     role_id:         form.role_id   || null,
-                    is_tenant_admin: form.is_tenant_admin,
                 };
                 if (form.password) payload.password = form.password;
                 const updated = await userService.update(editingUser.id, payload);
@@ -160,7 +156,6 @@ export const Users: React.FC = () => {
                     password:        form.password,
                     department:      form.department || null,
                     role_id:         form.role_id   || null,
-                    is_tenant_admin: form.is_tenant_admin,
                 };
                 const created = await userService.create(payload);
                 setUsers(prev => [created, ...prev]);
@@ -426,17 +421,6 @@ export const Users: React.FC = () => {
                             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                     </div>
-
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                        <input type="checkbox"
-                            className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                            checked={form.is_tenant_admin}
-                            onChange={e => patch('is_tenant_admin', e.target.checked)} />
-                        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-brand-600" />
-                            Grant Tenant Admin privileges
-                        </span>
-                    </label>
 
                     <div className="flex gap-3 pt-2">
                         <Button variant="secondary" className="flex-1" onClick={closeModal} disabled={saving}>Cancel</Button>

@@ -140,7 +140,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         related_name='users'
     )
-    is_tenant_admin = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -165,6 +164,24 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.email} ({self.tenant.name if self.tenant else 'Superuser'})"
+
+    @property
+    def is_tenant_admin(self):
+        """
+        Dynamic replacement for the old BooleanField.
+        Returns True if the user holds the system 'Tenant Administrator' role.
+        Cached per-request via _is_tenant_admin_cache attribute.
+        """
+        cached = getattr(self, '_is_tenant_admin_cache', None)
+        if cached is not None:
+            return cached
+        if not self.tenant_id:
+            self._is_tenant_admin_cache = False
+            return False
+        from apps.rbac.services.authorization import RoleResolutionService
+        result = RoleResolutionService.is_tenant_administrator(self)
+        self._is_tenant_admin_cache = result
+        return result
 
     @property
     def full_name(self):
@@ -593,4 +610,94 @@ class SupportTicket(models.Model):
 
     def __str__(self):
         return f"[{self.id}] {self.subject} ({self.status})"
+
+
+class Notification(models.Model):
+    """
+    Targeted notification system inspired by Workday architecture.
+
+    Notifications are sent only to the users who need them:
+      - user-level:       specific user (e.g. "Your account was created")
+      - department-level:  all users in a department (e.g. "New HR document uploaded")
+      - role-level:        all users with a specific role
+      - tenant-level:      all users in the tenant (e.g. admin broadcast)
+
+    The (target_type, target_id) pair identifies the audience.
+    Each row in NotificationReceipt tracks per-user read state.
+    """
+
+    CATEGORY_CHOICES = [
+        ('user_management', 'User Management'),
+        ('document', 'Document'),
+        ('role', 'Role & Permission'),
+        ('department', 'Department'),
+        ('system', 'System'),
+    ]
+
+    TARGET_TYPE_CHOICES = [
+        ('user', 'Specific User'),
+        ('department', 'Department'),
+        ('role', 'Role'),
+        ('tenant', 'Entire Tenant'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='notifications',
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='system')
+
+    # Targeting — who should see this notification
+    target_type = models.CharField(max_length=20, choices=TARGET_TYPE_CHOICES)
+    target_id = models.UUIDField(
+        help_text='UUID of the user / department / role / tenant this targets.',
+    )
+
+    # Who triggered it
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_notifications',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notifications'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', '-created_at']),
+            models.Index(fields=['target_type', 'target_id']),
+        ]
+
+    def __str__(self):
+        return f"[{self.category}] {self.title}"
+
+
+class NotificationReceipt(models.Model):
+    """
+    Per-user read/dismiss state for a notification.
+    Created lazily when the notification list is fetched,
+    or eagerly by the notification service for user-targeted ones.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    notification = models.ForeignKey(
+        Notification, on_delete=models.CASCADE, related_name='receipts',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='notification_receipts',
+    )
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notification_receipts'
+        unique_together = [['notification', 'user']]
+        indexes = [
+            models.Index(fields=['user', 'is_read', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.notification.title} ({'read' if self.is_read else 'unread'})"
 

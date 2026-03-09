@@ -222,9 +222,23 @@ def tenants_list(request):
                     first_name='Admin',
                     last_name=name,
                     tenant=tenant,
-                    is_tenant_admin=True,
                     is_active=True,
                 )
+
+                # 4d-ii. Create system "Tenant Administrator" role with all permissions
+                from apps.rbac.models import Role, Permission, RolePermission, UserRole
+                admin_role = Role.objects.create(
+                    tenant=tenant,
+                    name=Role.SYSTEM_ADMIN_ROLE_NAME,
+                    description='System-created administrator role with full access.',
+                    is_system_role=True,
+                )
+                all_perms = Permission.objects.all()
+                RolePermission.objects.bulk_create(
+                    [RolePermission(role=admin_role, permission=p) for p in all_perms],
+                    ignore_conflicts=True,
+                )
+                UserRole.objects.create(user=admin_user, role=admin_role)
 
                 # 4e. Audit log
                 SystemAuditLog.objects.create(

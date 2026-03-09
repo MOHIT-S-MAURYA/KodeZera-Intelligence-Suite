@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { ToastType } from '../components/ui/Toast';
+import type { NotificationData } from '../services/notification.service';
+import { notificationService } from '../services/notification.service';
 
 interface Toast {
     id: string;
@@ -7,38 +9,28 @@ interface Toast {
     message: string;
 }
 
-export interface Notification {
-    id: number;
-    title: string;
-    message: string;
-    time: string;
-    unread: boolean;
-}
+export type { NotificationData as Notification };
 
 interface UIState {
     sidebarOpen: boolean;
     toasts: Toast[];
-    notifications: Notification[];
+    notifications: NotificationData[];
+    notificationsLoading: boolean;
     toggleSidebar: () => void;
     setSidebarOpen: (open: boolean) => void;
     addToast: (type: ToastType, message: string) => void;
     removeToast: (id: string) => void;
-    addNotification: (notification: Omit<Notification, 'id' | 'unread'>) => void;
-    markAsRead: (id: number) => void;
-    markAllAsRead: () => void;
-    removeNotification: (id: number) => void;
+    fetchNotifications: () => Promise<void>;
+    markAsRead: (id: string) => Promise<void>;
+    markAllAsRead: () => Promise<void>;
+    removeNotification: (id: string) => Promise<void>;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
     sidebarOpen: true,
     toasts: [],
-    // Initialize with mock data
-    notifications: [
-        { id: 1, title: 'New Tenant Registered', message: 'Acme Corp has completed registration.', time: '5m ago', unread: true },
-        { id: 2, title: 'System Alert', message: 'High CPU usage detected on worker-01.', time: '1h ago', unread: true },
-        { id: 3, title: 'Support Ticket Updated', message: 'Ticket #T-1002 has a new reply.', time: '2h ago', unread: false },
-        { id: 4, title: 'Database Backup', message: 'Daily backup completed successfully.', time: '5h ago', unread: false },
-    ],
+    notifications: [],
+    notificationsLoading: false,
 
     toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
@@ -57,36 +49,52 @@ export const useUIStore = create<UIState>((set) => ({
         }));
     },
 
-    addNotification: (notification) => {
-        set((state) => ({
-            notifications: [
-                {
-                    id: Date.now(),
-                    ...notification,
-                    unread: true,
-                },
-                ...state.notifications,
-            ],
-        }));
+    fetchNotifications: async () => {
+        set({ notificationsLoading: true });
+        try {
+            const data = await notificationService.getAll();
+            set({ notifications: data });
+        } catch {
+            // silently fail — don't block the rest of the UI
+        } finally {
+            set({ notificationsLoading: false });
+        }
     },
 
-    markAsRead: (id) => {
+    markAsRead: async (id: string) => {
+        // Optimistic update
         set((state) => ({
             notifications: state.notifications.map((n) =>
                 n.id === id ? { ...n, unread: false } : n
             ),
         }));
+        try {
+            await notificationService.markRead(id);
+        } catch {
+            // Revert on failure
+            get().fetchNotifications();
+        }
     },
 
-    markAllAsRead: () => {
+    markAllAsRead: async () => {
         set((state) => ({
             notifications: state.notifications.map((n) => ({ ...n, unread: false })),
         }));
+        try {
+            await notificationService.markAllRead();
+        } catch {
+            get().fetchNotifications();
+        }
     },
 
-    removeNotification: (id) => {
+    removeNotification: async (id: string) => {
         set((state) => ({
             notifications: state.notifications.filter((n) => n.id !== id),
         }));
+        try {
+            await notificationService.dismiss(id);
+        } catch {
+            get().fetchNotifications();
+        }
     },
 }));
