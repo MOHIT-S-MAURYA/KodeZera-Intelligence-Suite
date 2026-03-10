@@ -3,3 +3,4 @@ from .auth import *
 from .documents import *
 from .rag import *
 from .admin import *
+from .org import *

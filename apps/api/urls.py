@@ -10,6 +10,7 @@ from apps.api.views.admin import (
     AuditLogViewSet, DepartmentViewSet, RoleViewSet, PermissionViewSet,
     UserRoleViewSet, UserManagementViewSet,
 )
+from apps.api.views.org import OrgUnitViewSet
 from apps.api.views.platform_owner import (
     platform_overview, tenants_list, tenant_detail, system_health, audit_logs_list,
     platform_analytics, ai_config_get, ai_config_update, available_models
@@ -35,6 +36,7 @@ router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'rag/sessions', ChatSessionViewSet, basename='chat-session')
 router.register(r'rag/folders', ChatFolderViewSet, basename='chat-folder')
 router.register(r'support', SupportTicketViewSet, basename='support')
+router.register(r'org-units', OrgUnitViewSet, basename='org-unit')
 
 urlpatterns = [
     # Dashboard

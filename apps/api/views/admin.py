@@ -13,6 +13,7 @@ from apps.api.serializers import (
 from apps.api.permissions import IsTenantAdmin
 from apps.rbac.services.authorization import RoleResolutionService, PermissionService
 from apps.core.services.notifications import NotificationService
+from apps.rbac.services.role_hierarchy import RoleHierarchyService
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -166,6 +167,62 @@ class RoleViewSet(viewsets.ModelViewSet):
         RoleResolutionService.invalidate_tenant_cache(role.tenant.id)
         return Response({'status': 'permissions assigned'})
 
+    @action(detail=False, methods=['get'])
+    def tree(self, request):
+        """Full role hierarchy as nested JSON."""
+        from apps.api.serializers.org import RoleTreeSerializer
+        tree_data = RoleHierarchyService.build_role_tree(request.user.tenant)
+        serializer = RoleTreeSerializer(tree_data, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'put'])
+    def permissions(self, request, pk=None):
+        """
+        GET: All permissions for role (including inherited from ancestors).
+        PUT: Replace all direct permissions for role.
+        """
+        role = self.get_object()
+
+        if request.method == 'GET':
+            perms = RoleHierarchyService.get_all_permissions_for_role(role.id)
+            data = []
+            for p in perms:
+                data.append({
+                    'id': p.id,
+                    'name': p.name,
+                    'resource_type': p.resource_type,
+                    'action': p.action,
+                    'is_deny': p.is_deny,
+                    'inherited_from': getattr(p, 'inherited_from', None),
+                    'inherited_from_name': getattr(p, 'inherited_from_name', None),
+                })
+            return Response(data)
+
+        if request.method == 'PUT':
+            permission_ids = request.data.get('permission_ids', [])
+            RolePermission.objects.filter(role=role).delete()
+            if permission_ids:
+                RolePermission.objects.bulk_create(
+                    [RolePermission(role=role, permission_id=pid) for pid in permission_ids],
+                    ignore_conflicts=True,
+                )
+            RoleHierarchyService._invalidate_role_caches(role.tenant_id)
+            return Response({'status': 'permissions updated'})
+
+    @action(detail=True, methods=['get'], url_path='effective-members')
+    def effective_members(self, request, pk=None):
+        """All users who hold this role (direct + inherited via role hierarchy)."""
+        role = self.get_object()
+        descendant_ids = RoleHierarchyService.get_descendant_ids(role.id, include_self=True)
+        user_ids = set(
+            UserRole.objects.filter(
+                role_id__in=descendant_ids, is_active=True,
+            ).values_list('user_id', flat=True)
+        )
+        users = User.objects.filter(id__in=user_ids, tenant=request.user.tenant)
+        from apps.api.serializers import UserSerializer
+        return Response(UserSerializer(users, many=True).data)
+
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -216,6 +273,16 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PermissionSerializer
     permission_classes = [IsTenantAdmin]
     queryset = Permission.objects.all()
+
+    @action(detail=False, methods=['get'])
+    def matrix(self, request):
+        """
+        Permission matrix: roles × permissions grid.
+        Shows which permissions each role has (direct or inherited).
+        """
+        tenant = request.user.tenant
+        matrix = RoleHierarchyService.get_permission_matrix(tenant)
+        return Response(matrix)
 
 
 class UserRoleViewSet(viewsets.ModelViewSet):
@@ -315,3 +382,45 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         user.save(update_fields=['is_active', 'updated_at'])
         serializer = self.get_serializer(user)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='effective-permissions')
+    def effective_permissions(self, request, pk=None):
+        """Compute all effective permissions for a user."""
+        user = self.get_object()
+        perms = PermissionService.get_effective_permissions(user)
+        # perms is a dict: { "resource:action": {granted, conditions, source, ...} }
+        return Response(perms)
+
+    @action(detail=True, methods=['get'], url_path='accessible-documents')
+    def accessible_documents(self, request, pk=None):
+        """Preview what documents a user can access."""
+        from apps.documents.services.access import DocumentAccessService
+        from apps.api.serializers import DocumentSerializer
+        user = self.get_object()
+        docs = DocumentAccessService.get_accessible_documents(user)[:100]
+        return Response(DocumentSerializer(docs, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='org-units')
+    def org_units(self, request, pk=None):
+        """All org units a user belongs to."""
+        from apps.core.models import UserOrgUnit
+        from apps.api.serializers.org import OrgUnitMemberSerializer
+        user = self.get_object()
+        memberships = UserOrgUnit.objects.filter(
+            user=user, is_active=True,
+        ).select_related('org_unit')
+        return Response(OrgUnitMemberSerializer(memberships, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='reporting-chain')
+    def reporting_chain(self, request, pk=None):
+        """Manager chain from user up to the top."""
+        from apps.api.serializers import UserSerializer
+        user = self.get_object()
+        chain = []
+        current = user.manager if hasattr(user, 'manager') else None
+        seen = set()
+        while current and current.id not in seen:
+            chain.append(current)
+            seen.add(current.id)
+            current = getattr(current, 'manager', None)
+        return Response(UserSerializer(chain, many=True).data)

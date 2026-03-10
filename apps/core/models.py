@@ -147,6 +147,28 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_login = models.DateTimeField(null=True, blank=True)
     profile_metadata = models.JSONField(default=dict, blank=True)
 
+    # Enhanced org profile fields
+    employee_id = models.CharField(max_length=50, blank=True, default='')
+    job_title = models.CharField(max_length=200, blank=True, default='')
+    manager = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='direct_reports',
+    )
+    clearance_level = models.PositiveIntegerField(
+        default=0,
+        help_text='Security clearance 0-5, matches document classification_level.',
+    )
+    EMPLOYMENT_TYPES = [
+        ('full_time', 'Full Time'),
+        ('part_time', 'Part Time'),
+        ('contractor', 'Contractor'),
+        ('intern', 'Intern'),
+    ]
+    employment_type = models.CharField(
+        max_length=20, choices=EMPLOYMENT_TYPES, default='full_time',
+    )
+    hired_at = models.DateField(null=True, blank=True)
+
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -697,6 +719,144 @@ class NotificationReceipt(models.Model):
         indexes = [
             models.Index(fields=['user', 'is_read', '-created_at']),
         ]
+
+
+# ─── Organisation Hierarchy (Closure Table Pattern) ──────────────────────────
+
+
+class OrgUnit(models.Model):
+    """
+    Unified organisational unit supporting multiple hierarchy types.
+    Replaces the flat Department model with a typed, closure-table-backed tree.
+    """
+    ORG_UNIT_TYPES = [
+        ('company', 'Company'),
+        ('division', 'Division'),
+        ('department', 'Department'),
+        ('team', 'Team'),
+        ('cost_center', 'Cost Center'),
+        ('location', 'Location'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='org_units',
+    )
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    unit_type = models.CharField(max_length=20, choices=ORG_UNIT_TYPES, default='department')
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='children',
+    )
+    depth = models.PositiveIntegerField(default=0)
+    path = models.CharField(max_length=1000, blank=True, default='')
+    sibling_order = models.PositiveIntegerField(default=0)
+    head = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='headed_units',
+    )
+    is_active = models.BooleanField(default=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    MAX_DEPTH = 15
+
+    class Meta:
+        db_table = 'org_units'
+        ordering = ['path', 'sibling_order', 'name']
+        indexes = [
+            models.Index(fields=['tenant', 'unit_type']),
+            models.Index(fields=['tenant', 'parent']),
+            models.Index(fields=['tenant', 'depth']),
+            models.Index(fields=['tenant', 'is_active']),
+            models.Index(fields=['path']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'code'],
+                condition=~models.Q(code=''),
+                name='unique_org_unit_code_per_tenant',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_unit_type_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.parent and self.parent.depth >= self.MAX_DEPTH - 1:
+            raise ValidationError(
+                f'Maximum hierarchy depth of {self.MAX_DEPTH} exceeded.'
+            )
+        if self.parent and self.parent.tenant_id != self.tenant_id:
+            raise ValidationError('Parent must belong to the same tenant.')
+
+
+class OrgUnitClosure(models.Model):
+    """
+    Closure table for O(1) subtree and ancestor queries.
+    Every ancestor-descendant pair is stored as a row.
+    Self-referencing row (depth=0) included for each node.
+    """
+    ancestor = models.ForeignKey(
+        OrgUnit, on_delete=models.CASCADE, related_name='descendant_links',
+    )
+    descendant = models.ForeignKey(
+        OrgUnit, on_delete=models.CASCADE, related_name='ancestor_links',
+    )
+    depth = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = 'org_unit_closure'
+        unique_together = [['ancestor', 'descendant']]
+        indexes = [
+            models.Index(fields=['ancestor', 'depth']),
+            models.Index(fields=['descendant', 'depth']),
+        ]
+
+    def __str__(self):
+        return f"{self.ancestor.name} -> {self.descendant.name} (depth={self.depth})"
+
+
+class UserOrgUnit(models.Model):
+    """
+    User membership in org units. Supports multi-membership.
+    One membership is marked as primary (for default context).
+    """
+    MEMBERSHIP_TYPES = [
+        ('primary', 'Primary'),
+        ('secondary', 'Secondary'),
+        ('temporary', 'Temporary'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='org_memberships',
+    )
+    org_unit = models.ForeignKey(
+        OrgUnit, on_delete=models.CASCADE, related_name='members',
+    )
+    membership_type = models.CharField(
+        max_length=20, choices=MEMBERSHIP_TYPES, default='primary',
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'user_org_units'
+        unique_together = [['user', 'org_unit']]
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['org_unit', 'is_active']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} -> {self.org_unit.name} ({self.membership_type})"
 
     def __str__(self):
         return f"{self.user.email} — {self.notification.title} ({'read' if self.is_read else 'unread'})"

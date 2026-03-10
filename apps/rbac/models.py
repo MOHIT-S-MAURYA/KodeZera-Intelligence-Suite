@@ -37,6 +37,26 @@ class Role(models.Model):
         default=False,
         help_text='System roles are auto-created and cannot be deleted.',
     )
+    max_users = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Maximum users that can hold this role. Null = unlimited.',
+    )
+    priority = models.PositiveIntegerField(
+        default=0,
+        help_text='For conflict resolution — higher priority wins.',
+    )
+    SCOPE_TYPES = [
+        ('global', 'Global'),
+        ('org_unit', 'Org Unit'),
+    ]
+    scope_type = models.CharField(
+        max_length=20, choices=SCOPE_TYPES, default='global',
+    )
+    scope_org_unit = models.ForeignKey(
+        'core.OrgUnit', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='scoped_roles',
+        help_text='If scope_type=org_unit, restricts this role to a subtree.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -46,6 +66,7 @@ class Role(models.Model):
         unique_together = [['tenant', 'name']]
         indexes = [
             models.Index(fields=['tenant', 'parent']),
+            models.Index(fields=['scope_type']),
         ]
 
     def __str__(self):
@@ -90,6 +111,7 @@ class Permission(models.Model):
         ('role', 'Role'),
         ('user', 'User'),
         ('department', 'Department'),
+        ('org_unit', 'Org Unit'),
         ('audit_log', 'Audit Log'),
         ('tenant', 'Tenant'),
     ]
@@ -111,6 +133,14 @@ class Permission(models.Model):
     resource_type = models.CharField(max_length=50, choices=RESOURCE_TYPES)
     action = models.CharField(max_length=50, choices=ACTIONS)
     description = models.TextField(blank=True)
+    conditions = models.JSONField(
+        default=dict, blank=True,
+        help_text='Optional ABAC conditions: {} = unrestricted, {"department": "own"} = own dept only.',
+    )
+    is_deny = models.BooleanField(
+        default=False,
+        help_text='If True, this permission DENIES rather than GRANTS. Deny always wins.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -119,6 +149,7 @@ class Permission(models.Model):
         unique_together = [['resource_type', 'action']]
         indexes = [
             models.Index(fields=['resource_type', 'action']),
+            models.Index(fields=['is_deny']),
         ]
 
     def __str__(self):
@@ -157,7 +188,7 @@ class RolePermission(models.Model):
 class UserRole(models.Model):
     """
     Junction table linking users to roles.
-    Users can have multiple roles.
+    Users can have multiple roles. Supports time-bound assignments.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -170,6 +201,19 @@ class UserRole(models.Model):
         on_delete=models.CASCADE,
         related_name='user_roles'
     )
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='role_assignments_made',
+    )
+    expires_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Auto-expire this role assignment. Null = permanent.',
+    )
+    is_active = models.BooleanField(default=True)
+    reason = models.CharField(
+        max_length=500, blank=True, default='',
+        help_text='Why this role was assigned.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -178,10 +222,41 @@ class UserRole(models.Model):
         indexes = [
             models.Index(fields=['user']),
             models.Index(fields=['role']),
+            models.Index(fields=['expires_at']),
+            models.Index(fields=['is_active']),
         ]
 
     def __str__(self):
         return f"{self.user.email} - {self.role.name}"
+
+    @property
+    def is_expired(self):
+        if self.expires_at is None:
+            return False
+        from django.utils import timezone
+        return timezone.now() >= self.expires_at
+
+
+class RoleClosure(models.Model):
+    """Closure table for role hierarchy — O(1) ancestor/descendant queries."""
+    ancestor = models.ForeignKey(
+        Role, on_delete=models.CASCADE, related_name='descendant_role_links',
+    )
+    descendant = models.ForeignKey(
+        Role, on_delete=models.CASCADE, related_name='ancestor_role_links',
+    )
+    depth = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = 'role_closure'
+        unique_together = [['ancestor', 'descendant']]
+        indexes = [
+            models.Index(fields=['ancestor', 'depth']),
+            models.Index(fields=['descendant', 'depth']),
+        ]
+
+    def __str__(self):
+        return f"{self.ancestor.name} -> {self.descendant.name} (depth={self.depth})"
 
 
 # ─── Signals: keep RBAC permission cache in sync ─────────────────────────────
