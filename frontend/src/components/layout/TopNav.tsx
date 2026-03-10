@@ -22,8 +22,8 @@ export const TopNav: React.FC = () => {
         return () => clearInterval(interval);
     }, [fetchNotifications]);
 
-    const handleLogout = () => {
-        authService.logout();
+    const handleLogout = async () => {
+        await authService.logout();
         logout();
         navigate('/login');
     };

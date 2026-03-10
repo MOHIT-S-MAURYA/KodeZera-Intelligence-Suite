@@ -10,6 +10,8 @@ import { PageLoader } from './components/ui/Spinner';
 // Initial bundle only ships Login + the shell; all other pages are downloaded
 // the first time the user navigates there.
 const Login             = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const ForgotPassword    = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword     = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const Dashboard         = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const PlatformDashboard = lazy(() => import('./pages/PlatformDashboard').then(m => ({ default: m.PlatformDashboard })));
 const Chat              = lazy(() => import('./pages/Chat').then(m => ({ default: m.Chat })));
@@ -44,6 +46,8 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Protected routes */}
         {/* Platform Owner Routes */}

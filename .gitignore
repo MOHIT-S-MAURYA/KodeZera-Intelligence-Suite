@@ -50,3 +50,4 @@ qdrant_data/
 
 # One-off dev scripts (hardcoded paths)
 extract_schema.py
+.venv/

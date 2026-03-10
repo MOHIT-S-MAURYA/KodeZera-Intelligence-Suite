@@ -22,6 +22,14 @@ app.conf.beat_schedule = {
         'task': 'apps.rbac.tasks.cleanup_expired_assignments',
         'schedule': crontab(minute=0, hour='*/6'),  # Every 6 hours
     },
+    'cleanup-expired-sessions': {
+        'task': 'apps.core.tasks.cleanup_expired_sessions',
+        'schedule': crontab(minute=0, hour=3),  # Daily at 3 AM
+    },
+    'archive-old-login-attempts': {
+        'task': 'apps.core.tasks.archive_old_login_attempts',
+        'schedule': crontab(minute=0, hour=4, day_of_week='sunday'),  # Weekly Sunday 4 AM
+    },
 }
 
 

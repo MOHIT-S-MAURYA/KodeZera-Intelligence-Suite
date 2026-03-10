@@ -816,3 +816,158 @@ Profile Page
 ---
 
 > **Status:** Analysis complete. Implementation ON HOLD until design review and approval.
+
+---
+
+## 14. Implementation Status
+
+> **Implemented** — All backend services, models, migrations, API endpoints, frontend pages, and Celery tasks are in place.
+
+### Files Created
+
+| File | Purpose |
+| --- | --- |
+| `apps/core/services/password.py` | Password complexity validation + history management |
+| `apps/core/services/lockout.py` | Progressive Redis-backed account lockout |
+| `apps/core/services/session_manager.py` | Per-device session tracking tied to refresh tokens |
+| `apps/core/services/authentication.py` | Login / MFA challenge / logout orchestrator |
+| `apps/core/services/mfa.py` | TOTP setup, email OTP, device management |
+| `apps/core/services/password_reset.py` | Forgot / reset password OTP flow |
+| `apps/core/tasks.py` | Celery cleanup tasks (sessions, login attempts) |
+| `apps/api/serializers/auth.py` | All auth request/response serializers |
+| `apps/core/migrations/0012_auth_identity_redesign.py` | Migration for all new models & fields |
+| `frontend/src/pages/ForgotPassword.tsx` | Forgot password page |
+| `frontend/src/pages/ResetPassword.tsx` | Reset password with OTP page |
+
+### Files Modified
+
+| File | Changes |
+| --- | --- |
+| `apps/core/models.py` | 5 User auth fields + 6 new models (UserSession, LoginAttempt, PasswordHistory, MFADevice, PasswordResetToken, TenantSSOConfig) |
+| `apps/api/views/auth.py` | Full rewrite — 20 endpoints (login, MFA verify, logout, sessions, password reset, MFA management, admin endpoints) |
+| `apps/api/urls.py` | 20 new URL patterns for all auth endpoints |
+| `config/celery.py` | 2 new periodic tasks (session cleanup daily, login attempt archival weekly) |
+| `requirements.txt` | Added pyotp, qrcode, Pillow |
+| `frontend/src/services/auth.service.ts` | All new API methods (MFA, sessions, password reset, logout) |
+| `frontend/src/store/auth.store.ts` | MFA challenge state (mfaSession, mfaMethods) |
+| `frontend/src/pages/Login.tsx` | MFA flow + forgot password link + demo credentials removed |
+| `frontend/src/pages/Profile.tsx` | Active sessions list, MFA setup/disable, device management |
+| `frontend/src/App.tsx` | Routes for /forgot-password and /reset-password |
+| `frontend/src/components/layout/TopNav.tsx` | Async logout (server-side session revocation) |
+
+### Remaining Manual / Future Steps
+
+1. **Redis required** — lockout, MFA sessions, and email OTP all use Redis cache. Ensure `CACHES` in `config/settings.py` points to a running Redis instance.
+2. **Email sending** — `NotificationService.send_notification()` is called for password reset and email OTP. Ensure email backend is configured in Django settings (`EMAIL_HOST`, `EMAIL_PORT`, etc.) or the notification service has a working email channel.
+3. **SSO (Phase 5)** — `TenantSSOConfig` model is created but SAML/OIDC service layer is deferred to Phase 5.
+4. **Password strength meter UI** — design doc item #12. A visual strength indicator can be added to the password fields in Profile.tsx and ResetPassword.tsx.
+5. **Anomalous login alerts** — design doc item #23. LoginAttempt data is being recorded; anomaly detection logic (new device/IP alerts) is a future enhancement.
+
+---
+
+## 14. Implementation Summary — Manual Steps & File Locations
+
+### 14.1 Python Dependencies (install in venv)
+
+```bash
+pip install pyotp qrcode[pil]
+```
+
+**Location:** Add to `requirements.txt`:
+
+```
+pyotp>=2.9.0
+qrcode[pil]>=7.4
+```
+
+### 14.2 New Files Created
+
+| File                                    | Purpose                                                 |
+| --------------------------------------- | ------------------------------------------------------- |
+| `apps/core/services/password.py`        | Password complexity validation + history management     |
+| `apps/core/services/lockout.py`         | Progressive Redis-backed account lockout                |
+| `apps/core/services/session_manager.py` | Per-device session tracking tied to refresh tokens      |
+| `apps/core/services/authentication.py`  | Core auth orchestrator — login, MFA challenge, logout   |
+| `apps/core/services/mfa.py`             | MFA device management — TOTP setup + email OTP          |
+| `apps/core/services/password_reset.py`  | Forgot/reset password OTP flow                          |
+| `apps/core/tasks.py`                    | Celery tasks — session cleanup + login attempt archival |
+| `apps/api/serializers/auth.py`          | All auth-related serializers                            |
+
+### 14.3 Modified Files
+
+| File                     | Changes                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/core/models.py`    | Added 5 User fields + 6 new models (UserSession, LoginAttempt, PasswordHistory, MFADevice, PasswordResetToken, TenantSSOConfig) |
+| `apps/api/views/auth.py` | Full rewrite — login via AuthenticationService, MFA, sessions, password reset, admin endpoints                                  |
+| `apps/api/urls.py`       | Added 20 new URL patterns for auth/mfa/sessions/admin                                                                           |
+| `config/celery.py`       | Added 2 periodic tasks (session cleanup, login attempt archival)                                                                |
+
+### 14.4 New API Endpoints
+
+| Method | Path                                 | Auth   | Purpose                                         |
+| ------ | ------------------------------------ | ------ | ----------------------------------------------- |
+| POST   | `/api/auth/login/`                   | Public | Login (returns tokens or MFA challenge)         |
+| POST   | `/api/auth/mfa/verify/`              | Public | Verify MFA code during login                    |
+| POST   | `/api/auth/mfa/send-email/`          | Public | Send email OTP for MFA                          |
+| POST   | `/api/auth/refresh/`                 | Public | Refresh JWT tokens                              |
+| POST   | `/api/auth/logout/`                  | Auth   | Logout current session                          |
+| POST   | `/api/auth/logout-all/`              | Auth   | Logout all sessions                             |
+| POST   | `/api/auth/change-password/`         | Auth   | Change password (complexity + history enforced) |
+| POST   | `/api/auth/forgot-password/`         | Public | Request password reset OTP                      |
+| POST   | `/api/auth/reset-password/`          | Public | Verify OTP + set new password                   |
+| GET    | `/api/auth/sessions/`                | Auth   | List active sessions                            |
+| POST   | `/api/auth/sessions/{id}/revoke/`    | Auth   | Revoke a session                                |
+| POST   | `/api/auth/mfa/setup/`               | Auth   | Start TOTP setup (returns QR)                   |
+| POST   | `/api/auth/mfa/confirm/`             | Auth   | Confirm TOTP setup                              |
+| GET    | `/api/auth/mfa/devices/`             | Auth   | List MFA devices                                |
+| DELETE | `/api/auth/mfa/devices/{id}/`        | Auth   | Remove MFA device                               |
+| POST   | `/api/auth/mfa/disable/`             | Auth   | Disable MFA (requires password)                 |
+| POST   | `/api/admin/users/{id}/force-reset/` | Admin  | Force password change on next login             |
+| POST   | `/api/admin/users/{id}/unlock/`      | Admin  | Unlock locked-out account                       |
+| GET    | `/api/admin/users/{id}/sessions/`    | Admin  | View user's sessions                            |
+| POST   | `/api/admin/users/{id}/revoke-all/`  | Admin  | Revoke all user sessions                        |
+
+### 14.5 Frontend Changes Needed
+
+**`frontend/src/services/auth.service.ts`** — Add API calls:
+
+- `mfaVerify(mfaSession, method, code)` → POST `/api/auth/mfa/verify/`
+- `mfaSendEmail(mfaSession)` → POST `/api/auth/mfa/send-email/`
+- `logout()` → POST `/api/auth/logout/`
+- `logoutAll()` → POST `/api/auth/logout-all/`
+- `forgotPassword(email)` → POST `/api/auth/forgot-password/`
+- `resetPassword(email, otp, newPassword)` → POST `/api/auth/reset-password/`
+- `getSessions()` → GET `/api/auth/sessions/`
+- `revokeSession(sessionId)` → POST `/api/auth/sessions/{id}/revoke/`
+- `setupMFA()` → POST `/api/auth/mfa/setup/`
+- `confirmMFA(code)` → POST `/api/auth/mfa/confirm/`
+- `getMFADevices()` → GET `/api/auth/mfa/devices/`
+- `removeMFADevice(deviceId)` → DELETE `/api/auth/mfa/devices/{id}/`
+- `disableMFA(password)` → POST `/api/auth/mfa/disable/`
+
+**`frontend/src/store/auth.store.ts`** — Handle MFA challenge response (when login returns `mfa_required: true`, store `mfa_session` and redirect to MFA verification page)
+
+**`frontend/src/pages/Login.tsx`** — Add MFA verification step (detect `mfa_required`, show code input, call `mfaVerify`)
+
+**`frontend/src/pages/` (new pages to create)**:
+
+- `ForgotPassword.tsx` — Email input → call `forgotPassword`
+- `ResetPassword.tsx` — OTP + new password → call `resetPassword`
+- `Sessions.tsx` — List sessions with revoke buttons (link from Profile page)
+- `MFASetup.tsx` — QR code display + confirm code flow
+
+**`frontend/src/pages/Profile.tsx`** — Add sections for:
+
+- Change password (already exists, now enforces complexity feedback)
+- MFA management (enable/disable, view devices)
+- Active sessions link
+
+### 14.6 Environment / Redis
+
+These services require Redis to be running (already configured for Celery). No additional env vars needed — the services use Django's default cache backend.
+
+### 14.7 Migration Applied
+
+```
+apps/core/migrations/0012_auth_identity_redesign.py
+```

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { User, Mail, Phone, MapPin, Shield, Activity, Camera, RefreshCw, Lock, Calendar } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Shield, Activity, Camera, RefreshCw, Lock, Calendar, Smartphone, Monitor, Trash2, ShieldCheck, QrCode, Copy } from 'lucide-react';
+import authService from '../services/auth.service';
+import type { SessionInfo, MFADevice, MFASetupResponse } from '../services/auth.service';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -93,6 +95,16 @@ export const Profile: React.FC = () => {
     const [passwordData, setPasswordData] = useState({ current: '', newPwd: '', confirm: '' });
     const [passwordSaving, setPasswordSaving] = useState(false);
 
+    // Sessions state
+    const [sessions, setSessions] = useState<SessionInfo[]>([]);
+    const [sessionsLoading, setSessionsLoading] = useState(false);
+
+    // MFA state
+    const [mfaDevices, setMfaDevices] = useState<MFADevice[]>([]);
+    const [mfaSetup, setMfaSetup] = useState<MFASetupResponse | null>(null);
+    const [mfaConfirmCode, setMfaConfirmCode] = useState('');
+    const [mfaLoading, setMfaLoading] = useState(false);
+
     const [formData, setFormData] = useState<ProfileData>({
         first_name: '',
         last_name: '',
@@ -102,6 +114,23 @@ export const Profile: React.FC = () => {
         bio: '',
         timezone: '',
     });
+
+    const fetchSessions = useCallback(async () => {
+        setSessionsLoading(true);
+        try {
+            const data = await authService.getSessions();
+            setSessions(data);
+        } catch { /* ignore */ } finally {
+            setSessionsLoading(false);
+        }
+    }, []);
+
+    const fetchMFADevices = useCallback(async () => {
+        try {
+            const data = await authService.getMFADevices();
+            setMfaDevices(data);
+        } catch { /* ignore */ }
+    }, []);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -126,7 +155,9 @@ export const Profile: React.FC = () => {
             }
         };
         fetchProfile();
-    }, []);
+        fetchSessions();
+        fetchMFADevices();
+    }, [fetchSessions, fetchMFADevices]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -351,6 +382,7 @@ export const Profile: React.FC = () => {
                             </div>
 
                             <div className="space-y-4">
+                                {/* Password Section */}
                                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                                     <div>
                                         <p className="font-medium text-gray-900">Password</p>
@@ -406,6 +438,185 @@ export const Profile: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* MFA Section */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <div>
+                                        <p className="font-medium text-gray-900">Two-Factor Authentication</p>
+                                        <p className="text-sm text-gray-500">
+                                            {mfaDevices.length > 0 ? `${mfaDevices.length} device(s) configured` : 'Not enabled'}
+                                        </p>
+                                    </div>
+                                    {mfaDevices.length === 0 ? (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            loading={mfaLoading}
+                                            onClick={async () => {
+                                                setMfaLoading(true);
+                                                try {
+                                                    const data = await authService.setupMFA();
+                                                    setMfaSetup(data);
+                                                } catch { addToast('error', 'Failed to start MFA setup.'); }
+                                                finally { setMfaLoading(false); }
+                                            }}
+                                        >
+                                            <ShieldCheck className="w-4 h-4 mr-1" /> Enable MFA
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={async () => {
+                                                const pw = prompt('Enter your password to disable MFA:');
+                                                if (!pw) return;
+                                                try {
+                                                    await authService.disableMFA(pw);
+                                                    setMfaDevices([]);
+                                                    addToast('success', 'MFA disabled.');
+                                                } catch { addToast('error', 'Failed to disable MFA. Check your password.'); }
+                                            }}
+                                        >
+                                            Disable MFA
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* MFA Setup flow */}
+                                {mfaSetup && (
+                                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                                        <p className="text-sm font-medium text-gray-900">Scan this QR code with your authenticator app:</p>
+                                        <div className="flex justify-center">
+                                            <img src={mfaSetup.qr_code} alt="MFA QR Code" className="w-48 h-48 border rounded" />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="flex-1 text-xs bg-white p-2 rounded border font-mono break-all">{mfaSetup.secret}</code>
+                                            <button
+                                                onClick={() => { navigator.clipboard.writeText(mfaSetup.secret); addToast('info', 'Secret copied!'); }}
+                                                className="p-2 hover:bg-gray-200 rounded"
+                                            >
+                                                <Copy className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="text"
+                                                label="Verification Code"
+                                                value={mfaConfirmCode}
+                                                onChange={(e) => setMfaConfirmCode(e.target.value)}
+                                                placeholder="6-digit code"
+                                                maxLength={6}
+                                            />
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                className="mt-6"
+                                                loading={mfaLoading}
+                                                onClick={async () => {
+                                                    setMfaLoading(true);
+                                                    try {
+                                                        await authService.confirmMFA(mfaConfirmCode);
+                                                        addToast('success', 'MFA enabled successfully!');
+                                                        setMfaSetup(null);
+                                                        setMfaConfirmCode('');
+                                                        fetchMFADevices();
+                                                    } catch { addToast('error', 'Invalid code. Try again.'); }
+                                                    finally { setMfaLoading(false); }
+                                                }}
+                                            >
+                                                Verify
+                                            </Button>
+                                        </div>
+                                        <Button variant="ghost" size="sm" onClick={() => { setMfaSetup(null); setMfaConfirmCode(''); }}>Cancel</Button>
+                                    </div>
+                                )}
+
+                                {/* MFA Devices list */}
+                                {mfaDevices.length > 0 && (
+                                    <div className="space-y-2">
+                                        {mfaDevices.map((device) => (
+                                            <div key={device.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                                <div className="flex items-center gap-3">
+                                                    <ShieldCheck className="w-5 h-5 text-green-600" />
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-900">{device.name || device.device_type.toUpperCase()}</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {device.is_primary && 'Primary · '}
+                                                            {device.last_used_at ? `Last used ${new Date(device.last_used_at).toLocaleDateString()}` : 'Never used'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            await authService.removeMFADevice(device.id);
+                                                            fetchMFADevices();
+                                                            addToast('success', 'Device removed.');
+                                                        } catch { addToast('error', 'Failed to remove device.'); }
+                                                    }}
+                                                    className="p-1 text-gray-400 hover:text-red-600"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Active Sessions Card */}
+                    <Card variant="elevated">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <Monitor className="w-6 h-6 text-brand-600" />
+                                    <h2 className="text-xl font-semibold text-gray-900">Active Sessions</h2>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={fetchSessions} disabled={sessionsLoading}>
+                                    <RefreshCw className={clsx('w-4 h-4', sessionsLoading && 'animate-spin')} />
+                                </Button>
+                            </div>
+                            <div className="space-y-3">
+                                {sessions.length === 0 && !sessionsLoading && (
+                                    <p className="text-sm text-gray-500">No active sessions found.</p>
+                                )}
+                                {sessions.map((session) => (
+                                    <div key={session.id} className={clsx(
+                                        'flex items-center justify-between p-3 rounded-lg border',
+                                        session.is_current ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-200',
+                                    )}>
+                                        <div className="flex items-center gap-3">
+                                            <Smartphone className="w-5 h-5 text-gray-500" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">
+                                                    {session.device_name}
+                                                    {session.is_current && <span className="ml-2 text-xs text-brand-600 font-semibold">(This device)</span>}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {session.ip_address}{session.location ? ` · ${session.location}` : ''}
+                                                    {' · '}
+                                                    {new Date(session.last_active_at).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {!session.is_current && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await authService.revokeSession(session.id);
+                                                        fetchSessions();
+                                                        addToast('success', 'Session revoked.');
+                                                    } catch { addToast('error', 'Failed to revoke session.'); }
+                                                }}
+                                                className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                            >
+                                                Revoke
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </Card>

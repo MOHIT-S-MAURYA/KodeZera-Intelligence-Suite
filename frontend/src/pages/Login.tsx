@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Sparkles, Mail, Lock } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Sparkles, Mail, Lock, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuthStore } from '../store/auth.store';
 import { useUIStore } from '../store/ui.store';
 import authService from '../services/auth.service';
+import type { MFAChallengeResponse, LoginResponse } from '../services/auth.service';
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
-    const { setUser } = useAuthStore();
+    const { setUser, setMfaChallenge, mfaSession, mfaMethods, clearMfaChallenge } = useAuthStore();
     const { addToast } = useUIStore();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // MFA step
+    const [mfaCode, setMfaCode] = useState('');
+    const [mfaMethod, setMfaMethod] = useState<string>('');
+    const [sendingEmail, setSendingEmail] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,35 +28,74 @@ export const Login: React.FC = () => {
 
         try {
             const response = await authService.login({ email, password });
-            setUser(response.user);
-            addToast('success', 'Login successful!');
 
-            // Redirect based on user type
-            // Check if user is platform owner
-            if (response.user.isPlatformOwner) {
-                navigate('/platform');
+            if ('mfa_required' in response && response.mfa_required) {
+                const mfa = response as MFAChallengeResponse;
+                setMfaChallenge(mfa.mfa_session, mfa.methods);
+                setMfaMethod(mfa.methods[0] || 'totp');
+                addToast('info', 'Please enter your MFA code to continue.');
             } else {
-                navigate('/dashboard');
+                const login = response as LoginResponse;
+                setUser(login.user);
+                addToast('success', 'Login successful!');
+                if (login.user.isPlatformOwner) {
+                    navigate('/platform');
+                } else if (login.user.force_password_change) {
+                    navigate('/profile');
+                    addToast('warning', 'You are required to change your password.');
+                } else {
+                    navigate('/dashboard');
+                }
             }
         } catch (error: any) {
-            const message = error.response?.data?.error || error.response?.data?.detail || 'Login failed. Please check your credentials.';
+            const data = error.response?.data;
+            const message = data?.error || data?.detail || 'Login failed. Please check your credentials.';
             addToast('error', message);
         } finally {
             setLoading(false);
         }
     };
 
-    const fillDemoCredentials = (role: 'admin' | 'developer' | 'owner') => {
-        if (role === 'admin') {
-            setEmail('test@example.com');
-            setPassword('admin123');
-        } else if (role === 'developer') {
-            setEmail('deleteme@test.local');
-            setPassword('Test1234!');
-        } else if (role === 'owner') {
-            setEmail('owner@kodezera.com');
-            setPassword('Admin1234!');
+    const handleMFASubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!mfaSession) return;
+        setLoading(true);
+
+        try {
+            const response = await authService.verifyMFA(mfaSession, mfaMethod, mfaCode);
+            setUser(response.user);
+            addToast('success', 'Login successful!');
+            if (response.user.isPlatformOwner) {
+                navigate('/platform');
+            } else {
+                navigate('/dashboard');
+            }
+        } catch (error: any) {
+            const message = error.response?.data?.error || 'Invalid MFA code. Please try again.';
+            addToast('error', message);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const handleSendEmailOTP = async () => {
+        if (!mfaSession) return;
+        setSendingEmail(true);
+        try {
+            await authService.sendMFAEmail(mfaSession);
+            setMfaMethod('email');
+            addToast('success', 'Verification code sent to your email.');
+        } catch {
+            addToast('error', 'Failed to send email code.');
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
+    const handleBackToLogin = () => {
+        clearMfaChallenge();
+        setMfaCode('');
+        setMfaMethod('');
     };
 
     return (
@@ -73,73 +118,125 @@ export const Login: React.FC = () => {
 
                     {/* Title */}
                     <div className="text-center mb-8">
-                        <h1 className="text-display-sm text-gray-900 mb-2">Welcome Back</h1>
-                        <p className="text-body-sm text-gray-600">Sign in to Kodezera Intelligence Suite</p>
+                        <h1 className="text-display-sm text-gray-900 mb-2">
+                            {mfaSession ? 'Verify Identity' : 'Welcome Back'}
+                        </h1>
+                        <p className="text-body-sm text-gray-600">
+                            {mfaSession
+                                ? 'Enter your verification code to continue'
+                                : 'Sign in to Kodezera Intelligence Suite'}
+                        </p>
                     </div>
 
-                    {/* Form */}
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <Input
-                            type="email"
-                            label="Email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            leftIcon={<Mail className="w-5 h-5" />}
-                            required
-                        />
+                    {!mfaSession ? (
+                        <>
+                            {/* Login Form */}
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <Input
+                                    type="email"
+                                    label="Email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    leftIcon={<Mail className="w-5 h-5" />}
+                                    required
+                                />
 
-                        <Input
-                            type="password"
-                            label="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            leftIcon={<Lock className="w-5 h-5" />}
-                            required
-                        />
+                                <Input
+                                    type="password"
+                                    label="Password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    leftIcon={<Lock className="w-5 h-5" />}
+                                    required
+                                />
 
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            size="lg"
-                            loading={loading}
-                            className="w-full"
-                        >
-                            Sign In
-                        </Button>
-                    </form>
+                                <Button
+                                    type="submit"
+                                    variant="primary"
+                                    size="lg"
+                                    loading={loading}
+                                    className="w-full"
+                                >
+                                    Sign In
+                                </Button>
+                            </form>
 
-                    {/* Demo credentials */}
-                    <div className="mt-8 pt-6 border-t border-gray-200">
-                        <p className="text-sm text-gray-600 text-center mb-3">Demo Credentials:</p>
-                        <div className="grid grid-cols-3 gap-2">
+                            <div className="mt-6 text-center">
+                                <Link
+                                    to="/forgot-password"
+                                    className="text-sm text-brand-600 hover:text-brand-700 font-medium"
+                                >
+                                    Forgot your password?
+                                </Link>
+                            </div>
+                        </>
+                    ) : (
+                        /* MFA Verification Form */
+                        <form onSubmit={handleMFASubmit} className="space-y-4">
+                            {mfaMethods.length > 1 && (
+                                <div className="flex gap-2 mb-2">
+                                    {mfaMethods.includes('totp') && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setMfaMethod('totp')}
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                                                mfaMethod === 'totp'
+                                                    ? 'bg-brand-100 text-brand-700 border border-brand-300'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            Authenticator App
+                                        </button>
+                                    )}
+                                    {mfaMethods.includes('email') && (
+                                        <button
+                                            type="button"
+                                            onClick={handleSendEmailOTP}
+                                            disabled={sendingEmail}
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                                                mfaMethod === 'email'
+                                                    ? 'bg-brand-100 text-brand-700 border border-brand-300'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {sendingEmail ? 'Sending...' : 'Email Code'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            <Input
+                                type="text"
+                                label={mfaMethod === 'totp' ? 'Authenticator Code' : 'Email Code'}
+                                value={mfaCode}
+                                onChange={(e) => setMfaCode(e.target.value)}
+                                leftIcon={<ShieldCheck className="w-5 h-5" />}
+                                placeholder="Enter 6-digit code"
+                                maxLength={6}
+                                required
+                                autoFocus
+                            />
+
+                            <Button
+                                type="submit"
+                                variant="primary"
+                                size="lg"
+                                loading={loading}
+                                className="w-full"
+                            >
+                                Verify
+                            </Button>
+
                             <button
                                 type="button"
-                                onClick={() => fillDemoCredentials('owner')}
-                                className="px-3 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg"
+                                onClick={handleBackToLogin}
+                                className="w-full flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-gray-900 mt-2"
                             >
-                                Platform Owner
+                                <ArrowLeft className="w-4 h-4" />
+                                Back to login
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => fillDemoCredentials('admin')}
-                                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
-                            >
-                                Admin
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => fillDemoCredentials('developer')}
-                                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
-                            >
-                                Developer
-                            </button>
-                        </div>
-                        <div className="mt-3 text-xs text-gray-500 space-y-1">
-                            <p>• Platform Owner: owner@kodezera.com / Admin1234!</p>
-                            <p>• Admin: test@example.com / admin123</p>
-                            <p>• Developer: deleteme@test.local / Test1234!</p>
-                        </div>
-                    </div>
+                        </form>
+                    )}
                 </div>
             </div>
         </div>

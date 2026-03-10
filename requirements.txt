@@ -29,6 +29,11 @@ openai==1.10.0
 sentence-transformers==2.3.1
 tiktoken==0.5.2
 
+# MFA & QR Codes
+pyotp==2.9.0
+qrcode==7.4.2
+Pillow==10.2.0
+
 # Utilities
 python-dotenv==1.0.0
 python-decouple==3.8

@@ -169,6 +169,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     hired_at = models.DateField(null=True, blank=True)
 
+    # Authentication & security fields
+    mfa_enabled = models.BooleanField(default=False)
+    password_changed_at = models.DateTimeField(null=True, blank=True)
+    force_password_change = models.BooleanField(default=False)
+    failed_login_count = models.IntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -860,4 +867,150 @@ class UserOrgUnit(models.Model):
 
     def __str__(self):
         return f"{self.user.email} — {self.notification.title} ({'read' if self.is_read else 'unread'})"
+
+
+# ─── Authentication & Session Models ────────────────────────────────────────
+
+class UserSession(models.Model):
+    """Tracks active login sessions per device."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
+    refresh_token_jti = models.CharField(max_length=64, unique=True, db_index=True)
+    device_fingerprint = models.CharField(max_length=128, blank=True, default='')
+    device_name = models.CharField(max_length=255, blank=True, default='')
+    ip_address = models.GenericIPAddressField()
+    location = models.CharField(max_length=255, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    last_active_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = 'user_sessions'
+        ordering = ['-last_active_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.device_name} ({self.ip_address})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+
+class LoginAttempt(models.Model):
+    """Track login attempts for lockout and anomaly detection."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(db_index=True)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField(blank=True, default='')
+    success = models.BooleanField()
+    failure_reason = models.CharField(max_length=50, blank=True, default='')
+    mfa_method = models.CharField(max_length=20, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'login_attempts'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email', 'created_at']),
+            models.Index(fields=['ip_address', 'created_at']),
+        ]
+
+    def __str__(self):
+        status = 'OK' if self.success else self.failure_reason
+        return f"{self.email} — {status} — {self.created_at}"
+
+
+class PasswordHistory(models.Model):
+    """Stores hashed previous passwords to prevent reuse."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_history')
+    password_hash = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'password_history'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} — {self.created_at}"
+
+
+class MFADevice(models.Model):
+    """User's registered MFA devices."""
+    MFA_TYPES = [
+        ('totp', 'TOTP'),
+        ('webauthn', 'WebAuthn'),
+        ('email', 'Email OTP'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mfa_devices')
+    device_type = models.CharField(max_length=20, choices=MFA_TYPES)
+    name = models.CharField(max_length=100, default='')
+    secret = models.TextField(blank=True, default='')
+    is_primary = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'mfa_devices'
+        indexes = [
+            models.Index(fields=['user', 'device_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.device_type} — {self.name}"
+
+
+class PasswordResetToken(models.Model):
+    """Short-lived OTP for password reset flow."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    otp_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'password_reset_tokens'
+        indexes = [
+            models.Index(fields=['user', 'is_used']),
+        ]
+
+    def __str__(self):
+        return f"Reset for {self.user.email} — expires {self.expires_at}"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+
+class TenantSSOConfig(models.Model):
+    """Per-tenant SSO configuration."""
+    SSO_PROVIDERS = [
+        ('saml', 'SAML 2.0'),
+        ('oidc', 'OpenID Connect'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='sso_config')
+    provider_type = models.CharField(max_length=10, choices=SSO_PROVIDERS)
+    entity_id = models.URLField(blank=True, default='')
+    login_url = models.URLField(blank=True, default='')
+    certificate = models.TextField(blank=True, default='')
+    role_mapping = models.JSONField(default=dict, blank=True)
+    auto_provision = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'tenant_sso_configs'
+
+    def __str__(self):
+        return f"{self.tenant.name} — {self.provider_type}"
 
