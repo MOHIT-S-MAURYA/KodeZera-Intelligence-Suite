@@ -284,3 +284,53 @@ def invalidate_user_rbac_cache(sender, instance, **kwargs):
                 cache.delete(f"user:{user_id}:perm:{rt}:{ac}")
     except Exception:
         pass  # Never let a cache error break a DB write
+
+
+def _rebuild_role_closure_for_tenant(tenant_id):
+    """Rebuild RoleClosure rows for a tenant from current parent links."""
+    roles = list(Role.objects.filter(tenant_id=tenant_id).only('id', 'parent_id'))
+    if not roles:
+        return
+
+    by_id = {r.id: r for r in roles}
+    new_rows = []
+
+    for role in roles:
+        # Self edge (depth=0)
+        new_rows.append(RoleClosure(ancestor_id=role.id, descendant_id=role.id, depth=0))
+
+        visited = {role.id}
+        current = role
+        depth = 0
+        while current.parent_id and current.parent_id not in visited:
+            depth += 1
+            parent_id = current.parent_id
+            new_rows.append(RoleClosure(ancestor_id=parent_id, descendant_id=role.id, depth=depth))
+            visited.add(parent_id)
+            current = by_id.get(parent_id)
+            if current is None:
+                break
+
+    RoleClosure.objects.filter(ancestor__tenant_id=tenant_id).delete()
+    RoleClosure.objects.bulk_create(new_rows, ignore_conflicts=True)
+
+
+@receiver(post_save, sender=Role)
+def sync_role_closure_on_role_save(sender, instance, **kwargs):
+    """Recompute closure links when role hierarchy changes."""
+    try:
+        from apps.rbac.services.authorization import RoleResolutionService
+        _rebuild_role_closure_for_tenant(instance.tenant_id)
+        RoleResolutionService.invalidate_tenant_cache(instance.tenant_id)
+    except Exception:
+        pass
+
+
+@receiver(post_delete, sender=Role)
+def sync_role_closure_on_role_delete(sender, instance, **kwargs):
+    try:
+        from apps.rbac.services.authorization import RoleResolutionService
+        _rebuild_role_closure_for_tenant(instance.tenant_id)
+        RoleResolutionService.invalidate_tenant_cache(instance.tenant_id)
+    except Exception:
+        pass

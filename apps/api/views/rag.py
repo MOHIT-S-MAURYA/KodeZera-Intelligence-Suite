@@ -1,16 +1,13 @@
 """
 RAG query views.
 """
-from rest_framework import status
-from rest_framework.decorators import api_view, renderer_classes
-from rest_framework.response import Response
+from rest_framework.decorators import api_view, renderer_classes, throttle_classes
 from rest_framework.renderers import BaseRenderer
-from django.conf import settings
-from django_ratelimit.decorators import ratelimit
 from apps.rag.services.rag_query import RAGQueryService
-from apps.api.serializers import RAGQuerySerializer, RAGResponseSerializer
-from apps.core.quota import check_tenant_query_quota
+from apps.api.serializers import RAGQuerySerializer
+from apps.core.services.quota import QuotaService, QuotaExceeded
 from apps.core.throttle import TenantQueryThrottle, UserQueryThrottle
+from rest_framework.exceptions import PermissionDenied
 from django.http import StreamingHttpResponse
 import logging
 
@@ -33,19 +30,26 @@ class ServerSentEventRenderer(BaseRenderer):
 
 @api_view(['POST'])
 @renderer_classes([ServerSentEventRenderer])
-@ratelimit(key='user', rate=settings.RAG_QUERY_RATE_LIMIT, method='POST')
+@throttle_classes([TenantQueryThrottle, UserQueryThrottle])
 def rag_query_view(request):
     """
     RAG query endpoint.
     Returns Server-Sent Events (SSE) stream for real-time text generation.
 
     Enforces:
-    - Per-user rate limit  (django-ratelimit, from settings.RAG_QUERY_RATE_LIMIT)
-    - Per-tenant daily quota (TENANT_DAILY_QUERY_LIMIT; platform owners exempt)
+    - DRF throttling (TenantQueryThrottle + UserQueryThrottle)
+    - Per-tenant query quota (plan-aware QuotaService; platform owners exempt)
     """
     # ── Tenant quota enforcement ──────────────────────────────────────────────
-    # Raises PermissionDenied with structured error if quota exceeded.
-    check_tenant_query_quota(request.user)
+    # Middleware performs this too, but keep an explicit check here so both
+    # /api/* and /api/v1/* paths stay protected even if middleware routing
+    # changes.
+    tenant_id = getattr(request.user, 'tenant_id', None)
+    if tenant_id:
+        try:
+            QuotaService.check_queries(str(tenant_id))
+        except QuotaExceeded as exc:
+            raise PermissionDenied(detail=exc.to_dict())
 
     serializer = RAGQuerySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

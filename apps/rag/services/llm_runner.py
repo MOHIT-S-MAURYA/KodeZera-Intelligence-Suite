@@ -123,11 +123,17 @@ class LLMRunner:
     def _format_context(self, context: List[Dict[str, Any]]) -> str:
         if not context:
             return "No relevant documents found."
+        max_chars = 1200
+        try:
+            from django.conf import settings
+            max_chars = int(getattr(settings, 'RAG_SOURCE_TEXT_MAX_CHARS', 1200))
+        except Exception:
+            pass
         parts = []
         for i, chunk in enumerate(context[:5], 1):
             text = chunk.get('full_text') or chunk.get('text', '')
             title = chunk.get('document_title', 'Unknown')
-            parts.append(f"[{i}] Source: {title}\n{text[:800]}")
+            parts.append(f"[{i}] Source: {title}\n{text[:max_chars]}")
         return "\n\n---\n\n".join(parts)
 
     def _build_system_prompt(self) -> str:

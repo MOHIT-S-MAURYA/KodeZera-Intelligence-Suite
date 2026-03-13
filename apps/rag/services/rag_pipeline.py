@@ -12,6 +12,7 @@ from apps.core.models import User, AuditLog
 from apps.documents.services.access import DocumentAccessService
 from apps.rag.services.retriever import RAGRetriever
 from apps.rag.services.llm_runner import LLMRunner
+from apps.rag.services.citation_verifier import CitationVerifier
 from apps.rag.models import ChatSession, ChatMessage
 from apps.core.exceptions import LLMServiceError
 import logging
@@ -32,6 +33,7 @@ class RAGPipeline:
     def __init__(self, llm_provider: str = None, llm_model: str = None):
         """Initialize the pipeline services."""
         self.retriever = RAGRetriever()
+        self.citation_verifier = CitationVerifier()
         # Passing None for provider/model allows LLMRunner to read from DB config
         self.llm_runner = LLMRunner(provider=llm_provider, model=llm_model)
         
@@ -92,7 +94,8 @@ class RAGPipeline:
                 tenant_id=user.tenant.id,
                 accessible_doc_ids=list(accessible_doc_ids),
                 top_k=top_k,
-                context_window=context_window
+                context_window=context_window,
+                chat_history=history,
             )
         except Exception as e:
             logger.error(f"Error during retrieval phase: {e}")
@@ -128,6 +131,12 @@ class RAGPipeline:
                 content=answer,
                 sources=sources
             )
+
+        citation_verification = self.citation_verifier.verify(
+            answer=answer,
+            sources=sources,
+            retrieved_chunks=retrieved_chunks,
+        )
             
         # 4. Log audit entry for compliance
         self._log_query_audit(user, query_text, len(sources))
@@ -142,7 +151,10 @@ class RAGPipeline:
             'metadata': {
                 'num_chunks': len(retrieved_chunks),
                 'average_confidence': self._calculate_average_confidence(retrieved_chunks) if retrieved_chunks else 'low',
-                'session_id': str(session.id)
+                'session_id': str(session.id),
+                'query_used': (retrieved_chunks[0].get('query_used') if retrieved_chunks else query_text),
+                'rewritten_query': bool(retrieved_chunks and retrieved_chunks[0].get('rewritten_query')),
+                'citation_verification': citation_verification,
             }
         }
 
@@ -190,7 +202,8 @@ class RAGPipeline:
                 tenant_id=user.tenant.id,
                 accessible_doc_ids=list(accessible_doc_ids),
                 top_k=top_k,
-                context_window=context_window
+                context_window=context_window,
+                chat_history=history,
             )
         except Exception as e:
             logger.error(f"Error during retrieval stream phase: {e}")
@@ -201,7 +214,9 @@ class RAGPipeline:
         metadata = {
             'num_chunks': len(retrieved_chunks) if retrieved_chunks else 0,
             'average_confidence': self._calculate_average_confidence(retrieved_chunks) if retrieved_chunks else 'low',
-            'session_id': str(session.id)
+            'session_id': str(session.id),
+            'query_used': (retrieved_chunks[0].get('query_used') if retrieved_chunks else query_text),
+            'rewritten_query': bool(retrieved_chunks and retrieved_chunks[0].get('rewritten_query')),
         }
         
         # Yield initial metadata
@@ -237,10 +252,18 @@ class RAGPipeline:
             content=full_answer,
             sources=sources
         )
+
+        # Stream path computes citation checks at the end because answer text
+        # is only complete after token aggregation.
+        metadata['citation_verification'] = self.citation_verifier.verify(
+            answer=full_answer,
+            sources=sources,
+            retrieved_chunks=retrieved_chunks,
+        )
         self._log_query_audit(user, query_text, len(sources))
         
         # End of stream
-        yield f"data: {json.dumps({'done': True})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'metadata': metadata})}\n\n"
         
     def _get_or_create_session(self, user: User, session_id: str = None) -> ChatSession:
         """Fetch existing session or create a new one."""

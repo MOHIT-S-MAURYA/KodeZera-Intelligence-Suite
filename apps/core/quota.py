@@ -1,11 +1,10 @@
 """
-Quota enforcement for tenant daily query limits.
-Place this check in any view that runs RAG queries so platform owners
-can cap per-tenant AI usage.
+Legacy compatibility shim for tenant query quota checks.
+
+New code should use apps.core.services.quota.QuotaService directly.
+This module remains to avoid breaking older imports.
 """
 import logging
-from django.conf import settings
-from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 logger = logging.getLogger(__name__)
@@ -21,36 +20,16 @@ def check_tenant_query_quota(user):
         from apps.core.quota import check_tenant_query_quota
         check_tenant_query_quota(request.user)
     """
-    limit = getattr(settings, 'TENANT_DAILY_QUERY_LIMIT', 0)
-
-    # Feature disabled or platform owner — skip
-    if limit <= 0 or not user.tenant_id:
+    if not getattr(user, 'tenant_id', None):
         return
 
-    # Import late to avoid circular imports
-    from apps.core.models import UsageMetrics
+    from apps.core.services.quota import QuotaService, QuotaExceeded
 
-    today = timezone.now().date()
-    metrics = (
-        UsageMetrics.objects
-        .filter(tenant_id=user.tenant_id, date=today)
-        .only('queries_count')
-        .first()
-    )
-
-    if metrics and metrics.queries_count >= limit:
+    try:
+        QuotaService.check_queries(str(user.tenant_id))
+    except QuotaExceeded as exc:
         logger.warning(
-            "Tenant %s hit daily query quota (%d/%d)",
-            user.tenant_id, metrics.queries_count, limit
+            "Tenant %s hit query quota (%d/%d)",
+            user.tenant_id, exc.used, exc.limit,
         )
-        raise PermissionDenied(
-            detail={
-                "error": "daily_quota_exceeded",
-                "message": (
-                    f"Your organization has reached its daily AI query limit ({limit} queries). "
-                    "Quota resets at midnight UTC."
-                ),
-                "quota": limit,
-                "used": metrics.queries_count,
-            }
-        )
+        raise PermissionDenied(detail=exc.to_dict())

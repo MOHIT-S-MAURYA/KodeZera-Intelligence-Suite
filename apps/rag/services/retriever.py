@@ -3,6 +3,7 @@ RAG Retriever - Handles document retrieval and context building based on queries
 """
 from typing import List, Dict, Any
 import uuid
+import re
 from apps.rag.services.embeddings import EmbeddingService
 from apps.rag.services.vector_store import VectorStoreService
 from apps.documents.models import Document
@@ -26,7 +27,8 @@ class RAGRetriever:
         query: str, 
         tenant_id: uuid.UUID, 
         accessible_doc_ids: List[uuid.UUID], 
-        top_k: int = 5
+        top_k: int = 5,
+        chat_history: List[Dict[str, str]] | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve relevant document chunks for a query.
@@ -43,26 +45,35 @@ class RAGRetriever:
         if not accessible_doc_ids:
             return []
 
+        rewritten_query = self._rewrite_query(query, chat_history or [])
+
         # Generate query embedding
         try:
-            query_embedding = self.embedding_service.generate_embedding(query)
+            query_embedding = self.embedding_service.generate_embedding(rewritten_query)
         except Exception as e:
             logger.error(f"Error generating query embedding in retriever: {e}")
             return []
 
         # Search vector store
+        # Over-fetch candidates, then re-rank with lexical overlap for better precision.
+        candidate_k = max(top_k * 3, top_k)
         results = self.vector_store.search_vectors(
             query_embedding=query_embedding,
             tenant_id=tenant_id,
             document_ids=accessible_doc_ids,
-            top_k=top_k
+            top_k=candidate_k
         )
+
+        # Hybrid fusion: semantic score + lexical overlap score.
+        reranked = self._rerank_results(rewritten_query, results)
 
         # Enrich results with confidence and relevance
         enriched_results = []
-        for result in results:
-            score = result.get('score', 0)
+        for result in reranked[:top_k]:
+            score = result.get('combined_score', result.get('score', 0))
             result['confidence'] = self._calculate_confidence(score)
+            result['query_used'] = rewritten_query
+            result['rewritten_query'] = rewritten_query != query
             enriched_results.append(result)
 
         return enriched_results
@@ -73,7 +84,8 @@ class RAGRetriever:
         tenant_id: uuid.UUID, 
         accessible_doc_ids: List[uuid.UUID], 
         top_k: int = 5, 
-        context_window: int = 1
+        context_window: int = 1,
+        chat_history: List[Dict[str, str]] | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve chunks and expand them with their surrounding contextual chunks.
@@ -88,7 +100,13 @@ class RAGRetriever:
         Returns:
             list of dicts with chunk information and expanded full_text
         """
-        primary_results = self.retrieve(query, tenant_id, accessible_doc_ids, top_k)
+        primary_results = self.retrieve(
+            query,
+            tenant_id,
+            accessible_doc_ids,
+            top_k,
+            chat_history=chat_history,
+        )
 
         if not primary_results:
             return []
@@ -143,6 +161,68 @@ class RAGRetriever:
             return 'medium'
         else:
             return 'low'
+
+    def _rewrite_query(self, query: str, chat_history: List[Dict[str, str]]) -> str:
+        """
+        Lightweight follow-up rewrite using recent user context.
+
+        If query looks referential (e.g., "what about this?") we prepend the
+        most recent prior user message to increase retrieval specificity.
+        """
+        q = (query or '').strip()
+        if not q or not chat_history:
+            return q
+
+        referential_terms = {
+            'this', 'that', 'it', 'they', 'them', 'those', 'these',
+            'above', 'previous', 'earlier', 'same',
+        }
+        tokens = {t.lower() for t in re.findall(r"[A-Za-z0-9']+", q)}
+        is_short = len(tokens) <= 8
+        is_referential = bool(tokens & referential_terms)
+        if not (is_short or is_referential):
+            return q
+
+        prev_user_msgs = [m.get('content', '').strip() for m in chat_history if m.get('role') == 'user']
+        if len(prev_user_msgs) < 2:
+            return q
+
+        previous = prev_user_msgs[-2]
+        if not previous:
+            return q
+        return f"{previous} | follow-up: {q}"
+
+    def _tokenize(self, text: str) -> set[str]:
+        return {t.lower() for t in re.findall(r"[A-Za-z0-9']+", text or '') if len(t) > 2}
+
+    def _rerank_results(self, query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Re-rank vector hits by fusing semantic score with lexical overlap."""
+        if not results:
+            return []
+
+        q_terms = self._tokenize(query)
+        if not q_terms:
+            return results
+
+        reranked = []
+        for r in results:
+            semantic = float(r.get('score', 0.0))
+            # Qdrant cosine score can be in [-1, 1] depending on config/client version.
+            semantic_norm = max(min((semantic + 1.0) / 2.0, 1.0), 0.0)
+
+            text = r.get('full_text') or r.get('text', '')
+            t_terms = self._tokenize(text)
+            overlap = (len(q_terms & t_terms) / len(q_terms)) if q_terms else 0.0
+
+            combined = (0.8 * semantic_norm) + (0.2 * overlap)
+            nr = dict(r)
+            nr['semantic_score'] = round(semantic_norm, 4)
+            nr['lexical_score'] = round(overlap, 4)
+            nr['combined_score'] = round(combined, 4)
+            reranked.append(nr)
+
+        reranked.sort(key=lambda x: x.get('combined_score', 0.0), reverse=True)
+        return reranked
 
     def _attach_document_metadata(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

@@ -213,6 +213,7 @@ class QuotaEnforcementMiddleware(MiddlewareMixin):
     """
 
     QUOTA_PATHS = {
+        '/api/rag/query/': 'queries',
         '/api/v1/rag/query/': 'queries',
     }
 

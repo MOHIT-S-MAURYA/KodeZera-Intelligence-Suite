@@ -184,6 +184,20 @@ Navigate to `http://localhost:8000/admin/`
 python manage.py test
 ```
 
+### Evaluate RAG Retrieval
+
+Use the offline evaluator to track reranking quality against a labeled JSONL dataset.
+
+```bash
+python manage.py evaluate_rag_retrieval path/to/dataset.jsonl --top-k 5
+```
+
+Dataset row format:
+
+```json
+{"query":"mfa policy","expected_document_ids":["doc-1"],"candidates":[{"document_id":"doc-1","score":0.72,"text":"..."}]}
+```
+
 ## Production Deployment
 
 1. Set `DEBUG=False` in `.env`

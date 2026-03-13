@@ -3,6 +3,15 @@
 > **Comprehensive analysis and advanced system design for all platform modules.**
 > Each module document follows the same 13-section structure: System Overview → Component Deep-Dive → SWOT → Gap Analysis → Advanced System Design → Architecture → Data Model → API → Security → Scalability → Frontend → Migration → Roadmap.
 
+## Reality Check
+
+Design module documents capture the baseline analysis at the time they were authored.
+For current implementation truth, use:
+
+- [VERIFIED_GAP_MATRIX_2026-03-13.md](VERIFIED_GAP_MATRIX_2026-03-13.md)
+
+It reflects implemented work and corrections landed after the original module writeups.
+
 ---
 
 ## System Overview
@@ -41,6 +50,8 @@ The Kodezera Intelligence Suite is an **enterprise multi-tenant SaaS platform** 
 ---
 
 ## Module Summaries
+
+Note: the summaries below are design-time snapshots and may not reflect the latest shipped implementation.
 
 ### 01 — RAG & Chatbot
 
@@ -193,4 +204,4 @@ Modules ranked by implementation priority (accounting for dependencies):
 ---
 
 > **Generated:** 10 March 2026
-> **Status:** All 9 module analyses complete. Implementation ON HOLD pending design review.
+> **Status:** Design analyses complete; implementation is active and tracked in [VERIFIED_GAP_MATRIX_2026-03-13.md](VERIFIED_GAP_MATRIX_2026-03-13.md).
