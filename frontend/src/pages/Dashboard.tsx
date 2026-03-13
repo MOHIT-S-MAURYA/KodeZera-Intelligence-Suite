@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as Recharts from 'recharts';
 import {
     FileText, Users, MessageSquare, HardDrive,
     TrendingUp, ArrowUpRight, RefreshCw, AlertCircle,
@@ -8,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { useAuthStore } from '../store/auth.store';
 import { dashboardService, type DashboardStats } from '../services/dashboard.service';
+import { analyticsService, type DailySeriesPoint } from '../services/analytics.service';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,7 @@ export const Dashboard: React.FC = () => {
     const navigate = useNavigate();
 
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [trendData, setTrendData] = useState<DailySeriesPoint[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -76,8 +79,12 @@ export const Dashboard: React.FC = () => {
         else setRefreshing(true);
         setError(null);
         try {
-            const data = await dashboardService.getStats();
-            setStats(data);
+            const [statsData, trendResp] = await Promise.all([
+                dashboardService.getStats(),
+                analyticsService.getDashboardTrends(30),
+            ]);
+            setStats(statsData);
+            setTrendData(trendResp.series || []);
         } catch (err: any) {
             setError(err?.response?.data?.detail || 'Failed to load dashboard data.');
         } finally {
@@ -156,6 +163,55 @@ export const Dashboard: React.FC = () => {
                     <StatCard key={card.title} {...card} loading={loading} delay={index * 100} />
                 ))}
             </div>
+
+            {/* Usage Trend */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Usage Trend (Last 30 Days)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-[300px] w-full">
+                        <Recharts.ResponsiveContainer width="100%" height="100%">
+                            <Recharts.AreaChart data={trendData}>
+                                <defs>
+                                    <linearGradient id="dashboardQueries" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                                    </linearGradient>
+                                    <linearGradient id="dashboardTokens" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.14} />
+                                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.01} />
+                                    </linearGradient>
+                                </defs>
+                                <Recharts.CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <Recharts.XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6b7280' }} tickLine={false} axisLine={false} />
+                                <Recharts.YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#6b7280' }} tickLine={false} axisLine={false} />
+                                <Recharts.YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                <Recharts.Tooltip />
+                                <Recharts.Legend />
+                                <Recharts.Area
+                                    yAxisId="left"
+                                    type="monotone"
+                                    dataKey="queries"
+                                    name="Queries"
+                                    stroke="#0284c7"
+                                    fill="url(#dashboardQueries)"
+                                    strokeWidth={2}
+                                />
+                                <Recharts.Area
+                                    yAxisId="right"
+                                    type="monotone"
+                                    dataKey="tokens"
+                                    name="Tokens"
+                                    stroke="#d97706"
+                                    fill="url(#dashboardTokens)"
+                                    strokeWidth={2}
+                                />
+                            </Recharts.AreaChart>
+                        </Recharts.ResponsiveContainer>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Recent Activity & Quick Actions */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

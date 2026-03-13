@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-backend
+  labels:
+    app: kodezera
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: kodezera
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: backend
+    spec:
+      containers:
+        - name: backend
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1536Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-celery-default
+  labels:
+    app: kodezera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: celery-default
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: celery-default
+    spec:
+      containers:
+        - name: celery-default
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "celery",
+              "-A",
+              "config",
+              "worker",
+              "--queues=default",
+              "--concurrency=4",
+              "-l",
+              "info",
+            ]
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1024Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-celery-embedding
+  labels:
+    app: kodezera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: celery-embedding
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: celery-embedding
+    spec:
+      containers:
+        - name: celery-embedding
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "celery",
+              "-A",
+              "config",
+              "worker",
+              "--queues=embedding",
+              "--concurrency=2",
+              "-l",
+              "info",
+            ]
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2048Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-celery-beat
+  labels:
+    app: kodezera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: celery-beat
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "beat", "-l", "info"]
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets

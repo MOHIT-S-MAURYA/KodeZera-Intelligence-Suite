@@ -13,11 +13,19 @@ from datetime import timedelta
 
 from apps.core.models import (
     Tenant, User, SystemAuditLog, UsageMetrics,
-    TenantSubscription, SubscriptionPlan, AIProviderConfig
+    TenantSubscription, SubscriptionPlan, AIProviderConfig,
+    TenantConfig, FeatureFlag, PlanFeatureGate, TenantFeatureFlag,
+    BillingEvent, Invoice, HealthCheckLog,
 )
 from apps.documents.models import Document
 from apps.core.permissions import IsPlatformOwner
 from apps.api.serializers.ai_config import AIProviderConfigSerializer
+from apps.api.serializers.platform import (
+    TenantDetailSerializer, TenantConfigSerializer,
+    FeatureFlagSerializer, PlanFeatureGateSerializer, TenantFeatureFlagSerializer,
+    BillingEventSerializer, InvoiceSerializer, HealthCheckLogSerializer,
+    SubscriptionPlanSerializer, TenantSubscriptionSerializer,
+)
 
 _PLATFORM_OVERVIEW_TTL = 10   # 10 seconds u2014 short enough to catch mutations immediately
 _PLATFORM_OVERVIEW_KEY = 'platform:overview:v1'
@@ -947,3 +955,387 @@ def available_models(request):
         'current_embedding_provider': cfg.embedding_provider,
         'current_embedding_model': cfg.embedding_model,
     })
+
+
+# ─── Tenant Config ───────────────────────────────────────────────────────────
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def tenant_config(request, tenant_id):
+    """Get or update tenant-specific configuration overrides."""
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+    config, _created = TenantConfig.objects.get_or_create(tenant=tenant)
+
+    if request.method == 'GET':
+        serializer = TenantConfigSerializer(config)
+        return Response(serializer.data)
+
+    serializer = TenantConfigSerializer(config, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    SystemAuditLog.objects.create(
+        action='tenant_config_updated',
+        actor=request.user,
+        tenant=tenant,
+        details={'changed_fields': list(request.data.keys())},
+        ip_address=request.META.get('REMOTE_ADDR', ''),
+    )
+    cache.delete(_PLATFORM_OVERVIEW_KEY)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def tenant_usage(request, tenant_id):
+    """Get detailed usage metrics for a tenant."""
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+
+    from apps.core.services.quota import QuotaService
+    summary = QuotaService.get_usage_summary(tenant.id)
+    return Response(summary)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def tenant_invoices(request, tenant_id):
+    """List invoices for a tenant."""
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+    invoices = Invoice.objects.filter(tenant=tenant).order_by('-created_at')
+
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        invoices = invoices.filter(status=status_filter)
+
+    page = int(request.query_params.get('page', 1))
+    page_size = min(int(request.query_params.get('page_size', 20)), 100)
+    start = (page - 1) * page_size
+    total = invoices.count()
+
+    serializer = InvoiceSerializer(invoices[start:start + page_size], many=True)
+    return Response({
+        'results': serializer.data,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+    })
+
+
+# ─── Subscription Plans ──────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def subscription_plans_list(request):
+    """List all subscription plans or create a new one."""
+    if request.method == 'GET':
+        plans = SubscriptionPlan.objects.all().order_by('price')
+        serializer = SubscriptionPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
+    serializer = SubscriptionPlanSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    SystemAuditLog.objects.create(
+        action='subscription_plan_created',
+        actor=request.user,
+        details={'plan_name': serializer.data['name']},
+        ip_address=request.META.get('REMOTE_ADDR', ''),
+    )
+    return Response(serializer.data, status=201)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def subscription_plan_detail(request, plan_id):
+    """Get, update, or delete a subscription plan."""
+    plan = get_object_or_404(SubscriptionPlan, id=plan_id)
+
+    if request.method == 'GET':
+        serializer = SubscriptionPlanSerializer(plan)
+        return Response(serializer.data)
+
+    if request.method == 'PATCH':
+        serializer = SubscriptionPlanSerializer(plan, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        SystemAuditLog.objects.create(
+            action='subscription_plan_updated',
+            actor=request.user,
+            details={'plan_id': str(plan.id), 'changed_fields': list(request.data.keys())},
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+        return Response(serializer.data)
+
+    # DELETE — only if no active subscribers
+    active_count = TenantSubscription.objects.filter(plan=plan, status='active').count()
+    if active_count > 0:
+        return Response(
+            {'error': f'Cannot delete plan with {active_count} active subscriber(s). Migrate them first.'},
+            status=400,
+        )
+    plan.delete()
+    SystemAuditLog.objects.create(
+        action='subscription_plan_deleted',
+        actor=request.user,
+        details={'plan_name': plan.name},
+        ip_address=request.META.get('REMOTE_ADDR', ''),
+    )
+    return Response(status=204)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def tenant_subscriptions_list(request):
+    """List all tenant subscriptions with filtering."""
+    subs = TenantSubscription.objects.select_related('tenant', 'plan').all()
+
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        subs = subs.filter(status=status_filter)
+
+    plan_filter = request.query_params.get('plan')
+    if plan_filter:
+        subs = subs.filter(plan_id=plan_filter)
+
+    subs = subs.order_by('-created_at')
+    serializer = TenantSubscriptionSerializer(subs, many=True)
+    return Response(serializer.data)
+
+
+# ─── Feature Flags ────────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def feature_flags_list(request):
+    """List all feature flags or create a new one."""
+    if request.method == 'GET':
+        flags = FeatureFlag.objects.all().order_by('key')
+        serializer = FeatureFlagSerializer(flags, many=True)
+        return Response(serializer.data)
+
+    serializer = FeatureFlagSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    SystemAuditLog.objects.create(
+        action='feature_flag_created',
+        actor=request.user,
+        details={'flag_key': serializer.data['key']},
+        ip_address=request.META.get('REMOTE_ADDR', ''),
+    )
+    return Response(serializer.data, status=201)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def feature_flag_detail(request, key):
+    """Get, update, or delete a feature flag."""
+    flag = get_object_or_404(FeatureFlag, key=key)
+
+    if request.method == 'GET':
+        serializer = FeatureFlagSerializer(flag)
+        return Response(serializer.data)
+
+    if request.method == 'PATCH':
+        serializer = FeatureFlagSerializer(flag, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        SystemAuditLog.objects.create(
+            action='feature_flag_updated',
+            actor=request.user,
+            details={'flag_key': key, 'changed_fields': list(request.data.keys())},
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+        return Response(serializer.data)
+
+    flag.delete()
+    SystemAuditLog.objects.create(
+        action='feature_flag_deleted',
+        actor=request.user,
+        details={'flag_key': key},
+        ip_address=request.META.get('REMOTE_ADDR', ''),
+    )
+    return Response(status=204)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def feature_flag_tenants(request, key):
+    """List or set tenant-level overrides for a feature flag."""
+    flag = get_object_or_404(FeatureFlag, key=key)
+
+    if request.method == 'GET':
+        overrides = TenantFeatureFlag.objects.filter(feature=flag).select_related('tenant')
+        serializer = TenantFeatureFlagSerializer(overrides, many=True)
+        return Response(serializer.data)
+
+    # POST — set override for a specific tenant
+    tenant_id = request.data.get('tenant_id')
+    if not tenant_id:
+        return Response({'error': 'tenant_id is required'}, status=400)
+
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+    enabled = request.data.get('enabled', True)
+    reason = request.data.get('reason', '')
+
+    from apps.core.services.feature_flags import FeatureFlagService
+    FeatureFlagService.set_override(tenant.id, key, enabled, reason)
+
+    return Response({'status': 'override_set', 'tenant': str(tenant.id), 'flag': key, 'enabled': enabled}, status=201)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def feature_flag_tenant_override(request, key, tenant_id):
+    """Remove a tenant-level feature flag override."""
+    get_object_or_404(FeatureFlag, key=key)
+    get_object_or_404(Tenant, id=tenant_id)
+
+    from apps.core.services.feature_flags import FeatureFlagService
+    FeatureFlagService.remove_override(tenant_id, key)
+
+    return Response(status=204)
+
+
+# ─── Health History ───────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def health_history(request):
+    """Get health check history with optional filters."""
+    from apps.core.services.health import HealthService
+
+    component = request.query_params.get('component')
+    hours = int(request.query_params.get('hours', 24))
+    limit = min(int(request.query_params.get('limit', 100)), 500)
+
+    if component:
+        history = HealthService.get_history(component, hours=hours, limit=limit)
+        uptime = HealthService.get_uptime_percentage(component, hours=hours)
+        return Response({
+            'component': component,
+            'uptime_percentage': uptime,
+            'history': history,
+        })
+
+    # All components summary
+    latest = HealthService.get_latest_status()
+    components_summary = {}
+    for comp_key in ['database', 'redis', 'qdrant', 'celery', 'api_server']:
+        uptime = HealthService.get_uptime_percentage(comp_key, hours=hours)
+        components_summary[comp_key] = {
+            'uptime_percentage': uptime,
+            'latest': latest.get(comp_key),
+        }
+
+    return Response({
+        'hours': hours,
+        'components': components_summary,
+    })
+
+
+# ─── Billing Events ──────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsPlatformOwner])
+def billing_events_list(request):
+    """List billing events with optional filters."""
+    events = BillingEvent.objects.all()
+
+    tenant_id = request.query_params.get('tenant_id')
+    if tenant_id:
+        events = events.filter(tenant_id=tenant_id)
+
+    event_type = request.query_params.get('event_type')
+    if event_type:
+        events = events.filter(event_type=event_type)
+
+    events = events.order_by('-created_at')
+
+    page = int(request.query_params.get('page', 1))
+    page_size = min(int(request.query_params.get('page_size', 20)), 100)
+    start = (page - 1) * page_size
+    total = events.count()
+
+    serializer = BillingEventSerializer(events[start:start + page_size], many=True)
+    return Response({
+        'results': serializer.data,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+    })
+
+
+# ─── Tenant Self-Service Endpoints ───────────────────────────────────────────
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def tenant_settings(request):
+    """Tenant admin: view/update own tenant config."""
+    tenant = request.user.tenant
+    if not tenant:
+        return Response({'error': 'No tenant associated'}, status=400)
+
+    # Only tenant admins
+    if request.user.role not in ('admin', 'owner'):
+        return Response({'error': 'Only tenant admins can manage settings'}, status=403)
+
+    config, _created = TenantConfig.objects.get_or_create(tenant=tenant)
+
+    if request.method == 'GET':
+        serializer = TenantConfigSerializer(config)
+        return Response(serializer.data)
+
+    # Restrict which fields tenant admins can change (no AI overrides)
+    allowed_fields = {
+        'password_min_length', 'password_complexity', 'mfa_enforcement',
+        'session_timeout_min', 'max_login_attempts',
+        'logo_url', 'primary_color',
+        'retention_days',
+    }
+    filtered_data = {k: v for k, v in request.data.items() if k in allowed_fields}
+
+    serializer = TenantConfigSerializer(config, data=filtered_data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    SystemAuditLog.objects.create(
+        action='tenant_settings_updated',
+        actor=request.user,
+        tenant=tenant,
+        details={'changed_fields': list(filtered_data.keys())},
+        ip_address=request.META.get('REMOTE_ADDR', ''),
+    )
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tenant_features(request):
+    """Tenant user: view which features are enabled for their tenant."""
+    tenant = request.user.tenant
+    if not tenant:
+        return Response({'error': 'No tenant associated'}, status=400)
+
+    from apps.core.services.feature_flags import FeatureFlagService
+    flags = FeatureFlagService.get_all_for_tenant(tenant.id)
+    return Response({'features': flags})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tenant_usage_self(request):
+    """Tenant admin: view own usage summary."""
+    tenant = request.user.tenant
+    if not tenant:
+        return Response({'error': 'No tenant associated'}, status=400)
+
+    if request.user.role not in ('admin', 'owner'):
+        return Response({'error': 'Only tenant admins can view usage'}, status=403)
+
+    from apps.core.services.quota import QuotaService
+    summary = QuotaService.get_usage_summary(tenant.id)
+    return Response(summary)

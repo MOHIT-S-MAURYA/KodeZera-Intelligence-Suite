@@ -20,6 +20,24 @@ class Tenant(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Enhanced fields
+    contact_email = models.EmailField(blank=True, default='')
+    billing_email = models.EmailField(blank=True, default='')
+    ONBOARDING_STEPS = [
+        ('created', 'Created'),
+        ('configured', 'Configured'),
+        ('active', 'Active'),
+    ]
+    onboarding_step = models.CharField(max_length=30, choices=ONBOARDING_STEPS, default='created')
+    DATA_REGIONS = [
+        ('us-east', 'US East'),
+        ('eu-west', 'EU West'),
+        ('ap-south', 'AP South'),
+    ]
+    data_region = models.CharField(max_length=20, choices=DATA_REGIONS, default='us-east')
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = 'tenants'
         ordering = ['-created_at']
@@ -728,6 +746,177 @@ class NotificationReceipt(models.Model):
         ]
 
 
+# ─── Notification Templates & Materialized Inbox ─────────────────────────────
+
+
+class NotificationTemplate(models.Model):
+    """
+    Reusable notification template with Jinja2-style variable placeholders.
+    Templates are resolved at dispatch time to generate per-user notifications.
+    """
+    CATEGORY_CHOICES = [
+        ('documents', 'Documents'),
+        ('chat', 'Chat'),
+        ('system', 'System'),
+        ('admin', 'Admin'),
+        ('security', 'Security'),
+        ('user_management', 'User Management'),
+    ]
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('normal', 'Normal'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+
+    key = models.CharField(max_length=100, unique=True)
+    title_template = models.CharField(max_length=500)
+    message_template = models.TextField()
+    email_subject = models.CharField(max_length=500, blank=True, default='')
+    email_body = models.TextField(blank=True, default='')
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='system')
+    default_priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
+    default_channels = models.JSONField(default=list)  # ['in_app', 'email']
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'notification_templates'
+
+    def __str__(self):
+        return f"Template: {self.key}"
+
+
+class UserNotification(models.Model):
+    """
+    Per-user materialized notification — enables fast inbox queries.
+    Created by fan-out from a source Notification broadcast.
+    """
+    TYPE_CHOICES = [
+        ('info', 'Info'),
+        ('success', 'Success'),
+        ('warning', 'Warning'),
+        ('error', 'Error'),
+        ('system', 'System'),
+    ]
+    CATEGORY_CHOICES = NotificationTemplate.CATEGORY_CHOICES
+    PRIORITY_CHOICES = NotificationTemplate.PRIORITY_CHOICES
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications_inbox')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='user_notifications')
+    title = models.CharField(max_length=500)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='info')
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='system')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
+    action_url = models.CharField(max_length=500, blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    source_notification = models.ForeignKey(
+        Notification, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='user_notifications',
+    )
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    is_dismissed = models.BooleanField(default=False)
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'user_notifications'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'is_read', '-created_at']),
+            models.Index(fields=['user', 'category', '-created_at']),
+            models.Index(fields=['user', 'is_dismissed', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email}: {self.title}"
+
+
+class DeliveryRecord(models.Model):
+    """Track delivery status per channel per user notification."""
+    CHANNEL_CHOICES = [
+        ('in_app', 'In-App'),
+        ('email', 'Email'),
+        ('browser_push', 'Browser Push'),
+        ('webhook', 'Webhook'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user_notification = models.ForeignKey(
+        UserNotification, on_delete=models.CASCADE, related_name='deliveries',
+    )
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    failure_reason = models.TextField(blank=True, default='')
+    retry_count = models.IntegerField(default=0)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'delivery_records'
+        indexes = [
+            models.Index(fields=['channel', 'status']),
+            models.Index(fields=['user_notification', 'channel']),
+        ]
+
+
+class UserNotificationPreference(models.Model):
+    """Per-user per-category per-channel notification preference."""
+    DIGEST_CHOICES = [
+        ('instant', 'Instant'),
+        ('hourly', 'Hourly'),
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notification_preferences')
+    category = models.CharField(max_length=50)
+    channel = models.CharField(max_length=20)
+    enabled = models.BooleanField(default=True)
+    digest_mode = models.CharField(max_length=10, choices=DIGEST_CHOICES, default='instant')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_notification_preferences'
+        unique_together = [['user', 'category', 'channel']]
+
+    def __str__(self):
+        return f"{self.user.email}: {self.category}/{self.channel} = {'on' if self.enabled else 'off'}"
+
+
+class DigestQueue(models.Model):
+    """Queue for batched digest delivery."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user_notification = models.ForeignKey(UserNotification, on_delete=models.CASCADE)
+    digest_mode = models.CharField(max_length=10)
+    processed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'digest_queue'
+        indexes = [
+            models.Index(fields=['digest_mode', 'processed', 'created_at']),
+        ]
+
+
 # ─── Organisation Hierarchy (Closure Table Pattern) ──────────────────────────
 
 
@@ -867,6 +1056,196 @@ class UserOrgUnit(models.Model):
 
     def __str__(self):
         return f"{self.user.email} — {self.notification.title} ({'read' if self.is_read else 'unread'})"
+
+
+# ─── Platform & SaaS Models ─────────────────────────────────────────────────
+
+
+class TenantConfig(models.Model):
+    """Per-tenant configuration overrides."""
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='config')
+
+    # Security
+    password_min_length = models.IntegerField(default=8)
+    password_complexity = models.BooleanField(default=False)
+    MFA_ENFORCEMENT_CHOICES = [
+        ('none', 'None'),
+        ('optional', 'Optional'),
+        ('required', 'Required'),
+    ]
+    mfa_enforcement = models.CharField(max_length=20, choices=MFA_ENFORCEMENT_CHOICES, default='optional')
+    session_timeout_min = models.IntegerField(default=60)
+    max_login_attempts = models.IntegerField(default=10)
+
+    # Branding
+    logo_url = models.URLField(blank=True, default='')
+    primary_color = models.CharField(max_length=7, default='#6366f1')
+    custom_domain = models.CharField(max_length=255, blank=True, default='')
+
+    # AI
+    ai_provider_override = models.JSONField(null=True, blank=True)
+    max_tokens_per_request = models.IntegerField(default=1000)
+    rag_top_k = models.IntegerField(default=5)
+
+    # Data
+    retention_days = models.IntegerField(default=365)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'tenant_configs'
+
+    def __str__(self):
+        return f"Config for {self.tenant.name}"
+
+
+class FeatureFlag(models.Model):
+    """Global feature flag definitions."""
+    key = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+    default_enabled = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'feature_flags'
+        ordering = ['key']
+
+    def __str__(self):
+        return self.key
+
+
+class PlanFeatureGate(models.Model):
+    """Which subscription plan tiers unlock a given feature."""
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, related_name='feature_gates')
+    feature = models.ForeignKey(FeatureFlag, on_delete=models.CASCADE, related_name='plan_gates')
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'plan_feature_gates'
+        unique_together = [['plan', 'feature']]
+
+    def __str__(self):
+        return f"{self.plan.name} -> {self.feature.key} = {self.enabled}"
+
+
+class TenantFeatureFlag(models.Model):
+    """Per-tenant overrides for feature flags."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='feature_overrides')
+    feature = models.ForeignKey(FeatureFlag, on_delete=models.CASCADE, related_name='tenant_overrides')
+    enabled = models.BooleanField()
+    reason = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'tenant_feature_flags'
+        unique_together = [['tenant', 'feature']]
+
+    def __str__(self):
+        return f"{self.tenant.name} -> {self.feature.key} = {self.enabled}"
+
+
+class BillingEvent(models.Model):
+    """Immutable ledger of billing-related events."""
+    EVENT_TYPES = [
+        ('subscription_start', 'Subscription Start'),
+        ('subscription_renew', 'Subscription Renewal'),
+        ('plan_upgrade', 'Plan Upgrade'),
+        ('plan_downgrade', 'Plan Downgrade'),
+        ('payment_success', 'Payment Success'),
+        ('payment_failed', 'Payment Failed'),
+        ('invoice_created', 'Invoice Created'),
+        ('trial_start', 'Trial Start'),
+        ('trial_expired', 'Trial Expired'),
+        ('cancellation', 'Cancellation'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='billing_events')
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=3, default='USD')
+    stripe_event_id = models.CharField(max_length=100, blank=True, default='')
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'billing_events'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', '-created_at']),
+            models.Index(fields=['event_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.tenant.name} — {self.event_type} at {self.created_at}"
+
+
+class Invoice(models.Model):
+    """Tenant billing invoices."""
+    STATUSES = [
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='invoices')
+    invoice_number = models.CharField(max_length=20, unique=True)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=10, choices=STATUSES, default='draft')
+    line_items = models.JSONField(default=list, blank=True)
+    pdf_url = models.CharField(max_length=512, blank=True, default='')
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'invoices'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.invoice_number} — {self.tenant.name} ({self.status})"
+
+
+class HealthCheckLog(models.Model):
+    """Historical health check results for uptime tracking."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    COMPONENT_CHOICES = [
+        ('api_server', 'API Server'),
+        ('database', 'Database'),
+        ('redis', 'Redis'),
+        ('qdrant', 'Qdrant'),
+        ('celery', 'Celery'),
+        ('llm_provider', 'LLM Provider'),
+    ]
+    component = models.CharField(max_length=50, choices=COMPONENT_CHOICES)
+    STATUS_CHOICES = [
+        ('healthy', 'Healthy'),
+        ('warning', 'Warning'),
+        ('error', 'Error'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    latency_ms = models.IntegerField(null=True, blank=True)
+    details = models.JSONField(default=dict, blank=True)
+    checked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'health_check_logs'
+        ordering = ['-checked_at']
+        indexes = [
+            models.Index(fields=['component', '-checked_at']),
+            models.Index(fields=['-checked_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.component} — {self.status} at {self.checked_at}"
 
 
 # ─── Authentication & Session Models ────────────────────────────────────────
@@ -1013,4 +1392,241 @@ class TenantSSOConfig(models.Model):
 
     def __str__(self):
         return f"{self.tenant.name} — {self.provider_type}"
+
+
+# ── Audit & Compliance Models ─────────────────────────────────────────────
+
+
+class AuditEvent(models.Model):
+    """
+    Unified, immutable audit event with hash chain integrity.
+    Replaces the need for dual AuditLog + SystemAuditLog going forward.
+    """
+    SCOPE_CHOICES = [
+        ('tenant', 'Tenant'),
+        ('platform', 'Platform'),
+        ('system', 'System'),
+    ]
+    OUTCOME_CHOICES = [
+        ('success', 'Success'),
+        ('failure', 'Failure'),
+        ('denied', 'Denied'),
+    ]
+    TRIGGER_CHOICES = [
+        ('manual', 'Manual'),
+        ('automated', 'Automated'),
+        ('system', 'System'),
+        ('schedule', 'Scheduled'),
+    ]
+    ACTION_CHOICES = [
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('delete', 'Delete'),
+        ('read', 'Read'),
+        ('login', 'Login'),
+        ('logout', 'Logout'),
+        ('upload', 'Upload'),
+        ('download', 'Download'),
+        ('query', 'Query'),
+        ('grant_access', 'Grant Access'),
+        ('revoke_access', 'Revoke Access'),
+        ('config_change', 'Config Change'),
+        ('export', 'Export'),
+        ('mfa_event', 'MFA Event'),
+        ('password_change', 'Password Change'),
+        ('session_event', 'Session Event'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='tenant')
+
+    # Who
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='audit_events',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='audit_events',
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default='')
+    session_id = models.CharField(max_length=100, blank=True, default='')
+
+    # What
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    resource_type = models.CharField(max_length=100)
+    resource_id = models.UUIDField(null=True, blank=True)
+    changes = models.JSONField(default=dict, blank=True)
+
+    # Where
+    request_id = models.CharField(max_length=64, blank=True, default='')
+    endpoint = models.CharField(max_length=500, blank=True, default='')
+    http_method = models.CharField(max_length=10, blank=True, default='')
+
+    # Result
+    outcome = models.CharField(max_length=10, choices=OUTCOME_CHOICES, default='success')
+    status_code = models.IntegerField(null=True, blank=True)
+    error_message = models.TextField(blank=True, default='')
+
+    # Context
+    trigger = models.CharField(max_length=15, choices=TRIGGER_CHOICES, default='manual')
+    metadata = models.JSONField(default=dict, blank=True)
+
+    # Compliance
+    regulation_tags = models.JSONField(default=list, blank=True)
+    data_classification = models.CharField(max_length=20, blank=True, default='')
+    retention_class = models.CharField(max_length=20, default='standard')
+
+    # Integrity (hash chain)
+    previous_hash = models.CharField(max_length=64, blank=True, default='')
+    event_hash = models.CharField(max_length=64, blank=True, default='')
+
+    # Time
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'audit_events'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['tenant', '-timestamp']),
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['scope', '-timestamp']),
+            models.Index(fields=['action', '-timestamp']),
+            models.Index(fields=['resource_type', 'resource_id']),
+            models.Index(fields=['request_id']),
+            models.Index(fields=['outcome', '-timestamp']),
+        ]
+
+    def __str__(self):
+        user_str = self.user.email if self.user else 'System'
+        return f"[{self.scope}] {self.action} by {user_str} at {self.timestamp}"
+
+
+class SecurityAlert(models.Model):
+    """Security alerts generated by anomaly detection rules."""
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('acknowledged', 'Acknowledged'),
+        ('resolved', 'Resolved'),
+        ('false_positive', 'False Positive'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='security_alerts',
+    )
+    rule_key = models.CharField(max_length=100)
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
+    title = models.CharField(max_length=300)
+    description = models.TextField()
+    source_events = models.JSONField(default=list)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='resolved_alerts',
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'security_alerts'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status', '-created_at']),
+            models.Index(fields=['severity', '-created_at']),
+            models.Index(fields=['rule_key', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"[{self.severity}] {self.title}"
+
+
+class ComplianceLog(models.Model):
+    """Record of compliance-relevant data processing activities (GDPR Art 30)."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='compliance_logs')
+    processing_purpose = models.CharField(max_length=200)
+    data_categories = models.JSONField(default=list)
+    data_subjects = models.CharField(max_length=100)
+    recipients = models.JSONField(default=list)
+    retention_period = models.CharField(max_length=100)
+    legal_basis = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'compliance_logs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.processing_purpose} — {self.tenant.name}"
+
+
+class DataDeletionLog(models.Model):
+    """GDPR Art 17 Right to Erasure — tracks data deletion requests and execution."""
+    STATUS_CHOICES = [
+        ('requested', 'Requested'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('denied', 'Denied'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='deletion_logs')
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True,
+        related_name='deletion_requests_made',
+    )
+    subject_user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True,
+        related_name='deletion_requests',
+    )
+    data_scope = models.JSONField(default=dict)
+    legal_basis = models.CharField(max_length=100)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
+    completed_at = models.DateTimeField(null=True, blank=True)
+    deletion_proof = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'data_deletion_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Deletion request for {self.subject_user} — {self.status}"
+
+
+class AuditRetentionPolicy(models.Model):
+    """Configurable retention per tenant or globally."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='retention_policies',
+    )
+    retention_class = models.CharField(max_length=20)
+    retention_days = models.IntegerField()
+    archive_to = models.CharField(max_length=200, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'audit_retention_policies'
+        ordering = ['retention_class']
+
+    def __str__(self):
+        scope = self.tenant.name if self.tenant else 'Global'
+        return f"{scope} — {self.retention_class}: {self.retention_days} days"
 

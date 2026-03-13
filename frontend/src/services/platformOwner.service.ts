@@ -122,6 +122,165 @@ export interface AnalyticsFilter {
     end_date?: string;
 }
 
+// ─── Tenant Config ───────────────────────────────────────────────────────────
+
+export interface TenantConfig {
+    id: string;
+    tenant: string;
+    // Security
+    password_min_length: number;
+    password_complexity: string;
+    mfa_enforcement: 'none' | 'optional' | 'required';
+    session_timeout_min: number;
+    max_login_attempts: number;
+    // Branding
+    logo_url: string;
+    primary_color: string;
+    custom_domain: string;
+    // AI
+    ai_provider_override: Record<string, any>;
+    max_tokens_per_request: number;
+    rag_top_k: number;
+    // Data
+    retention_days: number;
+    updated_at: string;
+}
+
+// ─── Usage Summary ───────────────────────────────────────────────────────────
+
+export interface QuotaItem {
+    used: number;
+    limit: number;
+    percentage: number;
+}
+
+export interface UsageSummary {
+    tenant_id: string;
+    plan: string;
+    queries: QuotaItem;
+    tokens: QuotaItem;
+    storage: QuotaItem & { used_gb: number; limit_gb: number };
+    users: QuotaItem;
+}
+
+// ─── Subscription Plans ──────────────────────────────────────────────────────
+
+export interface SubscriptionPlan {
+    id: string;
+    name: string;
+    plan_type: string;
+    price: string;
+    max_users: number;
+    max_documents: number;
+    max_storage_gb: number;
+    max_queries_per_month: number;
+    max_tokens_per_month: number;
+    features: Record<string, any>;
+    is_active: boolean;
+    subscriber_count: number;
+    created_at: string;
+}
+
+export interface TenantSubscription {
+    id: string;
+    tenant: string;
+    tenant_name: string;
+    plan: string;
+    plan_name: string;
+    plan_type: string;
+    status: string;
+    current_period_start: string;
+    current_period_end: string;
+    created_at: string;
+}
+
+// ─── Feature Flags ───────────────────────────────────────────────────────────
+
+export interface FeatureFlag {
+    id: string;
+    key: string;
+    name: string;
+    description: string;
+    default_enabled: boolean;
+    is_active: boolean;
+    plan_gates: Record<string, boolean>;
+    override_count: number;
+    created_at: string;
+}
+
+export interface TenantFeatureFlag {
+    id: string;
+    tenant: string;
+    tenant_name: string;
+    feature: string;
+    feature_key: string;
+    enabled: boolean;
+    reason: string;
+    created_at: string;
+}
+
+// ─── Health History ──────────────────────────────────────────────────────────
+
+export interface HealthHistoryEntry {
+    component: string;
+    status: string;
+    latency_ms: number;
+    details: Record<string, any>;
+    checked_at: string;
+}
+
+export interface ComponentHealth {
+    uptime_percentage: number;
+    latest: {
+        status: string;
+        latency_ms: number;
+        checked_at: string;
+    } | null;
+}
+
+export interface HealthHistoryResponse {
+    hours: number;
+    components: Record<string, ComponentHealth>;
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+export interface BillingEvent {
+    id: string;
+    tenant: string;
+    tenant_name: string;
+    event_type: string;
+    amount: string;
+    currency: string;
+    stripe_event_id: string;
+    details: Record<string, any>;
+    created_at: string;
+}
+
+export interface Invoice {
+    id: string;
+    tenant: string;
+    tenant_name: string;
+    invoice_number: string;
+    period_start: string;
+    period_end: string;
+    subtotal: string;
+    tax: string;
+    total: string;
+    status: string;
+    line_items: any[];
+    pdf_url: string;
+    paid_at: string | null;
+    created_at: string;
+}
+
+export interface PaginatedResponse<T> {
+    results: T[];
+    total: number;
+    page: number;
+    page_size: number;
+}
+
 class PlatformOwnerService {
     /**
      * Get platform-wide overview statistics
@@ -209,6 +368,152 @@ class PlatformOwnerService {
         if (filters.end_date) params.append('end_date', filters.end_date);
 
         const response = await api.get<AnalyticsDataPoint[]>(`/platform/analytics/?${params.toString()}`);
+        return response.data;
+    }
+
+    // ─── Tenant Config ───────────────────────────────────────────────────────
+
+    async getTenantConfig(tenantId: string): Promise<TenantConfig> {
+        const response = await api.get<TenantConfig>(`/platform/tenants/${tenantId}/config/`);
+        return response.data;
+    }
+
+    async updateTenantConfig(tenantId: string, data: Partial<TenantConfig>): Promise<TenantConfig> {
+        const response = await api.put<TenantConfig>(`/platform/tenants/${tenantId}/config/`, data);
+        return response.data;
+    }
+
+    async getTenantUsage(tenantId: string): Promise<UsageSummary> {
+        const response = await api.get<UsageSummary>(`/platform/tenants/${tenantId}/usage/`);
+        return response.data;
+    }
+
+    async getTenantInvoices(tenantId: string, params?: { status?: string; page?: number }): Promise<PaginatedResponse<Invoice>> {
+        const qp = new URLSearchParams();
+        if (params?.status) qp.append('status', params.status);
+        if (params?.page) qp.append('page', params.page.toString());
+        const response = await api.get<PaginatedResponse<Invoice>>(`/platform/tenants/${tenantId}/invoices/?${qp.toString()}`);
+        return response.data;
+    }
+
+    // ─── Subscription Plans ──────────────────────────────────────────────────
+
+    async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+        const response = await api.get<SubscriptionPlan[]>('/platform/subscriptions/plans/');
+        return response.data;
+    }
+
+    async createSubscriptionPlan(data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
+        const response = await api.post<SubscriptionPlan>('/platform/subscriptions/plans/', data);
+        return response.data;
+    }
+
+    async updateSubscriptionPlan(planId: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
+        const response = await api.patch<SubscriptionPlan>(`/platform/subscriptions/plans/${planId}/`, data);
+        return response.data;
+    }
+
+    async deleteSubscriptionPlan(planId: string): Promise<void> {
+        await api.delete(`/platform/subscriptions/plans/${planId}/`);
+    }
+
+    async getSubscriptionPlan(planId: string): Promise<SubscriptionPlan> {
+        const response = await api.get<SubscriptionPlan>(`/platform/subscriptions/plans/${planId}/`);
+        return response.data;
+    }
+
+    async getTenantSubscriptions(filters?: { status?: string; plan?: string }): Promise<TenantSubscription[]> {
+        const params = new URLSearchParams();
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.plan) params.append('plan', filters.plan);
+        const response = await api.get<TenantSubscription[]>(`/platform/subscriptions/?${params.toString()}`);
+        return response.data;
+    }
+
+    // ─── Feature Flags ───────────────────────────────────────────────────────
+
+    async getFeatureFlags(): Promise<FeatureFlag[]> {
+        const response = await api.get<FeatureFlag[]>('/platform/feature-flags/');
+        return response.data;
+    }
+
+    async createFeatureFlag(data: Partial<FeatureFlag>): Promise<FeatureFlag> {
+        const response = await api.post<FeatureFlag>('/platform/feature-flags/', data);
+        return response.data;
+    }
+
+    async getFeatureFlag(key: string): Promise<FeatureFlag> {
+        const response = await api.get<FeatureFlag>(`/platform/feature-flags/${key}/`);
+        return response.data;
+    }
+
+    async updateFeatureFlag(key: string, data: Partial<FeatureFlag>): Promise<FeatureFlag> {
+        const response = await api.patch<FeatureFlag>(`/platform/feature-flags/${key}/`, data);
+        return response.data;
+    }
+
+    async deleteFeatureFlag(key: string): Promise<void> {
+        await api.delete(`/platform/feature-flags/${key}/`);
+    }
+
+    async getFeatureFlagTenants(key: string): Promise<TenantFeatureFlag[]> {
+        const response = await api.get<TenantFeatureFlag[]>(`/platform/feature-flags/${key}/tenants/`);
+        return response.data;
+    }
+
+    async setFeatureFlagOverride(key: string, tenantId: string, enabled: boolean, reason?: string): Promise<void> {
+        await api.post(`/platform/feature-flags/${key}/tenants/`, {
+            tenant_id: tenantId,
+            enabled,
+            reason: reason || '',
+        });
+    }
+
+    async removeFeatureFlagOverride(key: string, tenantId: string): Promise<void> {
+        await api.delete(`/platform/feature-flags/${key}/tenants/${tenantId}/`);
+    }
+
+    // ─── Health History ──────────────────────────────────────────────────────
+
+    async getHealthHistory(params?: { component?: string; hours?: number; limit?: number }): Promise<HealthHistoryResponse> {
+        const qp = new URLSearchParams();
+        if (params?.component) qp.append('component', params.component);
+        if (params?.hours) qp.append('hours', params.hours.toString());
+        if (params?.limit) qp.append('limit', params.limit.toString());
+        const response = await api.get<HealthHistoryResponse>(`/platform/health/history/?${qp.toString()}`);
+        return response.data;
+    }
+
+    // ─── Billing Events ──────────────────────────────────────────────────────
+
+    async getBillingEvents(params?: { tenant_id?: string; event_type?: string; page?: number }): Promise<PaginatedResponse<BillingEvent>> {
+        const qp = new URLSearchParams();
+        if (params?.tenant_id) qp.append('tenant_id', params.tenant_id);
+        if (params?.event_type) qp.append('event_type', params.event_type);
+        if (params?.page) qp.append('page', params.page.toString());
+        const response = await api.get<PaginatedResponse<BillingEvent>>(`/platform/billing/events/?${qp.toString()}`);
+        return response.data;
+    }
+
+    // ─── Tenant Self-Service ─────────────────────────────────────────────────
+
+    async getMyTenantSettings(): Promise<TenantConfig> {
+        const response = await api.get<TenantConfig>('/tenant/settings/');
+        return response.data;
+    }
+
+    async updateMyTenantSettings(data: Partial<TenantConfig>): Promise<TenantConfig> {
+        const response = await api.put<TenantConfig>('/tenant/settings/', data);
+        return response.data;
+    }
+
+    async getMyTenantFeatures(): Promise<{ features: Record<string, boolean> }> {
+        const response = await api.get<{ features: Record<string, boolean> }>('/tenant/features/');
+        return response.data;
+    }
+
+    async getMyTenantUsage(): Promise<UsageSummary> {
+        const response = await api.get<UsageSummary>('/tenant/usage/');
         return response.data;
     }
 }

@@ -1,9 +1,13 @@
 """
-Middleware for tenant isolation and audit logging.
+Middleware for tenant isolation, request correlation, and audit logging.
 """
-import threading
+import logging
+import uuid
+import time
+
 from django.utils.deprecation import MiddlewareMixin
-from apps.core.models import AuditLog
+
+logger = logging.getLogger(__name__)
 
 
 class TenantIsolationMiddleware(MiddlewareMixin):
@@ -11,12 +15,12 @@ class TenantIsolationMiddleware(MiddlewareMixin):
     Middleware to enforce tenant isolation.
     Extracts tenant from authenticated user and validates tenant status.
     """
-    
+
     def process_request(self, request):
         """Attach tenant to request if user is authenticated."""
         if hasattr(request, 'user') and request.user.is_authenticated:
             request.tenant = request.user.tenant
-            
+
             # Block requests if tenant is inactive
             if request.tenant and not request.tenant.is_active:
                 from django.http import JsonResponse
@@ -29,41 +33,103 @@ class TenantIsolationMiddleware(MiddlewareMixin):
                 )
         else:
             request.tenant = None
-        
+
         return None
+
+
+class CorrelationMiddleware(MiddlewareMixin):
+    """
+    Injects a unique request_id into every request for end-to-end tracing.
+
+    Adds the ID to request.META['request_id'] and to the response header
+    X-Request-ID.  Upstream reverse-proxies may supply an existing value
+    via X-Request-ID; it will be reused when present.
+    """
+
+    def process_request(self, request):
+        request_id = request.META.get('HTTP_X_REQUEST_ID')
+        if not request_id:
+            request_id = str(uuid.uuid4())
+        request.META['request_id'] = request_id
+        return None
+
+    def process_response(self, request, response):
+        request_id = getattr(request, 'META', {}).get('request_id', '')
+        if request_id:
+            response['X-Request-ID'] = request_id
+        return response
+
+
+class TimingMiddleware(MiddlewareMixin):
+    """
+    Measures end-to-end request latency and adds X-Response-Time header.
+    """
+
+    def process_request(self, request):
+        request._start_time = time.perf_counter()
+        return None
+
+    def process_response(self, request, response):
+        start = getattr(request, '_start_time', None)
+        if start is not None:
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            response['X-Response-Time'] = f"{elapsed_ms:.1f}ms"
+
+        # Add API usage headers for authenticated tenant traffic.
+        if request.path.startswith('/api/') and getattr(request, 'user', None) and request.user.is_authenticated:
+            try:
+                from apps.core.throttle import get_rate_limit_headers
+                for key, value in get_rate_limit_headers(request).items():
+                    response[key] = value
+            except Exception:
+                logger.debug('TimingMiddleware: failed to add rate limit headers', exc_info=True)
+
+            try:
+                tenant = getattr(request.user, 'tenant', None)
+                if tenant:
+                    from apps.core.services.quota import QuotaService
+                    summary = QuotaService.get_usage_summary(str(tenant.id))
+                    queries = summary.get('queries', {})
+                    response['X-Quota-Limit'] = str(queries.get('limit', 0))
+                    response['X-Quota-Used'] = str(queries.get('used', 0))
+                    remaining = max(int(queries.get('limit', 0)) - int(queries.get('used', 0)), 0)
+                    response['X-Quota-Remaining'] = str(remaining)
+            except Exception:
+                logger.debug('TimingMiddleware: failed to add quota headers', exc_info=True)
+        return response
 
 
 class AuditLoggingMiddleware(MiddlewareMixin):
     """
-    Middleware to log write operations for audit trail.
+    Logs write operations to the unified AuditEvent model.
 
-    Why JWT users were previously missed:
-      Django's AuthenticationMiddleware resolves request.user from the session.
-      REST Framework performs JWT authentication lazily on its own Request wrapper,
-      so at the middleware layer request.user is AnonymousUser for token-only calls.
-      We resolve this by falling back to DRF's JWTAuthentication when the Django
-      user is anonymous, so that API write operations are correctly attributed.
+    Also writes to the legacy AuditLog model for backwards compatibility.
+    Resolves JWT-only users that Django's session middleware can't see.
+    Logs both successful and failed operations (>= 400 status).
     """
 
-    WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
+    AUDITED_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
     SKIP_PATHS = ['/admin/', '/static/', '/media/']
+
+    # HTTP method → AuditEvent action
+    METHOD_ACTION_MAP = {
+        'POST': 'create',
+        'PUT': 'update',
+        'PATCH': 'update',
+        'DELETE': 'delete',
+    }
 
     def _resolve_user_and_tenant_id(self, request):
         """
         Return (user, tenant_id) for this request.
         Checks Django session user first, then falls back to JWT authentication
         so that token-only API clients (no session cookie) are correctly logged.
-        Uses tenant_id (raw UUID) to avoid any FK traversal in a background thread.
-        Returns (None, None) if the request is unauthenticated.
         """
-        # Session-based auth path (admin UI, browsable API)
         user = getattr(request, 'user', None)
         if user and user.is_authenticated:
             tenant_id = getattr(user, 'tenant_id', None)
             return user, tenant_id
 
-        # JWT auth path: DRF authenticates lazily; the Django request still holds
-        # the raw Bearer token in META, so we invoke the JWT backend directly.
         try:
             from rest_framework_simplejwt.authentication import JWTAuthentication
             from rest_framework.request import Request as DRFRequest
@@ -79,70 +145,100 @@ class AuditLoggingMiddleware(MiddlewareMixin):
         return None, None
 
     def process_response(self, request, response):
-        """Log write operations after successful response."""
-        if request.method not in self.WRITE_METHODS:
+        """Log write operations via AuditService and legacy AuditLog."""
+        if request.method not in self.AUDITED_METHODS:
             return response
 
         if any(request.path.startswith(p) for p in self.SKIP_PATHS):
             return response
 
-        # Only log successful operations
-        if response.status_code >= 400:
-            return response
-
         user, tenant_id = self._resolve_user_and_tenant_id(request)
-        if not user:
-            return response
 
-        action        = self._get_action(request.method)
-        resource_type = self._extract_resource_type(request.path)
+        action = self.METHOD_ACTION_MAP.get(request.method, 'unknown')
 
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        ip_address = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
+        # Capture values needed for logging (avoid referencing request later)
+        meta_snapshot = {
+            'path': request.path,
+            'method': request.method,
+            'request_id': request.META.get('request_id', ''),
+            'session_id': request.session.session_key if hasattr(request, 'session') and request.session else '',
+            'HTTP_X_FORWARDED_FOR': request.META.get('HTTP_X_FORWARDED_FOR', ''),
+            'REMOTE_ADDR': request.META.get('REMOTE_ADDR', ''),
+            'HTTP_USER_AGENT': request.META.get('HTTP_USER_AGENT', '')[:500],
+        }
+        status_code = response.status_code
 
-        # Capture all values needed in the background thread BEFORE thread starts
-        # so we never access request/user after the response is sent.
-        _tenant_id     = tenant_id
-        _user_id       = user.pk
-        _action        = action
-        _resource_type = resource_type
-        _meta          = {'path': request.path, 'method': request.method}
-        _ip            = ip_address
-        _ua            = request.META.get('HTTP_USER_AGENT', '')[:500]
+        # Write to new AuditEvent model
+        try:
+            from apps.core.services.audit_service import AuditService
+            AuditService.log_from_middleware(
+                request_meta=meta_snapshot,
+                user=user,
+                tenant_id=tenant_id,
+                action=action,
+                status_code=status_code,
+            )
+        except Exception:
+            logger.debug("AuditLoggingMiddleware: AuditEvent write failed", exc_info=True)
 
-        def _write():
+        # Also write to legacy AuditLog for backward compatibility (success only)
+        if user and status_code < 400:
             try:
+                from apps.core.models import AuditLog
+                from apps.core.services.audit_service import extract_resource_info
+                resource_type, _ = extract_resource_info(request.path)
+                x_fwd = meta_snapshot.get('HTTP_X_FORWARDED_FOR')
+                ip = x_fwd.split(',')[0].strip() if x_fwd else meta_snapshot.get('REMOTE_ADDR')
                 AuditLog.objects.create(
-                    tenant_id=_tenant_id,
-                    user_id=_user_id,
-                    action=_action,
-                    resource_type=_resource_type,
-                    metadata=_meta,
-                    ip_address=_ip,
-                    user_agent=_ua,
+                    tenant_id=tenant_id,
+                    user_id=user.pk,
+                    action=action,
+                    resource_type=resource_type,
+                    metadata={'path': request.path, 'method': request.method},
+                    ip_address=ip,
+                    user_agent=meta_snapshot.get('HTTP_USER_AGENT', ''),
                 )
             except Exception:
-                pass
+                logger.debug("AuditLoggingMiddleware: legacy AuditLog write failed", exc_info=True)
 
-        threading.Thread(target=_write, daemon=True).start()
         return response
 
-    def _get_action(self, method):
-        """Map HTTP method to audit action."""
-        return {'POST': 'create', 'PUT': 'update', 'PATCH': 'update', 'DELETE': 'delete'}.get(method, 'unknown')
 
-    def _extract_resource_type(self, path):
-        """
-        Extract resource type from URL path.
-        /api/v1/roles/         → roles
-        /api/v1/departments/   → departments
-        Skips 'api' and version segments (e.g. 'v1', 'v2').
-        """
-        import re
-        parts = [p for p in path.split('/') if p]
-        for part in parts:
-            # Skip 'api' prefix and version segments like v1, v2
-            if part == 'api' or re.fullmatch(r'v\d+', part):
-                continue
-            return part
-        return 'unknown'
+class QuotaEnforcementMiddleware(MiddlewareMixin):
+    """
+    Lightweight middleware that blocks RAG queries and uploads
+    when the tenant has exceeded their plan quota.
+
+    Only runs on specific paths to avoid overhead on every request.
+    """
+
+    QUOTA_PATHS = {
+        '/api/v1/rag/query/': 'queries',
+    }
+
+    def process_request(self, request):
+        if request.method not in ('POST', 'PUT', 'PATCH'):
+            return None
+
+        tenant = getattr(request, 'tenant', None)
+        if not tenant:
+            return None
+
+        # Determine which quota to check based on path
+        resource = None
+        for prefix, res in self.QUOTA_PATHS.items():
+            if request.path.startswith(prefix):
+                resource = res
+                break
+
+        if not resource:
+            return None
+
+        from apps.core.services.quota import QuotaService, QuotaExceeded
+        from django.http import JsonResponse
+
+        try:
+            if resource == 'queries':
+                QuotaService.check_queries(str(tenant.id))
+        except QuotaExceeded as exc:
+            return JsonResponse(exc.to_dict(), status=429)

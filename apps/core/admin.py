@@ -2,7 +2,11 @@
 Admin configuration for models.
 """
 from django.contrib import admin
-from apps.core.models import Tenant, User, Department, AuditLog
+from apps.core.models import (
+    Tenant, User, Department, AuditLog,
+    NotificationTemplate, UserNotification, DeliveryRecord,
+    UserNotificationPreference,
+)
 from apps.rbac.models import Role, Permission, RolePermission, UserRole
 from apps.documents.models import Document, DocumentAccess
 from apps.rag.models import VectorChunk
@@ -86,3 +90,34 @@ class AuditLogAdmin(admin.ModelAdmin):
     search_fields = ['user__email']
     raw_id_fields = ['tenant', 'user']
     readonly_fields = ['created_at']
+
+
+@admin.register(NotificationTemplate)
+class NotificationTemplateAdmin(admin.ModelAdmin):
+    list_display = ['key', 'category', 'default_priority', 'is_active', 'updated_at']
+    list_filter = ['category', 'is_active']
+    search_fields = ['key', 'title_template']
+
+
+@admin.register(UserNotification)
+class UserNotificationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'title', 'category', 'priority', 'is_read', 'is_dismissed', 'created_at']
+    list_filter = ['category', 'priority', 'is_read', 'is_dismissed']
+    search_fields = ['title', 'user__email']
+    raw_id_fields = ['user', 'tenant', 'source_notification']
+    readonly_fields = ['created_at']
+
+
+@admin.register(DeliveryRecord)
+class DeliveryRecordAdmin(admin.ModelAdmin):
+    list_display = ['user_notification', 'channel', 'status', 'sent_at', 'created_at']
+    list_filter = ['channel', 'status']
+    raw_id_fields = ['user_notification']
+    readonly_fields = ['created_at']
+
+
+@admin.register(UserNotificationPreference)
+class UserNotificationPreferenceAdmin(admin.ModelAdmin):
+    list_display = ['user', 'category', 'channel', 'enabled', 'digest_mode']
+    list_filter = ['category', 'channel', 'enabled', 'digest_mode']
+    raw_id_fields = ['user']

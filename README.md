@@ -45,6 +45,7 @@ cp .env.example .env
 ```
 
 Required configurations:
+
 - `OPENAI_API_KEY`: Your OpenAI API key
 - `DATABASE_URL`: PostgreSQL connection string (optional, defaults to SQLite)
 - `REDIS_URL`: Redis connection string
@@ -69,6 +70,7 @@ python manage.py create_test_tenant
 ```
 
 This creates:
+
 - Tenant: "Demo Organization"
 - Admin user: admin@demo.com / admin123
 - Developer user: developer@demo.com / dev123
@@ -90,11 +92,13 @@ celery -A config worker -l info
 ### 9. Start Redis and Qdrant
 
 **Redis:**
+
 ```bash
 redis-server
 ```
 
 **Qdrant (using Docker):**
+
 ```bash
 docker run -p 6333:6333 qdrant/qdrant
 ```
@@ -102,22 +106,27 @@ docker run -p 6333:6333 qdrant/qdrant
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/v1/auth/login/` - Login
 - `POST /api/v1/auth/refresh/` - Refresh token
 
 ### Documents
+
 - `GET /api/v1/documents/` - List accessible documents
 - `POST /api/v1/documents/upload/` - Upload document
 - `DELETE /api/v1/documents/{id}/` - Delete document
 
 ### Document Access
+
 - `POST /api/v1/document-access/` - Grant access
 - `DELETE /api/v1/document-access/{id}/` - Revoke access
 
 ### RAG
+
 - `POST /api/v1/rag/query/` - Query RAG system
 
 ### Admin (Tenant Admin Only)
+
 - `GET/POST /api/v1/roles/` - Manage roles
 - `POST /api/v1/roles/{id}/assign_permissions/` - Assign permissions
 - `GET/POST /api/v1/departments/` - Manage departments
@@ -184,6 +193,35 @@ python manage.py test
 5. Set up proper Redis and Qdrant instances
 6. Use Gunicorn as WSGI server
 7. Set up Celery with supervisor or systemd
+
+## Infrastructure & Environments
+
+- Environment-based settings loader is enabled via `APP_ENV`.
+- Supported values: `development` (default), `staging`, `production`, `testing`.
+- Files:
+  - `config/settings.py` (loader)
+  - `config/settings_base.py`
+  - `config/settings_development.py`
+  - `config/settings_staging.py`
+  - `config/settings_production.py`
+  - `config/settings_testing.py`
+
+### Infra Assets
+
+- Docker runtime files:
+  - `Dockerfile`
+  - `docker-compose.dev.yml`
+  - `docker-compose.prod.yml`
+  - `nginx/nginx.conf`
+- Kubernetes starter manifests:
+  - `infra/k8s/configmap.yaml`
+  - `infra/k8s/deployment.yaml`
+  - `infra/k8s/service.yaml`
+  - `infra/k8s/ingress.yaml`
+  - `infra/k8s/hpa.yaml`
+  - `infra/k8s/sealed-secret.example.yaml`
+- CI workflow:
+  - `.github/workflows/ci.yml`
 
 ## License
 

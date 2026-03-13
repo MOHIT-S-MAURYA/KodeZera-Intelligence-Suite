@@ -825,35 +825,35 @@ Profile Page
 
 ### Files Created
 
-| File | Purpose |
-| --- | --- |
-| `apps/core/services/password.py` | Password complexity validation + history management |
-| `apps/core/services/lockout.py` | Progressive Redis-backed account lockout |
-| `apps/core/services/session_manager.py` | Per-device session tracking tied to refresh tokens |
-| `apps/core/services/authentication.py` | Login / MFA challenge / logout orchestrator |
-| `apps/core/services/mfa.py` | TOTP setup, email OTP, device management |
-| `apps/core/services/password_reset.py` | Forgot / reset password OTP flow |
-| `apps/core/tasks.py` | Celery cleanup tasks (sessions, login attempts) |
-| `apps/api/serializers/auth.py` | All auth request/response serializers |
-| `apps/core/migrations/0012_auth_identity_redesign.py` | Migration for all new models & fields |
-| `frontend/src/pages/ForgotPassword.tsx` | Forgot password page |
-| `frontend/src/pages/ResetPassword.tsx` | Reset password with OTP page |
+| File                                                  | Purpose                                             |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| `apps/core/services/password.py`                      | Password complexity validation + history management |
+| `apps/core/services/lockout.py`                       | Progressive Redis-backed account lockout            |
+| `apps/core/services/session_manager.py`               | Per-device session tracking tied to refresh tokens  |
+| `apps/core/services/authentication.py`                | Login / MFA challenge / logout orchestrator         |
+| `apps/core/services/mfa.py`                           | TOTP setup, email OTP, device management            |
+| `apps/core/services/password_reset.py`                | Forgot / reset password OTP flow                    |
+| `apps/core/tasks.py`                                  | Celery cleanup tasks (sessions, login attempts)     |
+| `apps/api/serializers/auth.py`                        | All auth request/response serializers               |
+| `apps/core/migrations/0012_auth_identity_redesign.py` | Migration for all new models & fields               |
+| `frontend/src/pages/ForgotPassword.tsx`               | Forgot password page                                |
+| `frontend/src/pages/ResetPassword.tsx`                | Reset password with OTP page                        |
 
 ### Files Modified
 
-| File | Changes |
-| --- | --- |
-| `apps/core/models.py` | 5 User auth fields + 6 new models (UserSession, LoginAttempt, PasswordHistory, MFADevice, PasswordResetToken, TenantSSOConfig) |
-| `apps/api/views/auth.py` | Full rewrite — 20 endpoints (login, MFA verify, logout, sessions, password reset, MFA management, admin endpoints) |
-| `apps/api/urls.py` | 20 new URL patterns for all auth endpoints |
-| `config/celery.py` | 2 new periodic tasks (session cleanup daily, login attempt archival weekly) |
-| `requirements.txt` | Added pyotp, qrcode, Pillow |
-| `frontend/src/services/auth.service.ts` | All new API methods (MFA, sessions, password reset, logout) |
-| `frontend/src/store/auth.store.ts` | MFA challenge state (mfaSession, mfaMethods) |
-| `frontend/src/pages/Login.tsx` | MFA flow + forgot password link + demo credentials removed |
-| `frontend/src/pages/Profile.tsx` | Active sessions list, MFA setup/disable, device management |
-| `frontend/src/App.tsx` | Routes for /forgot-password and /reset-password |
-| `frontend/src/components/layout/TopNav.tsx` | Async logout (server-side session revocation) |
+| File                                        | Changes                                                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/core/models.py`                       | 5 User auth fields + 6 new models (UserSession, LoginAttempt, PasswordHistory, MFADevice, PasswordResetToken, TenantSSOConfig) |
+| `apps/api/views/auth.py`                    | Full rewrite — 20 endpoints (login, MFA verify, logout, sessions, password reset, MFA management, admin endpoints)             |
+| `apps/api/urls.py`                          | 20 new URL patterns for all auth endpoints                                                                                     |
+| `config/celery.py`                          | 2 new periodic tasks (session cleanup daily, login attempt archival weekly)                                                    |
+| `requirements.txt`                          | Added pyotp, qrcode, Pillow                                                                                                    |
+| `frontend/src/services/auth.service.ts`     | All new API methods (MFA, sessions, password reset, logout)                                                                    |
+| `frontend/src/store/auth.store.ts`          | MFA challenge state (mfaSession, mfaMethods)                                                                                   |
+| `frontend/src/pages/Login.tsx`              | MFA flow + forgot password link + demo credentials removed                                                                     |
+| `frontend/src/pages/Profile.tsx`            | Active sessions list, MFA setup/disable, device management                                                                     |
+| `frontend/src/App.tsx`                      | Routes for /forgot-password and /reset-password                                                                                |
+| `frontend/src/components/layout/TopNav.tsx` | Async logout (server-side session revocation)                                                                                  |
 
 ### Remaining Manual / Future Steps
 

@@ -3,6 +3,7 @@ RAG Pipeline Service - Orchestrates Retrieval and Generation.
 """
 import json
 import threading
+import time
 import uuid
 from typing import Dict, Any, List, Generator
 
@@ -47,6 +48,7 @@ class RAGPipeline:
             Dict containing the 'answer', 'sources', and 'metadata'
         """
         logger.info(f"Executing RAG pipeline for user {user.id}")
+        _start = time.monotonic()
         
         # 0. Handle Chat Session
         session = self._get_or_create_session(user, session_id)
@@ -97,6 +99,7 @@ class RAGPipeline:
             raise LLMServiceError("Failed to retrieve relevant context.")
             
         # 3. Generate response using LLM
+        is_failed = False
         if not retrieved_chunks:
             answer = 'I could not find relevant information in your accessible documents to answer this question.'
             sources = []
@@ -112,6 +115,7 @@ class RAGPipeline:
                 )
             except Exception as e:
                 logger.error(f"Error generating LLM response: {e}")
+                is_failed = True
                 raise LLMServiceError("Failed to generate answer from context.")
             
             # Format sources for frontend
@@ -127,6 +131,10 @@ class RAGPipeline:
             
         # 4. Log audit entry for compliance
         self._log_query_audit(user, query_text, len(sources))
+
+        # 5. Record analytics metrics (non-blocking)
+        _latency_ms = int((time.monotonic() - _start) * 1000)
+        self._record_metrics(user, session, query_text, _latency_ms, retrieved_chunks, is_failed)
         
         return {
             'answer': answer,
@@ -320,5 +328,51 @@ class RAGPipeline:
                 )
             except Exception as exc:
                 logger.warning("Failed to write RAG audit log: %s", exc)
+
+        threading.Thread(target=_write, daemon=True).start()
+
+    def _record_metrics(self, user: User, session, query_text: str, latency_ms: int, chunks: list, is_failed: bool) -> None:
+        """Fire-and-forget analytics metric collection."""
+        def _write():
+            try:
+                from apps.analytics.services.collector import record_query
+                from apps.analytics.services.query_analytics import record_query_analytics
+                from apps.core.models import AIProviderConfig
+
+                config = AIProviderConfig.get_config()
+                model_used = f"{config.llm_provider}/{config.llm_model}" if config else ''
+                tokens_in  = 0
+                tokens_out = 0
+
+                record_query(
+                    tenant_id=str(user.tenant.id),
+                    user_id=str(user.id),
+                    latency_ms=latency_ms,
+                    tokens_in=tokens_in,
+                    tokens_out=tokens_out,
+                    failed=is_failed,
+                )
+
+                avg_rel = None
+                if chunks:
+                    scores = [c.get('score', 0) for c in chunks if isinstance(c, dict) and 'score' in c]
+                    if scores:
+                        avg_rel = sum(scores) / len(scores)
+
+                record_query_analytics(
+                    tenant=user.tenant,
+                    user=user,
+                    query_text=query_text,
+                    session_id=session.id if session else None,
+                    latency_ms=latency_ms,
+                    chunks_retrieved=len(chunks),
+                    avg_relevance=avg_rel,
+                    model_used=model_used,
+                    tokens_in=tokens_in,
+                    tokens_out=tokens_out,
+                    is_failed=is_failed,
+                )
+            except Exception as exc:
+                logger.debug("_record_metrics failed (non-critical): %s", exc)
 
         threading.Thread(target=_write, daemon=True).start()

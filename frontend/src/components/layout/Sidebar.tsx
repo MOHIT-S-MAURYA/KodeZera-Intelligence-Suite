@@ -15,6 +15,8 @@ import {
     Brain,
     Lock,
     Headphones,
+    ToggleLeft,
+    CreditCard,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useUIStore } from '../../store/ui.store';
@@ -29,6 +31,7 @@ interface NavItem {
 
 const tenantNavItems: NavItem[] = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'My Analytics', path: '/my-analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'AI Chat', path: '/chat', icon: <MessageSquare className="w-5 h-5" /> },
     { name: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" /> },
     { name: 'Users', path: '/users', icon: <Users className="w-5 h-5" />, adminOnly: true },
@@ -43,6 +46,8 @@ const platformOwnerNavItems: NavItem[] = [
     { name: 'Usage Analytics', path: '/platform/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Security', path: '/platform/security', icon: <ShieldAlert className="w-5 h-5" /> },
     { name: 'AI Configuration', path: '/platform/ai-config', icon: <Brain className="w-5 h-5" /> },
+    { name: 'Subscriptions', path: '/platform/subscriptions', icon: <CreditCard className="w-5 h-5" /> },
+    { name: 'Feature Flags', path: '/platform/feature-flags', icon: <ToggleLeft className="w-5 h-5" /> },
     { name: 'Permissions', path: '/platform/permissions', icon: <Lock className="w-5 h-5" /> },
     { name: 'Audit Logs', path: '/platform/audit-logs', icon: <FileSearch className="w-5 h-5" /> },
     { name: 'Support', path: '/platform/support', icon: <Headphones className="w-5 h-5" /> },

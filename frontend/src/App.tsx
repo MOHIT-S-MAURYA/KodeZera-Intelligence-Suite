@@ -13,6 +13,7 @@ const Login             = lazy(() => import('./pages/Login').then(m => ({ defaul
 const ForgotPassword    = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
 const ResetPassword     = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const Dashboard         = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const MyAnalytics       = lazy(() => import('./pages/MyAnalytics').then(m => ({ default: m.MyAnalytics })));
 const PlatformDashboard = lazy(() => import('./pages/PlatformDashboard').then(m => ({ default: m.PlatformDashboard })));
 const Chat              = lazy(() => import('./pages/Chat').then(m => ({ default: m.Chat })));
 const Documents         = lazy(() => import('./pages/Documents').then(m => ({ default: m.Documents })));
@@ -33,6 +34,7 @@ const PlatformAIConfig      = lazy(() => import('./pages/platform/PlatformAIConf
 const PlatformPermissions   = lazy(() => import('./pages/platform/PlatformPermissions').then(m => ({ default: m.PlatformPermissions })));
 const PlatformAuditLogs     = lazy(() => import('./pages/platform/PlatformAuditLogs').then(m => ({ default: m.PlatformAuditLogs })));
 const PlatformSupport       = lazy(() => import('./pages/platform/PlatformSupport').then(m => ({ default: m.PlatformSupport })));
+const PlatformFeatureFlags  = lazy(() => import('./pages/platform/PlatformFeatureFlags').then(m => ({ default: m.PlatformFeatureFlags })));
 
 function App() {
   const { toasts, removeToast } = useUIStore();
@@ -141,6 +143,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/platform/feature-flags"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <PlatformFeatureFlags />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Tenant Dashboard */}
         <Route
@@ -149,6 +161,17 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-analytics"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <MyAnalytics />
               </MainLayout>
             </ProtectedRoute>
           }

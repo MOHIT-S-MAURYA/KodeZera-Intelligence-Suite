@@ -4,7 +4,7 @@ Serializers for API.
 from rest_framework import serializers
 from apps.core.models import User, Tenant, Department, AuditLog
 from apps.rbac.models import Role, Permission, UserRole, RolePermission
-from apps.documents.models import Document, DocumentAccess
+from apps.documents.models import Document, DocumentAccess, DocumentFolder
 from apps.api.serializers.support import SupportTicketSerializer  # noqa: F401
 
 
@@ -289,23 +289,66 @@ class PermissionSerializer(serializers.ModelSerializer):
 
 
 class DocumentSerializer(serializers.ModelSerializer):
-    """Serializer for Document model."""
+    """Serializer for Document model — DEPRECATED: use apps.api.serializers.documents instead."""
     uploaded_by_name = serializers.CharField(source='uploaded_by.full_name', read_only=True)
-    
+    department_name = serializers.SerializerMethodField()
+    folder_name = serializers.SerializerMethodField()
+    current_version_number = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
+
     class Meta:
         model = Document
-        fields = ['id', 'title', 'file_path', 'file_size', 'file_type',
-                  'uploaded_by', 'uploaded_by_name', 'department',
-                  'classification_level', 'visibility_type', 'status',
-                  'chunk_count', 'created_at']
-        read_only_fields = ['id', 'uploaded_by', 'file_path', 'file_size', 'file_type', 'status', 'chunk_count', 'created_at']
+        fields = [
+            'id', 'title', 'description',
+            'file_key', 'file_path', 'file_size', 'file_type',
+            'original_filename', 'mime_type', 'content_hash',
+            'page_count', 'language', 'author',
+            'uploaded_by', 'uploaded_by_name',
+            'department', 'department_name',
+            'folder', 'folder_name',
+            'classification_level', 'visibility_type',
+            'status', 'processing_progress', 'processing_error',
+            'chunk_count',
+            'current_version_number',
+            'tags',
+            'is_deleted', 'deleted_at',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'uploaded_by', 'file_key', 'file_path',
+            'file_size', 'file_type', 'original_filename',
+            'mime_type', 'content_hash', 'page_count', 'language', 'author',
+            'status', 'processing_progress', 'processing_error', 'chunk_count',
+            'current_version_number', 'tags',
+            'is_deleted', 'deleted_at',
+            'created_at', 'updated_at',
+        ]
+
+    def get_department_name(self, obj):
+        return obj.department.name if obj.department_id else None
+
+    def get_folder_name(self, obj):
+        return obj.folder.name if obj.folder_id else None
+
+    def get_current_version_number(self, obj):
+        if obj.current_version_id:
+            return obj.current_version.version_number
+        return 1
+
+    def get_tags(self, obj):
+        return list(
+            obj.tag_assignments.select_related('tag')
+            .values_list('tag__name', flat=True)
+        )
 
 
 class DocumentUploadSerializer(serializers.Serializer):
     """Serializer for document upload."""
     file = serializers.FileField()
     title = serializers.CharField(max_length=500, required=False)
+    description = serializers.CharField(required=False, default='')
     department = serializers.UUIDField(required=False, allow_null=True)
+    folder = serializers.UUIDField(required=False, allow_null=True)
     classification_level = serializers.IntegerField(default=0, min_value=0, max_value=5)
     visibility_type = serializers.ChoiceField(
         choices=['public', 'restricted', 'private'],
@@ -315,11 +358,27 @@ class DocumentUploadSerializer(serializers.Serializer):
 
 class DocumentAccessSerializer(serializers.ModelSerializer):
     """Serializer for DocumentAccess model."""
-    
+    grantee_name = serializers.SerializerMethodField()
+
     class Meta:
         model = DocumentAccess
-        fields = ['id', 'document', 'access_type', 'access_id', 'granted_by', 'created_at']
-        read_only_fields = ['id', 'granted_by', 'created_at']
+        fields = [
+            'id', 'document', 'access_type',
+            'role', 'org_unit', 'user',
+            'permission_level', 'include_descendants',
+            'granted_by', 'grantee_name',
+            'expires_at', 'created_at',
+        ]
+        read_only_fields = ['id', 'granted_by', 'grantee_name', 'created_at']
+
+    def get_grantee_name(self, obj):
+        if obj.user_id:
+            return obj.user.full_name
+        if obj.role_id:
+            return obj.role.name
+        if obj.org_unit_id:
+            return obj.org_unit.name
+        return str(obj.access_id) if obj.access_id else ''
 
 
 class RAGQuerySerializer(serializers.Serializer):

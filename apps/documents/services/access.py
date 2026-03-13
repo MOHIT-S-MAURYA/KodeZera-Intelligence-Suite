@@ -180,16 +180,66 @@ class DocumentAccessService:
         return len(cls.get_accessible_document_ids(user))
 
     @classmethod
-    def get_accessible_documents(cls, user: User) -> QuerySet:
-        """Get QuerySet of documents accessible by user."""
+    def get_accessible_documents(cls, user: User, include_deleted: bool = False) -> QuerySet:
+        """Get QuerySet of documents accessible by user (excludes soft-deleted by default)."""
         document_ids = cls.get_accessible_document_ids(user)
-        return Document.objects.filter(id__in=document_ids)
+        qs = Document.objects.filter(id__in=document_ids)
+        if not include_deleted:
+            qs = qs.filter(is_deleted=False)
+        return qs
 
     @classmethod
     def can_access_document(cls, user: User, document_id: UUID) -> bool:
         """Check if user can access a specific document."""
         accessible_ids = cls.get_accessible_document_ids(user)
         return document_id in accessible_ids
+
+    @classmethod
+    def get_permission_level(cls, user: User, document_id: UUID) -> str:
+        """
+        Return the highest permission_level the user holds for a document.
+        Order: manage > write > read > '' (no access).
+
+        Owners (uploader), superusers and tenant admins always get 'manage'.
+        """
+        LEVELS = {'manage': 3, 'write': 2, 'read': 1}
+
+        if user.is_superuser or user.is_tenant_admin:
+            return 'manage'
+
+        try:
+            doc = Document.objects.get(pk=document_id)
+        except Document.DoesNotExist:
+            return ''
+
+        if doc.uploaded_by_id == user.id:
+            return 'manage'
+
+        if not cls.can_access_document(user, document_id):
+            return ''
+
+        now = timezone.now()
+        active = Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+
+        role_ids = RoleResolutionService.resolve_user_roles(user)
+        org_unit_ids = cls._get_user_org_unit_ids(user)
+
+        grants = DocumentAccess.objects.filter(
+            active,
+            document_id=document_id,
+        ).filter(
+            Q(user=user)
+            | Q(role_id__in=role_ids)
+            | Q(org_unit_id__in=org_unit_ids)
+        ).values_list('permission_level', flat=True)
+
+        best = 0
+        for lvl in grants:
+            best = max(best, LEVELS.get(lvl, 0))
+            if best == 3:
+                break
+
+        return {3: 'manage', 2: 'write', 1: 'read'}.get(best, 'read')
 
     @classmethod
     def invalidate_cache(cls, user_id: UUID):
