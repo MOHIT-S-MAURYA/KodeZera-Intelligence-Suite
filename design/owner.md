@@ -1,333 +1,188 @@
+# Platform Owner Control Plane Specification
 
-We are now defining the **Super Admin (Platform Owner) Dashboard Requirements** for
-**Kodezera Intelligence Suite**
+## 1. Scope
 
-Write this like a *system design + product requirement*, not UI imagination.
+This document defines functional and governance requirements for the Platform Owner experience in the Kodezera Intelligence Suite.
 
-Goal:
+The Platform Owner operates platform infrastructure and tenancy lifecycle. The Platform Owner is not a tenant data consumer.
 
-> The Owner manages the PLATFORM, not the ORGANIZATION DATA.
+## 2. Core Privacy Boundary
 
-The biggest rule:
+The following tenant data is out of scope for default Platform Owner access:
 
-⚠️ **Owner must never see tenant private documents or chat content unless explicitly granted emergency access.**
+- Document content and file payloads
+- Chat messages and prompts
+- Retrieved RAG context snippets
+- End-user personal or business records
 
-So we design a **Control Plane Dashboard**, not a data dashboard.
+Allowed platform visibility is metadata-only, for example:
 
----
+- Tenant query volume
+- Tenant storage usage
+- Tenant status and plan
+- Aggregate reliability metrics
 
-# Super Admin (Owner) Dashboard Specification
+## 3. Navigation Model
 
-## 1. Purpose of Owner Dashboard
+Required control-plane navigation:
 
-The Owner dashboard is used to:
+- Overview
+- Tenants
+- Subscriptions and Billing
+- Usage Analytics
+- System Health
+- Security and Abuse Monitoring
+- AI Configuration
+- Global Policy
+- System Audit Logs
+- Support and Emergency Access
+- Settings
 
-* Operate the SaaS platform
-* Manage tenants (organizations)
-* Monitor platform health
-* Control subscriptions & billing
-* Configure AI usage policies
-* Monitor security & abuse
-* Audit system-level activities
+## 4. Functional Requirements
 
-It is **NOT** used to read company data.
+### 4.1 Overview
 
----
+Purpose: platform-wide operational snapshot.
 
-# 2. What Owner MUST NOT See
+Required KPIs:
 
-The following data must be completely inaccessible:
+- Total tenants
+- Active tenants
+- Suspended tenants
+- Total users (aggregate)
+- Query volume (daily)
+- Indexed document count (aggregate)
+- Error rate
+- Worker backlog
 
-* Tenant documents content
-* Chat conversations
-* Retrieved RAG context
-* User personal files
-* Internal company information
-* Department structure details
-* Employee queries
+Required charts:
 
-Even database access APIs must not expose it.
+- Query volume over time
+- Tenant growth
+- Platform latency trend
+- Token consumption trend
 
-Owner only sees **metadata**, never content.
+### 4.2 Tenant Management
 
-Example allowed:
+Purpose: lifecycle management of tenant organizations.
 
-> Tenant A performed 12,450 queries today
+Required actions:
 
-Example forbidden:
+- Activate tenant
+- Suspend tenant
+- Deactivate tenant
+- Change subscription plan
+- Rotate tenant-facing keys
 
-> Show queries asked by HR manager
+Allowed tenant detail data:
 
----
+- User count
+- Document count
+- Storage usage
+- Query volume
+- Last activity timestamp
 
-# 3. Owner Dashboard Main Navigation
+Disallowed tenant detail data:
 
-Sidebar (Platform Control Panel)
+- Document titles and content
+- Individual employee records
+- User prompt and query text
 
-```
-Overview
-Tenants
-Subscriptions & Billing
-Usage Analytics
-System Health
-Security & Abuse Monitoring
-AI Configuration
-Global Permissions Policy
-Audit Logs (System Level)
-Support & Emergency Access
-Settings
-```
+### 4.3 Subscriptions and Billing
 
----
+Required capabilities:
 
-# 4. Owner Dashboard Pages (Detailed)
+- Plan assignment and change history
+- Quota configuration (users, storage, queries, tokens)
+- Payment status view
+- Invoice generation workflow
+- Over-usage alerting
 
----
+### 4.4 Usage Analytics
 
-## 4.1 Overview Page (Platform Status)
+Required scope:
 
-Purpose: Quick health of entire SaaS.
+- Platform-wide and tenant-level aggregate analytics
+- No user-level content analytics
 
-### Widgets
+Required metrics:
 
-1. Total Tenants
-2. Active Tenants
-3. Suspended Tenants
-4. Total Users Across Platform
-5. Queries Today
-6. Documents Indexed Count
-7. Average Response Time
-8. Failed Queries
-9. Embedding Queue Length
-10. Active Workers
+- Query count by tenant
+- Latency percentile trend
+- Token usage trend
+- Embedding workload trend
 
-### Charts
+### 4.5 System Health
 
-* Queries per hour (line chart)
-* Tenants growth (monthly)
-* System load (CPU / memory from services)
-* AI token usage
+Required service status coverage:
 
-### What it must NOT show
+- API services
+- Database
+- Vector store
+- Cache and queue
+- Background workers
+- External AI providers
 
-No tenant-specific document or user details.
+Required observability metrics:
 
----
+- Uptime
+- Latency
+- Error rate
+- Queue depth
+- Worker failure rate
 
-## 4.2 Tenants Management Page
+### 4.6 Security and Abuse Monitoring
 
-Purpose: Manage organizations using the platform.
+Required detections:
 
-### Table Columns
+- Unusual request-rate spikes
+- Elevated error or denial patterns
+- Suspected prompt abuse indicators
+- Repeated authentication failures
 
-| Tenant Name | Status | Users | Storage Used | Plan | Created On | Actions |
+Required responses:
 
-### Actions
+- Tenant throttling controls
+- Tenant suspension controls
+- Security incident annotation
 
-* Activate tenant
-* Suspend tenant
-* Delete tenant
-* Reset tenant API keys
-* Change plan
-* View usage summary
+### 4.7 AI Configuration
 
-### Tenant Detail View (Metadata only)
+Required controls:
 
-Allowed to see:
+- Provider and model policy
+- Per-plan model access
+- Cost controls and default safeguards
+- Provider failover policy
 
-* Total users
-* Total documents count
-* Queries per day
-* Storage usage
-* Last activity
+### 4.8 Emergency Access
 
-Not allowed:
+Any break-glass flow must enforce:
 
-* Open document
-* See document titles
-* See employee names
+- Explicit reason capture
+- Time-bound access window
+- Dual authorization (where policy requires)
+- Immutable audit trail
+- Automatic expiry
 
----
+## 5. Audit and Compliance Requirements
 
-## 4.3 Subscriptions & Billing
+Every sensitive Platform Owner action must generate system-level audit events with:
 
-Features:
+- Actor identity
+- Action type
+- Target entity
+- Timestamp
+- Request correlation ID
+- Change metadata
 
-* Assign plan (Basic / Pro / Enterprise)
-* Monthly usage tracking
-* Payment status
-* Invoice generation
-* Over-usage alerts
+## 6. Non-Functional Requirements
 
-Owner can:
+- Security: strict tenant isolation and server-side authorization
+- Reliability: resilient UI for partial backend degradation
+- Performance: dashboard pages should support high-cardinality tenants
+- Usability: clear distinction between metadata operations and tenant data
 
-* Upgrade/downgrade plan
-* Set token limits
-* Set storage limits
-* Set query limits
+## 7. Out of Scope
 
----
-
-## 4.4 Usage Analytics
-
-Platform-wide statistics only.
-
-Charts:
-
-* Queries per tenant (count only)
-* Embeddings created
-* Average response latency
-* AI token consumption
-* Peak hours usage
-
-Never expose:
-User-level activity.
-
----
-
-## 4.5 System Health Page
-
-This is infrastructure monitoring.
-
-Show status of:
-
-* API Server
-* Database
-* Vector DB
-* Redis
-* Workers
-* LLM Provider
-
-Metrics:
-
-* Latency
-* Error rate
-* Queue backlog
-* Worker failures
-
-Owner can restart services (if self-hosted).
-
----
-
-## 4.6 Security & Abuse Monitoring
-
-Purpose: detect misuse.
-
-Show:
-
-* Excessive query rate tenants
-* Prompt injection detection count
-* Suspicious activity alerts
-* Authentication failures
-* Rate-limit violations
-
-Owner actions:
-
-* Temporarily block tenant
-* Force re-authentication
-* Trigger investigation flag
-
----
-
-## 4.7 AI Configuration
-
-Global AI behaviour settings.
-
-Owner can configure:
-
-* Default model
-* Token limits
-* Max context size
-* Allowed file types
-* Embedding chunk size
-* Temperature limits
-* Response policies
-
-Cannot configure per-document visibility.
-
----
-
-## 4.8 Global Permissions Policy
-
-Platform-level restrictions.
-
-Examples:
-
-* Disable file uploads globally
-* Restrict max document size
-* Restrict model usage
-* Enforce password policy
-
----
-
-## 4.9 System Audit Logs
-
-System-level logs only:
-
-* Tenant created
-* Tenant suspended
-* Plan changed
-* Service restart
-* System config updated
-
-Not user logs inside tenants.
-
----
-
-## 4.10 Support & Emergency Access
-
-This is controlled and logged.
-
-Owner can request temporary read-only tenant access.
-
-Rules:
-
-* Requires justification
-* Time limited
-* Fully audited
-* Visible to tenant admin
-
-This is compliance requirement.
-
----
-
-# 5. Owner Permission Model
-
-Owner role is NOT bypass role.
-
-Instead:
-
-```
-Owner = Platform Administrator
-Tenant Admin = Data Administrator
-User = Data Consumer
-```
-
-Owner controls system
-Tenant controls data
-
----
-
-# 6. Owner Dashboard Security Rules
-
-1. Owner cannot directly query vector DB.
-2. Owner cannot run RAG queries on tenant data.
-3. Owner actions must be audit logged.
-4. Emergency access must notify tenant admin.
-5. Owner APIs separated from tenant APIs.
-
----
-
-# 7. Mental Model
-
-Think of it like:
-
-AWS Console vs Your EC2 Files
-
-AWS can manage servers
-AWS cannot read your files
-
-Kodezera Owner = AWS
-Tenant = Customer Infrastructure
-
-
+This control plane does not replace tenant-admin experiences for document, chat, or employee management.

@@ -1,16 +1,15 @@
-# Kodezera Intelligence Suite - UI/UX Design Specification v2.0
+# Kodezera Intelligence Suite UI Specification (v2)
 
-## 🎨 Design Philosophy
+## 1. Design Principles
 
-**Modern Enterprise SaaS**
-- Clean, minimal, and professional
-- Data-dense but not overwhelming
-- Accessible and intuitive
-- Performant and responsive
+- Enterprise-grade visual consistency
+- Information density with clear hierarchy
+- Accessibility-first interaction patterns
+- Responsive and performance-aware layouts
 
 ---
 
-## 🎯 Color System
+## 2. Color System
 
 ### Brand Colors
 - **Primary (Indigo)**: `#6366F1` - Buttons, links, active states
@@ -33,7 +32,7 @@
 
 ---
 
-## 📐 Typography
+## 3. Typography
 
 **Font**: Inter (Variable)
 
@@ -49,7 +48,7 @@
 
 ---
 
-## 🏗️ Layout Structure
+## 4. Layout Structure
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -70,7 +69,7 @@
 
 ---
 
-## 🧩 Component Specs
+## 5. Component Specifications
 
 ### Button
 **Variants**: Primary, Secondary, Ghost, Danger
@@ -105,9 +104,9 @@ Ghost: text-gray-600, hover:bg-gray-100
 
 ---
 
-## 📱 Pages
+## 6. Page Patterns
 
-### 1. Login
+### 6.1 Login
 - Centered card (max-width: 400px)
 - Logo + Title
 - Email + Password fields
@@ -115,41 +114,41 @@ Ghost: text-gray-600, hover:bg-gray-100
 - Primary button
 - Minimal, no distractions
 
-### 2. Dashboard Home
+### 6.2 Dashboard Home
 - 4-col stats grid (responsive to 1-col mobile)
 - Recent activity list
 - Quick actions
 
-### 3. AI Chat
+### 6.3 AI Chat
 - Left: Conversation list (collapsible)
 - Right: Chat area
   - Messages: User (right, brand-500), AI (left, gray-100)
   - Input bar at bottom
   - Sources expandable
 
-### 4. Documents
+### 6.4 Documents
 - Search + Filters bar
 - Desktop: Data table
 - Mobile: Card list
 - Upload button (if permission)
 
-### 5. Users
+### 6.5 Users
 - Search + Role/Status filters
 - Desktop: Table with avatars
 - Mobile: Cards with key info
 - Add user button
 
-### 6. Departments
+### 6.6 Departments
 - Search bar
 - Grid of department cards
 - User count badges
 
-### 7. Roles
+### 6.7 Roles
 - Search bar
 - Cards with permission counts
 - System role badge
 
-### 8. Audit Logs
+### 6.8 Audit Logs
 - Date range + Action type filters
 - Desktop: Detailed table
 - Mobile: Timeline cards
@@ -157,7 +156,7 @@ Ghost: text-gray-600, hover:bg-gray-100
 
 ---
 
-## ✨ Interactions
+## 7. Interactions
 
 ### Animations
 - Page transitions: fade-in (300ms)
@@ -173,7 +172,7 @@ Ghost: text-gray-600, hover:bg-gray-100
 
 ---
 
-## 🎯 Key Principles
+## 8. Quality Standards
 
 1. **Consistency**: Same patterns across all pages
 2. **Accessibility**: WCAG 2.1 AA compliant

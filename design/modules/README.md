@@ -1,16 +1,18 @@
-# Kodezera Intelligence Suite — Module Architecture Reference
+# Kodezera Intelligence Suite Module Architecture Reference
 
-> **Comprehensive analysis and advanced system design for all platform modules.**
-> Each module document follows the same 13-section structure: System Overview → Component Deep-Dive → SWOT → Gap Analysis → Advanced System Design → Architecture → Data Model → API → Security → Scalability → Frontend → Migration → Roadmap.
+Comprehensive design reference for all platform modules.
+Each module document follows a consistent 13-section structure:
+System Overview, Component Deep-Dive, SWOT, Gap Analysis, Advanced System Design,
+Architecture, Data Model, API, Security, Scalability, Frontend, Migration, and Roadmap.
 
-## Reality Check
+## Document Status
 
-Design module documents capture the baseline analysis at the time they were authored.
-For current implementation truth, use:
+The module documents are architecture baselines.
+For current implementation status, use:
 
 - [VERIFIED_GAP_MATRIX_2026-03-13.md](VERIFIED_GAP_MATRIX_2026-03-13.md)
 
-It reflects implemented work and corrections landed after the original module writeups.
+This matrix tracks verified implementation progress and post-design corrections.
 
 ---
 
@@ -51,7 +53,8 @@ The Kodezera Intelligence Suite is an **enterprise multi-tenant SaaS platform** 
 
 ## Module Summaries
 
-Note: the summaries below are design-time snapshots and may not reflect the latest shipped implementation.
+The summaries below are design-time snapshots for planning context.
+Always cross-check with the verified matrix before making delivery commitments.
 
 ### 01 — RAG & Chatbot
 
@@ -175,13 +178,13 @@ These themes appear across multiple modules and must be designed holistically:
 
 ## Supporting Artefacts
 
-| Artefact                                           | Purpose                                      |
-| -------------------------------------------------- | -------------------------------------------- |
-| [rag_architecture.drawio](rag_architecture.drawio) | Draw.io diagram of RAG pipeline architecture |
-| [../database_schema.md](../database_schema.md)     | Current database schema reference            |
-| [../proposed design.md](../proposed%20design.md)   | Original design proposal                     |
-| [../ui-spec-v2.md](../ui-spec-v2.md)               | UI specification (V2)                        |
-| [../owner.md](../owner.md)                         | Platform owner design notes                  |
+| Artefact                                                                       | Purpose                                      |
+| ------------------------------------------------------------------------------ | -------------------------------------------- |
+| [rag_architecture.drawio](rag_architecture.drawio)                             | Draw.io diagram of RAG pipeline architecture |
+| [../database_schema.md](../database_schema.md)                                 | Current database schema reference            |
+| [../backend_architecture_principles.md](../backend_architecture_principles.md) | Backend architecture and security principles |
+| [../ui-spec-v2.md](../ui-spec-v2.md)                                           | UI specification (V2)                        |
+| [../owner.md](../owner.md)                                                     | Platform owner design notes                  |
 
 ---
 
@@ -203,5 +206,5 @@ Modules ranked by implementation priority (accounting for dependencies):
 
 ---
 
-> **Generated:** 10 March 2026
-> **Status:** Design analyses complete; implementation is active and tracked in [VERIFIED_GAP_MATRIX_2026-03-13.md](VERIFIED_GAP_MATRIX_2026-03-13.md).
+> Generated: 10 March 2026
+> Status: Design analyses complete; implementation progress is tracked in [VERIFIED_GAP_MATRIX_2026-03-13.md](VERIFIED_GAP_MATRIX_2026-03-13.md).

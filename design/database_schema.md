@@ -1,8 +1,15 @@
-# Kodezera Intelligence Suite - Database Schema
+# Kodezera Intelligence Suite Database Schema Reference
 
-This schema outlines the current structure of the database, organized by application. You can use this to generate Entity-Relationship Diagrams (ERD) and class diagrams.
+This document summarizes the logical data model by application area.
+It is intended for architecture review, onboarding, and ERD generation.
 
-## 1. App: CORE (Core System & Multitenancy)
+## Conventions
+
+- Primary keys are shown explicitly.
+- Relationship targets are included in foreign key descriptions.
+- Field lists are representative and should be validated against live models for migrations in progress.
+
+## 1. Core (System and Multi-Tenancy)
 
 This app handles the fundamental multi-tenant architecture, user management, subscriptions, and system-wide logging.
 
@@ -85,7 +92,7 @@ This app handles the fundamental multi-tenant architecture, user management, sub
 
 ---
 
-## 2. App: RBAC (Role-Based Access Control)
+## 2. RBAC (Role-Based Access Control)
 
 Handles the dynamic roles and granular permissions engine.
 
@@ -115,7 +122,7 @@ Handles the dynamic roles and granular permissions engine.
 
 ---
 
-## 3. App: DOCUMENTS (Document Management)
+## 3. Documents (Document Management)
 
 Handles file metadata, parsing status, and polymorphic access overrides.
 
@@ -143,7 +150,7 @@ Handles file metadata, parsing status, and polymorphic access overrides.
 
 ---
 
-## 4. App: RAG (Retrieval-Augmented Generation)
+## 4. RAG (Retrieval-Augmented Generation)
 
 Handles vector indexing metadata and the conversational AI chat tracking system.
 

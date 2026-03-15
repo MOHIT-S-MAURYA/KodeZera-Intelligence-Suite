@@ -2,6 +2,14 @@
 
 Enterprise multi-tenant RAG (Retrieval-Augmented Generation) platform with dynamic RBAC and secure document access control.
 
+## Documentation
+
+- System design index: `design/modules/README.md`
+- Verified implementation status: `design/modules/VERIFIED_GAP_MATRIX_2026-03-13.md`
+- Backend architecture principles: `design/backend_architecture_principles.md`
+- Database schema notes: `design/database_schema.md`
+- UI specification: `design/ui-spec-v2.md`
+
 ## Features
 
 - **Multi-Tenant Architecture**: Complete data isolation per tenant
@@ -195,7 +203,11 @@ python manage.py evaluate_rag_retrieval path/to/dataset.jsonl --top-k 5
 Dataset row format:
 
 ```json
-{"query":"mfa policy","expected_document_ids":["doc-1"],"candidates":[{"document_id":"doc-1","score":0.72,"text":"..."}]}
+{
+  "query": "mfa policy",
+  "expected_document_ids": ["doc-1"],
+  "candidates": [{ "document_id": "doc-1", "score": 0.72, "text": "..." }]
+}
 ```
 
 ## Production Deployment
