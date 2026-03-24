@@ -847,50 +847,42 @@ def available_models(request):
     """
     Probe the system at runtime and return only the AI models that are
     actually available right now — no hardcoded lists.
-
-    Response shape:
-    {
-      "embedding": {
-        "sentence_transformers": {
-          "available": true,
-          "models": [{"id": "all-MiniLM-L6-v2", "label": "...", "dim": 384}]
-        },
-        "openai":      { "available": bool, "models": [...] },
-        "huggingface": { "available": bool, "models": [] },
-        "note": "..."
-      },
-      "llm": {
-        "ollama":      { "available": bool, "base_url": "...", "models": [...] },
-        "openai":      { "available": bool, "models": [...] },
-        "anthropic":   { "available": bool, "models": [] },
-        "huggingface": { "available": bool, "models": [] },
-      },
-      "current_vector_dim": 384
-    }
     """
     from django.conf import settings
+    from django.core.cache import cache
+    import concurrent.futures
+
+    cache_key = 'platform_ai_available_models'
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return Response(cached_data)
 
     cfg = AIProviderConfig.get_config()
     llm_key = cfg.llm_api_key or ''
     emb_key = cfg.embedding_api_key or ''
 
-    # ── Embedding providers ────────────────────────────────────────────────
-    st_models = _detect_sentence_transformers_models()
-    openai_embed_ok = _probe_openai(emb_key or llm_key)
-    hf_embed_ok = _probe_huggingface(emb_key)
+    # Define tasks to run concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        st_future = executor.submit(_detect_sentence_transformers_models)
+        openai_embed_future = executor.submit(_probe_openai, emb_key or llm_key)
+        hf_embed_future = executor.submit(_probe_huggingface, emb_key)
+        
+        ollama_info_future = executor.submit(_detect_ollama_models)
+        openai_llm_future = executor.submit(_probe_openai, llm_key)
+        anthropic_future = executor.submit(_probe_anthropic, llm_key)
+        hf_llm_future = executor.submit(_probe_huggingface, llm_key)
+        local_models_future = executor.submit(_detect_local_transformers_models)
 
-    # OpenAI embedding models (if key works)
-    OPENAI_EMBED_MODELS = [
-        {'id': 'text-embedding-3-small',  'label': 'text-embedding-3-small (1536d)',  'dim': 1536},
-        {'id': 'text-embedding-3-large',  'label': 'text-embedding-3-large (3072d)',  'dim': 3072},
-        {'id': 'text-embedding-ada-002',  'label': 'text-embedding-ada-002 (1536d)',  'dim': 1536},
-    ]
-
-    # ── LLM providers ──────────────────────────────────────────────────────
-    ollama_info = _detect_ollama_models()
-    openai_llm_ok = _probe_openai(llm_key)
-    anthropic_ok = _probe_anthropic(llm_key)
-    hf_llm_ok = _probe_huggingface(llm_key)
+        # Collect results
+        st_models = st_future.result()
+        openai_embed_ok = openai_embed_future.result()
+        hf_embed_ok = hf_embed_future.result()
+        
+        ollama_info = ollama_info_future.result()
+        openai_llm_ok = openai_llm_future.result()
+        anthropic_ok = anthropic_future.result()
+        hf_llm_ok = hf_llm_future.result()
+        local_models = local_models_future.result()
 
     OPENAI_LLM_MODELS = [
         {'id': 'gpt-4o',              'label': 'GPT-4o (recommended)'},
@@ -907,7 +899,7 @@ def available_models(request):
     # ── Local transformers (no API key) ───────────────────────────────────
     local_models = _detect_local_transformers_models()
 
-    return Response({
+    response_data = {
         'embedding': {
             'sentence_transformers': {
                 'available': len(st_models) > 0,
@@ -948,13 +940,16 @@ def available_models(request):
             'huggingface': {
                 'available': hf_llm_ok,
                 'models': [],
-                'note': 'Requires HuggingFace API key. Enter any model ID from hf.co.',
+                'note': 'Requires HuggingFace API key. Enter any model ID manually.',
             },
         },
-        'current_vector_dim': getattr(settings, 'VECTOR_DIMENSION', 384),
+        'current_vector_dim': getattr(settings, 'QDRANT_VECTOR_DIM', 384),
         'current_embedding_provider': cfg.embedding_provider,
         'current_embedding_model': cfg.embedding_model,
-    })
+    }
+    
+    cache.set(cache_key, response_data, 300) # Cache for 5 minutes
+    return Response(response_data)
 
 
 # ─── Tenant Config ───────────────────────────────────────────────────────────
@@ -1028,7 +1023,7 @@ def tenant_invoices(request, tenant_id):
 def subscription_plans_list(request):
     """List all subscription plans or create a new one."""
     if request.method == 'GET':
-        plans = SubscriptionPlan.objects.all().order_by('price')
+        plans = SubscriptionPlan.objects.all().order_by('price_monthly')
         serializer = SubscriptionPlanSerializer(plans, many=True)
         return Response(serializer.data)
 

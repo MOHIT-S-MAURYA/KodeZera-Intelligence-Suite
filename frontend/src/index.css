@@ -1,26 +1,34 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Color System */
-  --color-primary: #6366F1;
-  --color-primary-dark: #4F46E5;
-  --color-primary-light: #EEF2FF;
-  
-  --color-gray-50: #FAFAFA;
-  --color-gray-100: #F5F5F5;
-  --color-gray-200: #E5E5E5;
-  --color-gray-400: #A3A3A3;
-  --color-gray-600: #525252;
-  --color-gray-900: #171717;
-  
-  --color-success: #22C55E;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
-  --color-info: #3B82F6;
+@layer base {
+  :root {
+    /* Clean Light Mode (Default) */
+    --bg-primary: #f8fafc;
+    --bg-secondary: #f1f5f9;
+    --surface: #ffffff;
+    --surface-hover: #f1f5f9;
+    --border: #e2e8f0;
+    --border-light: #f8fafc;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+
+    --accent-cyan: #007aff;
+    --accent-blue: #3b82f6;
+    --accent-magenta: #6366f1;
+    --accent-orange: #f97316;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+
+    --glass-bg: #ffffff;
+    --glass-border: #e2e8f0;
+    --glass-blur: none;
+    --shadow-soft:
+      0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
 }
 
 * {
@@ -30,128 +38,140 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
-  color: var(--color-gray-900);
-  background-color: var(--color-gray-50);
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glassmorphism Utility */
 @layer utilities {
+  /* Glass card — solid white, never transparent */
   .glass {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: #ffffff !important;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
   }
-  
-  .glass-dark {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .gradient-mesh {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .gradient-mesh::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 50%);
-    animation: float 20s ease-in-out infinite;
-  }
-  
+
   .gradient-primary {
-    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
   }
-  
-  .gradient-accent {
-    background: linear-gradient(to right, #6366F1, #8B5CF6, #EC4899);
+
+  .gradient-cyan {
+    background: linear-gradient(135deg, #3b82f6 0%, #007aff 100%);
   }
-  
+
+  /* Login page background */
+  .gradient-mesh {
+    background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #eff6ff 100%);
+    position: relative;
+  }
+
+  .text-gradient {
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
   .hover-lift {
-    transition: transform 150ms ease-in-out, box-shadow 150ms ease-in-out;
+    transition:
+      transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .hover-lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
   }
-  
-  .ripple-effect {
-    position: relative;
-    overflow: hidden;
+
+  .animate-scale-in {
+    animation: scaleIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
-  
-  .ripple-effect::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.5);
-    transform: translate(-50%, -50%);
-    transition: width 0.6s, height 0.6s;
+
+  .animate-pulse-slow {
+    animation: pulseSlow 4s ease-in-out infinite;
   }
-  
-  .ripple-effect:active::after {
-    width: 300px;
-    height: 300px;
+
+  .animate-fade-in {
+    animation: fadeIn 300ms ease-out both;
   }
 }
 
-@keyframes float {
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
+/* ── Keyframes ─────────────────────────────────────────────────────────── */
+@keyframes scaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
   }
-  33% {
-    transform: translate(30px, -30px) rotate(120deg);
-  }
-  66% {
-    transform: translate(-20px, 20px) rotate(240deg);
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 
-/* Scrollbar Styling */
+@keyframes pulseSlow {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--color-gray-100);
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--color-gray-400);
-  border-radius: 4px;
+  background: var(--border);
+  border-radius: 8px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-gray-600);
+  background: var(--text-muted);
 }
 
-/* Focus Styles */
+/* ── Focus ─────────────────────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--accent-cyan);
   outline-offset: 2px;
 }
 
-/* Selection */
-::selection {
-  background-color: var(--color-primary-light);
-  color: var(--color-primary-dark);
+/* ── Force solid button backgrounds — prevent invisible text bugs ───── */
+/* primary button: always blue with white text */
+button.bg-accent-cyan,
+a.bg-accent-cyan {
+  background-color: #007aff !important;
+  color: #ffffff !important;
+}
+
+/* danger button: always red with white text */
+button.bg-accent-red,
+a.bg-accent-red {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+button.bg-accent-orange,
+a.bg-accent-orange {
+  background-color: #f97316 !important;
+  color: #ffffff !important;
 }

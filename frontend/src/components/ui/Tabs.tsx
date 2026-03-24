@@ -37,8 +37,8 @@ export const Tabs: React.FC<TabsProps> = ({
             <div
                 className={clsx(
                     'flex gap-1',
-                    variant === 'default' && 'border-b border-gray-200',
-                    variant === 'pills' && 'bg-gray-100 p-1 rounded-lg'
+                    variant === 'default' && 'border-b border-border',
+                    variant === 'pills' && 'bg-surface-hover p-1 rounded-xl w-fit'
                 )}
             >
                 {tabs.map((tab) => (
@@ -46,18 +46,18 @@ export const Tabs: React.FC<TabsProps> = ({
                         key={tab.id}
                         onClick={() => handleTabChange(tab.id)}
                         className={clsx(
-                            'flex items-center gap-2 px-4 py-2.5 font-medium text-sm transition-all duration-150',
+                            'flex items-center gap-2 px-4 py-2.5 text-sm transition-all duration-200 w-full sm:w-auto',
                             variant === 'default' && [
                                 'border-b-2 -mb-px',
                                 activeTab === tab.id
-                                    ? 'border-brand-600 text-brand-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    ? 'border-accent-cyan text-accent-cyan font-bold shadow-glow-cyan/10'
+                                    : 'border-transparent text-text-muted hover:text-text-main hover:border-border-light font-medium',
                             ],
                             variant === 'pills' && [
-                                'rounded-md',
+                                'rounded-lg pb-2',
                                 activeTab === tab.id
-                                    ? 'bg-white text-brand-600 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900',
+                                    ? 'bg-surface text-accent-cyan shadow-glass border border-border font-bold'
+                                    : 'text-text-muted hover:text-text-main font-medium hover:bg-surface-hover',
                             ]
                         )}
                     >

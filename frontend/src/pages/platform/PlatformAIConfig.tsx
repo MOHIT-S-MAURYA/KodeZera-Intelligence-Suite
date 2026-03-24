@@ -58,14 +58,14 @@ const LLM_META: Record<string, { label: string; needsKey: boolean; needsBase: bo
 
 // ── Shared input className — matches the app's Input component exactly ─────────
 const inputCls =
-    'w-full h-11 px-3 rounded-lg border border-gray-200 text-gray-900 text-sm ' +
-    'placeholder-gray-400 bg-white ' +
-    'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent ' +
+    'w-full h-11 px-3 rounded-lg border border-border text-text-main text-sm ' +
+    'placeholder-text-muted bg-surface ' +
+    'focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent ' +
     'transition-all duration-150';
 
 const selectCls =
-    'w-full h-11 px-3 rounded-lg border border-gray-200 text-gray-900 text-sm ' +
-    'bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent ' +
+    'w-full h-11 px-3 rounded-lg border border-border text-text-main text-sm ' +
+    'bg-surface focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent ' +
     'transition-all duration-150';
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -74,11 +74,11 @@ const selectCls =
 const StatusPill: React.FC<{ available: boolean; label: string }> = ({ available, label }) => (
     <span
         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${available
-            ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
-            : 'bg-gray-100 text-gray-500'
+            ? 'bg-green-500/10 text-green-500 ring-1 ring-green-500/20'
+            : 'bg-surface-hover text-text-muted'
             }`}
     >
-        <span className={`w-1.5 h-1.5 rounded-full ${available ? 'bg-green-500' : 'bg-gray-400'}`} />
+        <span className={`w-1.5 h-1.5 rounded-full ${available ? 'bg-green-500' : 'bg-text-muted/50'}`} />
         {label}
     </span>
 );
@@ -99,15 +99,15 @@ const ProviderButtons: React.FC<{
                     onClick={() => onSelect(id)}
                     type="button"
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-150 ${isActive
-                        ? 'bg-brand-600 border-brand-600 text-white shadow-sm'
+                        ? 'bg-brand border-brand text-white shadow-sm'
                         : info.available
-                            ? 'bg-white border-gray-200 text-gray-700 hover:border-brand-400 hover:text-brand-700'
-                            : 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
+                            ? 'bg-surface border-border text-text-main hover:border-accent-cyan hover:text-accent-cyan'
+                            : 'bg-surface-hover border-border text-text-muted cursor-default'
                         }`}
                 >
                     {meta[id]?.label ?? id}
                     {!info.available && !isActive && (
-                        <span className="ml-1.5 text-gray-400 text-xs font-normal">— unavailable</span>
+                        <span className="ml-1.5 opacity-50 text-xs font-normal">— unavailable</span>
                     )}
                 </button>
             );
@@ -142,9 +142,9 @@ const ModelField: React.FC<{
                 className={inputCls}
             />
         )}
-        {hint && <p className="text-xs text-gray-500">{hint}</p>}
+        {hint && <p className="text-xs text-text-muted opacity-80">{hint}</p>}
         {warning && (
-            <p className="text-xs text-amber-600 flex items-center gap-1">
+            <p className="text-xs text-amber-500 flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />{warning}
             </p>
         )}
@@ -160,7 +160,7 @@ const ApiKeyField: React.FC<{
 }> = ({ value, onChange, isSaved, placeholder }) => (
     <div className="space-y-1.5">
         <div className="relative">
-            <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted opacity-50" />
             <input
                 type="password"
                 value={value}
@@ -170,7 +170,7 @@ const ApiKeyField: React.FC<{
             />
         </div>
         {isSaved && (
-            <p className="text-xs text-green-600 flex items-center gap-1">
+            <p className="text-xs text-green-500 flex items-center gap-1">
                 <CheckCircle className="w-3.5 h-3.5 shrink-0" />
                 API key is configured. Type a new one to replace it.
             </p>
@@ -180,7 +180,7 @@ const ApiKeyField: React.FC<{
 
 /** Consistent field label matching the rest of the app */
 const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">{children}</label>
+    <label className="block text-sm font-medium text-text-main mb-1.5">{children}</label>
 );
 
 // ── Main page ──────────────────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ export const PlatformAIConfig: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64 gap-2 text-gray-500">
+            <div className="flex items-center justify-center h-64 gap-2 text-text-muted">
                 <RefreshCw className="animate-spin w-4 h-4" />
                 Loading AI configuration…
             </div>
@@ -311,11 +311,11 @@ export const PlatformAIConfig: React.FC = () => {
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                        <Settings className="w-5 h-5 text-brand-500" />
+                    <h1 className="text-xl font-semibold text-text-main flex items-center gap-2">
+                        <Settings className="w-5 h-5 text-accent-cyan" />
                         AI Configuration
                     </h1>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <p className="text-sm text-text-muted mt-0.5">
                         Configure the LLM and embedding model that power the RAG pipeline.
                         Only models available on this system are shown.
                     </p>
@@ -324,7 +324,7 @@ export const PlatformAIConfig: React.FC = () => {
                     onClick={() => { fetchConfig(); fetchSystem(); }}
                     disabled={probing}
                     type="button"
-                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-main border border-border rounded-lg px-3 py-1.5 bg-surface hover:bg-surface-hover transition-all disabled:opacity-50"
                 >
                     <RefreshCw className={`w-3.5 h-3.5 ${probing ? 'animate-spin' : ''}`} />
                     {probing ? 'Probing…' : 'Re-probe'}
@@ -333,23 +333,23 @@ export const PlatformAIConfig: React.FC = () => {
 
             {/* Banners */}
             {status === 'success' && (
-                <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-green-700 text-sm">
+                <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3 text-green-500 text-sm">
                     <CheckCircle className="w-4 h-4 shrink-0" /> Configuration saved successfully.
                 </div>
             )}
             {(status === 'error' || errorMsg) && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700 text-sm">
+                <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-red-500 text-sm">
                     <AlertTriangle className="w-4 h-4 shrink-0" /> {errorMsg}
                 </div>
             )}
 
             {/* ── Main form card — bg-white like every other card in the app ── */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+            <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
 
                 {/* ══ Embedding section ══ */}
                 <div className="p-6 space-y-5">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-gray-900">Embedding</h2>
+                        <h2 className="text-base font-semibold text-text-main">Embedding</h2>
                         <StatusPill
                             available={!!curEmbedInfo?.available}
                             label={curEmbedInfo?.available ? 'Available' : embedMeta.needsKey ? 'API key required' : 'Not detected'}
@@ -365,7 +365,7 @@ export const PlatformAIConfig: React.FC = () => {
                             meta={EMBED_META}
                         />
                         {curEmbedInfo?.note && (
-                            <p className="mt-2 text-xs text-gray-500">{curEmbedInfo.note}</p>
+                            <p className="mt-2 text-xs text-text-muted opacity-80">{curEmbedInfo.note}</p>
                         )}
                     </div>
 
@@ -373,7 +373,7 @@ export const PlatformAIConfig: React.FC = () => {
                         <FieldLabel>
                             Model
                             {system?.current_vector_dim && (
-                                <span className="ml-2 font-normal text-gray-400 text-xs">
+                                <span className="ml-2 font-normal text-text-muted opacity-50 text-xs">
                                     active Qdrant dimension: {system.current_vector_dim}d
                                 </span>
                             )}
@@ -416,9 +416,9 @@ export const PlatformAIConfig: React.FC = () => {
 
                     {config.embedding_provider === 'huggingface' && (
                         <div>
-                            <FieldLabel>Custom Base URL <span className="font-normal text-gray-400">(optional)</span></FieldLabel>
+                            <FieldLabel>Custom Base URL <span className="font-normal text-text-muted opacity-50">(optional)</span></FieldLabel>
                             <div className="relative">
-                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted opacity-50" />
                                 <input
                                     type="text"
                                     value={config.embedding_api_base}
@@ -434,7 +434,7 @@ export const PlatformAIConfig: React.FC = () => {
                 {/* ══ LLM section ══ */}
                 <div className="p-6 space-y-5">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-gray-900">Language Model (LLM)</h2>
+                        <h2 className="text-base font-semibold text-text-main">Language Model (LLM)</h2>
                         <StatusPill
                             available={!!curLlmInfo?.available}
                             label={curLlmInfo?.available ? 'Available' : llmMeta.needsKey ? 'API key required' : 'Not running'}
@@ -450,7 +450,7 @@ export const PlatformAIConfig: React.FC = () => {
                             meta={LLM_META}
                         />
                         {curLlmInfo?.note && (
-                            <p className="mt-2 text-xs text-gray-500">{curLlmInfo.note}</p>
+                            <p className="mt-2 text-xs text-text-muted opacity-80">{curLlmInfo.note}</p>
                         )}
                     </div>
 
@@ -484,7 +484,7 @@ export const PlatformAIConfig: React.FC = () => {
                                 isSaved={hasLlmKey}
                                 placeholder={`Enter ${llmMeta.label} API key`}
                             />
-                            <p className="mt-1.5 text-xs text-gray-400">
+                            <p className="mt-1.5 text-xs text-text-muted opacity-50">
                                 After saving, click Re-probe to unlock models for this provider.
                             </p>
                         </div>
@@ -495,11 +495,11 @@ export const PlatformAIConfig: React.FC = () => {
                             <FieldLabel>
                                 {config.llm_provider === 'ollama' ? 'Ollama Base URL' : 'Custom API Base URL'}
                                 {config.llm_provider !== 'ollama' && (
-                                    <span className="font-normal text-gray-400"> (optional)</span>
+                                    <span className="font-normal text-text-muted opacity-50"> (optional)</span>
                                 )}
                             </FieldLabel>
                             <div className="relative">
-                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted opacity-50" />
                                 <input
                                     type="text"
                                     value={config.llm_api_base}
@@ -514,7 +514,7 @@ export const PlatformAIConfig: React.FC = () => {
 
                 {/* ══ Rate limits ══ */}
                 <div className="p-6 space-y-4">
-                    <h2 className="text-base font-semibold text-gray-900">Rate Limits</h2>
+                    <h2 className="text-base font-semibold text-text-main">Rate Limits</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <FieldLabel>Requests / minute</FieldLabel>
@@ -542,7 +542,7 @@ export const PlatformAIConfig: React.FC = () => {
             {/* Footer */}
             <div className="flex items-center justify-between">
                 {config.updated_at ? (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-text-muted opacity-50">
                         Last saved: {new Date(config.updated_at).toLocaleString()}
                     </span>
                 ) : <span />}
@@ -551,7 +551,7 @@ export const PlatformAIConfig: React.FC = () => {
                     type="button"
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm transition-all duration-150"
+                    className="flex items-center gap-2 bg-brand hover:bg-brand/90 disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm transition-all duration-150"
                 >
                     {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     {saving ? 'Saving…' : 'Save Configuration'}

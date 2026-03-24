@@ -926,9 +926,9 @@ export const Chat: React.FC = () => {
                 onClick={() => { if (!isEditing) setActiveSessionId(session.id); }}
                 className={[
                     'group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all select-none',
-                    isActive ? 'bg-brand-50 text-brand-700' : 'hover:bg-gray-100 text-gray-700',
+                    isActive ? 'bg-accent-cyan/10 text-accent-cyan font-semibold' : 'hover:bg-surface-hover text-text-main',
                     // Visual indent for sessions inside folders — left border shows hierarchy
-                    indented ? 'ml-5 border-l-2 border-gray-200 pl-3 rounded-l-none' : '',
+                    indented ? 'ml-5 border-l-2 border-border pl-3 rounded-l-none' : '',
                     // Dim the source row while it is being dragged
                     isDragging ? 'opacity-40 scale-95' : '',
                 ].join(' ')}
@@ -948,7 +948,7 @@ export const Chat: React.FC = () => {
                         onKeyDown={handleRenameKeyDown}
                         onBlur={commitRename}   // clicking away saves the rename
                         onClick={e => e.stopPropagation()}  // don't trigger row click
-                        className="flex-1 text-sm bg-white border border-brand-400 rounded px-2 py-0.5 outline-none ring-1 ring-brand-400"
+                        className="flex-1 text-sm bg-surface text-text-main border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan"
                     />
                 ) : (
                     <div className="flex-1 overflow-hidden">
@@ -1024,8 +1024,8 @@ export const Chat: React.FC = () => {
                         'group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all',
                         isDragOver
                             // Blue ring when a session is dragged over this folder
-                            ? 'bg-brand-100 ring-2 ring-brand-400 ring-inset'
-                            : 'hover:bg-gray-100 text-gray-700',
+                            ? 'bg-accent-blue/10 ring-2 ring-accent-blue ring-inset'
+                            : 'hover:bg-surface-hover text-text-main',
                     ].join(' ')}
                 >
                     {/* Chevron expand/collapse indicator */}
@@ -1099,10 +1099,10 @@ export const Chat: React.FC = () => {
 
             {/* ── Sidebar (hidden on mobile, visible lg+) ───────────────────── */}
             <div className="w-72 hidden lg:flex flex-col">
-                <Card className="flex-1 flex flex-col overflow-hidden">
+                <Card variant="default" className="flex-1 flex flex-col overflow-hidden">
 
                     {/* Action buttons: New Chat + New Folder */}
-                    <div className="p-3 border-b border-gray-100 flex gap-2">
+                    <div className="p-3 border-b border-border flex gap-2">
                         <Button
                             onClick={handleNewChat}
                             variant="primary"
@@ -1218,7 +1218,7 @@ export const Chat: React.FC = () => {
             </div>
 
             {/* ── Chat Area ───────────────────────────────────────────────── */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
+            <Card variant="default" className="flex-1 flex flex-col overflow-hidden">
 
                 {/*
                  * Chat header bar (Fix #9)
@@ -1232,8 +1232,8 @@ export const Chat: React.FC = () => {
                     const s = sessions.find(x => x.id === activeSessionId);
                     if (!s) return null;
                     return (
-                        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2 min-w-0">
-                            <MessageSquare className="w-4 h-4 text-brand-500 flex-shrink-0" />
+                        <div className="px-5 py-3 border-b border-border flex items-center gap-2 min-w-0 bg-surface sticky top-0 z-10">
+                            <MessageSquare className="w-4 h-4 text-accent-cyan flex-shrink-0" />
                             {editingId === activeSessionId ? (
                                 // Inline rename in the header — same behaviour as sidebar rename
                                 <input
@@ -1295,21 +1295,32 @@ export const Chat: React.FC = () => {
                     {messages.map((msg) => (
                         <div
                             key={msg.id}
-                            className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            className={`flex gap-3 items-start ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                         >
                             {/* AI avatar — only on assistant messages */}
                             {msg.role === 'assistant' && (
-                                <div className="w-8 h-8 mt-1 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                <div className="w-8 h-8 mt-1 rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center flex-shrink-0 shadow-sm">
                                     <Bot className="w-4 h-4 text-white" />
                                 </div>
                             )}
 
-                            <div className={`max-w-[75%] ${msg.role === 'user' ? 'order-first' : ''}`}>
-                                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-sans ${
-                                    msg.role === 'user'
-                                        ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md'
-                                        : 'bg-white border border-gray-100 shadow-sm text-gray-800'
-                                }`}>
+                            {/* User avatar — only on user messages */}
+                            {msg.role === 'user' && (
+                                <Avatar
+                                    name={`${user?.first_name ?? ''} ${user?.last_name ?? ''}`}
+                                    size="sm"
+                                    className="mt-1 flex-shrink-0"
+                                />
+                            )}
+
+                            <div className="max-w-[75%]">
+                                <div
+                                    className="rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-sans"
+                                    style={msg.role === 'user'
+                                        ? { backgroundColor: '#007aff', color: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
+                                        : { backgroundColor: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }
+                                    }
+                                >
                                     {/*
                                      * Typing indicator: when assistant content is empty the SSE
                                      * stream hasn't started yet. Show three bouncing dots.
@@ -1320,7 +1331,7 @@ export const Chat: React.FC = () => {
                                             {[0, 150, 300].map(d => (
                                                 <span
                                                     key={d}
-                                                    className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"
+                                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
                                                     style={{ animationDelay: `${d}ms` }}
                                                 />
                                             ))}
@@ -1330,15 +1341,14 @@ export const Chat: React.FC = () => {
 
                                 {/* Source citations — shown below the message bubble when present */}
                                 {msg.sources && msg.sources.length > 0 && (
-                                    <div className="mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                    <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                                             Sources Referenced
                                         </p>
                                         {msg.sources.map((src, i) => (
-                                            <div key={i} className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-gray-100 mb-1 last:mb-0">
-                                                <span className="text-xs font-medium text-gray-700 truncate">{src.title}</span>
-                                                {/* Relevance score — 0.0–1.0 from Qdrant, displayed as percentage */}
-                                                <span className="ml-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100 flex-shrink-0">
+                                            <div key={i} className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-slate-200 mb-1 last:mb-0">
+                                                <span className="text-xs font-medium text-slate-700 truncate">{src.title}</span>
+                                                <span className="ml-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex-shrink-0">
                                                     {(src.relevance_score * 100).toFixed(0)}%
                                                 </span>
                                             </div>
@@ -1346,15 +1356,6 @@ export const Chat: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-
-                            {/* User avatar — only on user messages */}
-                            {msg.role === 'user' && (
-                                <Avatar
-                                    name={`${user?.first_name ?? ''} ${user?.last_name ?? ''}`}
-                                    size="sm"
-                                    className="mt-1 flex-shrink-0"
-                                />
-                            )}
                         </div>
                     ))}
 
@@ -1363,7 +1364,7 @@ export const Chat: React.FC = () => {
                 </div>
 
                 {/* ── Input bar ────────────────────────────────────────────── */}
-                <div className="p-4 border-t border-gray-100 bg-gray-50/60">
+                <div className="p-4 border-t border-border bg-surface-hover">
                     <div className="flex items-center gap-2 max-w-4xl mx-auto">
                         <input
                             ref={inputRef}
@@ -1376,7 +1377,7 @@ export const Chat: React.FC = () => {
                             }}
                             placeholder="Message AI Assistant\u2026"
                             disabled={sendingMessage}
-                            className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow text-sm disabled:opacity-60 bg-white"
+                            className="flex-1 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent transition-shadow text-sm disabled:opacity-60 bg-surface text-text-main placeholder-text-muted"
                         />
                         <Button
                             onClick={handleSend}

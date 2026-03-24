@@ -161,7 +161,7 @@ class AuditLoggingMiddleware(MiddlewareMixin):
             'path': request.path,
             'method': request.method,
             'request_id': request.META.get('request_id', ''),
-            'session_id': request.session.session_key if hasattr(request, 'session') and request.session else '',
+            'session_id': (request.session.session_key or '') if hasattr(request, 'session') and request.session else '',
             'HTTP_X_FORWARDED_FOR': request.META.get('HTTP_X_FORWARDED_FOR', ''),
             'REMOTE_ADDR': request.META.get('REMOTE_ADDR', ''),
             'HTTP_USER_AGENT': request.META.get('HTTP_USER_AGENT', '')[:500],

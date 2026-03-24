@@ -4,8 +4,6 @@ import {
     Bell,
     Shield,
     Lock,
-    Moon,
-    Sun,
     Database,
     Key,
     Eye,
@@ -21,7 +19,7 @@ import { Badge } from '../components/ui/Badge';
 
 export const Settings: React.FC = () => {
     // General Settings State
-    const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
     const [language, setLanguage] = useState('en');
     const [timezone, setTimezone] = useState('America/Los_Angeles');
 
@@ -61,43 +59,16 @@ export const Settings: React.FC = () => {
             icon: <SettingsIcon className="w-5 h-5" />,
             content: (
                 <div className="space-y-6">
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Appearance</h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        {theme === 'light' ? (
-                                            <Sun className="w-5 h-5 text-yellow-500" />
-                                        ) : (
-                                            <Moon className="w-5 h-5 text-blue-500" />
-                                        )}
-                                        <div>
-                                            <p className="font-medium text-gray-900">Theme</p>
-                                            <p className="text-sm text-gray-500">
-                                                {theme === 'light' ? 'Light mode' : 'Dark mode'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <Switch
-                                        checked={theme === 'dark'}
-                                        onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card variant="elevated">
-                        <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Localization</h3>
+                            <h3 className="text-lg font-semibold text-text-main mb-4">Localization</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                                    <label className="block text-sm font-medium text-text-main mb-2">Language</label>
                                     <select
                                         value={language}
                                         onChange={(e) => setLanguage(e.target.value)}
-                                        className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-150"
+                                        className="w-full px-4 py-3 rounded-lg border border-border bg-surface text-text-main focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent transition-all duration-150"
                                     >
                                         <option value="en">English</option>
                                         <option value="es">Spanish</option>
@@ -106,11 +77,11 @@ export const Settings: React.FC = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
+                                    <label className="block text-sm font-medium text-text-main mb-2">Timezone</label>
                                     <select
                                         value={timezone}
                                         onChange={(e) => setTimezone(e.target.value)}
-                                        className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-150"
+                                        className="w-full px-4 py-3 rounded-lg border border-border bg-surface text-text-main focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent transition-all duration-150"
                                     >
                                         <option value="America/Los_Angeles">Pacific Time (PT)</option>
                                         <option value="America/New_York">Eastern Time (ET)</option>
@@ -130,9 +101,9 @@ export const Settings: React.FC = () => {
             icon: <Bell className="w-5 h-5" />,
             content: (
                 <div className="space-y-6">
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Channels</h3>
+                            <h3 className="text-lg font-semibold text-text-main mb-4">Notification Channels</h3>
                             <div className="space-y-4">
                                 <Switch
                                     checked={emailNotifications}
@@ -150,9 +121,9 @@ export const Settings: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h3>
+                            <h3 className="text-lg font-semibold text-text-main mb-4">Notification Preferences</h3>
                             <div className="space-y-4">
                                 <Switch
                                     checked={documentNotifications}
@@ -184,9 +155,9 @@ export const Settings: React.FC = () => {
             icon: <Shield className="w-5 h-5" />,
             content: (
                 <div className="space-y-6">
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Authentication</h3>
+                            <h3 className="text-lg font-semibold text-text-main mb-4">Authentication</h3>
                             <div className="space-y-4">
                                 <Switch
                                     checked={twoFactorEnabled}
@@ -198,11 +169,11 @@ export const Settings: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">Active Sessions</h3>
+                                    <h3 className="text-lg font-semibold text-text-main">Active Sessions</h3>
                                     <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
                                         <AlertTriangle className="w-3 h-3" />
                                         Placeholder data — session management not yet available
@@ -216,22 +187,22 @@ export const Settings: React.FC = () => {
                                 {activeSessions.map((session, index) => (
                                     <div
                                         key={index}
-                                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                                        className="flex items-center justify-between p-4 bg-surface-hover rounded-lg"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-white rounded-lg">
-                                                <Server className="w-5 h-5 text-gray-600" />
+                                            <div className="p-2 bg-surface rounded-lg">
+                                                <Server className="w-5 h-5 text-text-muted" />
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="font-medium text-gray-900">{session.device}</p>
+                                                    <p className="font-medium text-text-main">{session.device}</p>
                                                     {session.current && (
                                                         <Badge variant="success" size="sm">
                                                             Current
                                                         </Badge>
                                                     )}
                                                 </div>
-                                                <p className="text-sm text-gray-500">
+                                                <p className="text-sm text-text-muted">
                                                     {session.location} • {session.lastActive}
                                                 </p>
                                             </div>
@@ -247,11 +218,11 @@ export const Settings: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">API Keys</h3>
+                                    <h3 className="text-lg font-semibold text-text-main">API Keys</h3>
                                     <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
                                         <AlertTriangle className="w-3 h-3" />
                                         Placeholder data — API key management not yet available
@@ -265,15 +236,15 @@ export const Settings: React.FC = () => {
                                 {apiKeys.map((key, index) => (
                                     <div
                                         key={index}
-                                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                                        className="flex items-center justify-between p-4 bg-surface-hover rounded-lg"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-white rounded-lg">
-                                                <Key className="w-5 h-5 text-gray-600" />
+                                            <div className="p-2 bg-surface rounded-lg">
+                                                <Key className="w-5 h-5 text-text-muted" />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-gray-900">{key.name}</p>
-                                                <p className="text-sm text-gray-500">
+                                                <p className="font-medium text-text-main">{key.name}</p>
+                                                <p className="text-sm text-text-muted">
                                                     Created {key.created} • Last used {key.lastUsed}
                                                 </p>
                                             </div>
@@ -300,9 +271,9 @@ export const Settings: React.FC = () => {
             icon: <Eye className="w-5 h-5" />,
             content: (
                 <div className="space-y-6">
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Data & Privacy</h3>
+                            <h3 className="text-lg font-semibold text-text-main mb-4">Data & Privacy</h3>
                             <div className="space-y-4">
                                 <Switch
                                     checked={dataSharing}
@@ -320,16 +291,16 @@ export const Settings: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Management</h3>
+                            <h3 className="text-lg font-semibold text-text-main mb-4">Data Management</h3>
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div className="flex items-center justify-between p-4 bg-surface-hover rounded-lg">
                                     <div className="flex items-center gap-3">
-                                        <Download className="w-5 h-5 text-gray-600" />
+                                        <Download className="w-5 h-5 text-text-muted" />
                                         <div>
-                                            <p className="font-medium text-gray-900">Export Your Data</p>
-                                            <p className="text-sm text-gray-500">
+                                            <p className="font-medium text-text-main">Export Your Data</p>
+                                            <p className="text-sm text-text-muted">
                                                 Download a copy of your personal data
                                             </p>
                                         </div>
@@ -340,10 +311,10 @@ export const Settings: React.FC = () => {
                                 </div>
                                 <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
                                     <div className="flex items-center gap-3">
-                                        <Lock className="w-5 h-5 text-red-600" />
+                                        <Lock className="w-5 h-5 text-red-500" />
                                         <div>
-                                            <p className="font-medium text-red-900">Delete Account</p>
-                                            <p className="text-sm text-red-600">
+                                            <p className="font-medium text-red-500">Delete Account</p>
+                                            <p className="text-sm text-red-500 opacity-80">
                                                 Permanently delete your account and all data
                                             </p>
                                         </div>
@@ -364,10 +335,10 @@ export const Settings: React.FC = () => {
             icon: <Database className="w-5 h-5" />,
             content: (
                 <div className="space-y-6">
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
                             <div className="flex items-center gap-2 mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">System Configuration</h3>
+                                <h3 className="text-lg font-semibold text-text-main">System Configuration</h3>
                                 <Badge variant="warning" size="sm">
                                     Admin Only
                                 </Badge>
@@ -389,31 +360,31 @@ export const Settings: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card variant="elevated">
+                    <Card variant="default">
                         <div className="p-6">
                             <div className="flex items-center gap-3 mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">System Information</h3>
+                                <h3 className="text-lg font-semibold text-text-main">System Information</h3>
                                 <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
                                     <AlertTriangle className="w-3 h-3" />
                                     Preview data
                                 </span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="p-4 bg-gray-50 rounded-lg">
-                                    <p className="text-sm text-gray-500">Version</p>
-                                    <p className="text-lg font-semibold text-gray-900 mt-1">v2.4.1</p>
+                                <div className="p-4 bg-surface-hover rounded-lg">
+                                    <p className="text-sm text-text-muted">Version</p>
+                                    <p className="text-lg font-semibold text-text-main mt-1">v2.4.1</p>
                                 </div>
-                                <div className="p-4 bg-gray-50 rounded-lg">
-                                    <p className="text-sm text-gray-500">Last Updated</p>
-                                    <p className="text-lg font-semibold text-gray-900 mt-1">Feb 15, 2026</p>
+                                <div className="p-4 bg-surface-hover rounded-lg">
+                                    <p className="text-sm text-text-muted">Last Updated</p>
+                                    <p className="text-lg font-semibold text-text-main mt-1">Feb 15, 2026</p>
                                 </div>
-                                <div className="p-4 bg-gray-50 rounded-lg">
-                                    <p className="text-sm text-gray-500">Database Size</p>
-                                    <p className="text-lg font-semibold text-gray-900 mt-1">89 GB</p>
+                                <div className="p-4 bg-surface-hover rounded-lg">
+                                    <p className="text-sm text-text-muted">Database Size</p>
+                                    <p className="text-lg font-semibold text-text-main mt-1">89 GB</p>
                                 </div>
-                                <div className="p-4 bg-gray-50 rounded-lg">
-                                    <p className="text-sm text-gray-500">Total Users</p>
-                                    <p className="text-lg font-semibold text-gray-900 mt-1">45</p>
+                                <div className="p-4 bg-surface-hover rounded-lg">
+                                    <p className="text-sm text-text-muted">Total Users</p>
+                                    <p className="text-lg font-semibold text-text-main mt-1">45</p>
                                 </div>
                             </div>
                         </div>
@@ -427,8 +398,8 @@ export const Settings: React.FC = () => {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-                <p className="text-gray-500 mt-1">Manage your application preferences and configuration</p>
+                <h1 className="text-3xl font-bold text-text-main">Settings</h1>
+                <p className="text-text-muted mt-1">Manage your application preferences and configuration</p>
             </div>
 
             {/* Tabs */}

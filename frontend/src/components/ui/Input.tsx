@@ -43,13 +43,13 @@ export const Input: React.FC<InputProps> = ({
     return (
         <div className="w-full">
             {label && (
-                <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label htmlFor={inputId} className="block text-sm font-semibold text-text-main mb-1.5 flex items-center justify-between">
                     {label}
                 </label>
             )}
-            <div className="relative">
+            <div className="relative group">
                 {leftIcon && (
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent-cyan transition-colors z-10">
                         {leftIcon}
                     </div>
                 )}
@@ -61,13 +61,13 @@ export const Input: React.FC<InputProps> = ({
                     defaultValue={defaultValue}
                     placeholder={props.placeholder ?? label}
                     className={clsx(
-                        'w-full h-12 px-4 rounded-lg border transition-all duration-150',
-                        'text-gray-900 placeholder-gray-400',
-                        'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent',
-                        error ? 'border-error-500' : 'border-gray-200',
+                        'w-full h-11 px-4 rounded-xl border transition-all duration-200 bg-surface',
+                        'text-text-main placeholder-text-muted/60',
+                        'focus:outline-none focus:ring-2 focus:ring-accent-cyan/50 focus:border-accent-cyan hover:border-border-light shadow-sm',
+                        error ? 'border-accent-red focus:border-accent-red focus:ring-accent-red/20' : 'border-border',
                         leftIcon && 'pl-10',
                         (rightIcon || isPassword) && 'pr-10',
-                        props.disabled && 'bg-gray-100 cursor-not-allowed',
+                        props.disabled && 'bg-background hover:border-border cursor-not-allowed opacity-60',
                         className
                     )}
                     onFocus={handleFocus}
@@ -80,22 +80,25 @@ export const Input: React.FC<InputProps> = ({
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors z-10"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main hover:bg-surface-hover p-1 rounded-md transition-colors z-10"
                         tabIndex={-1}
                     >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                 )}
 
                 {rightIcon && !isPassword && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">
                         {rightIcon}
                     </div>
                 )}
             </div>
 
             {error && (
-                <p className="mt-1 text-sm text-error-500">{error}</p>
+                <p className="mt-1.5 text-xs font-medium text-accent-red flex items-center gap-1 animate-slide-up">
+                    <span className="w-1 h-1 rounded-full bg-accent-red"></span>
+                    {error}
+                </p>
             )}
         </div>
     );

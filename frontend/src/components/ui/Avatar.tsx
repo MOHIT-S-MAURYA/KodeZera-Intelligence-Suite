@@ -17,7 +17,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     className,
 }) => {
     const sizeStyles = {
-        sm: 'w-8 h-8 text-xs',
+        sm: 'w-8 h-8 text-[11px]',
         md: 'w-10 h-10 text-sm',
         lg: 'w-12 h-12 text-base',
         xl: 'w-16 h-16 text-lg',
@@ -35,8 +35,8 @@ export const Avatar: React.FC<AvatarProps> = ({
     return (
         <div
             className={clsx(
-                'rounded-full flex items-center justify-center overflow-hidden',
-                'bg-gradient-to-br from-brand-400 to-brand-600 text-white font-semibold',
+                'rounded-lg flex items-center justify-center overflow-hidden',
+                'gradient-primary text-white font-bold tracking-wider shadow-glass transition-transform',
                 sizeStyles[size],
                 className
             )}

@@ -241,10 +241,20 @@ class LLMRunner:
             logger.error(f"HuggingFace inference API error: {e}")
             return self._generate_local_hf(prompt if 'prompt' in locals() else query, context, query)
 
+    @staticmethod
+    def _best_device() -> str:
+        """Return 'mps' on Apple Silicon, else 'cpu'."""
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                return 'mps'
+        except Exception:
+            pass
+        return 'cpu'
+
     def _generate_local_hf(self, prompt: str, context: List[Dict[str, Any]], query: str) -> str:
         """Fallback to local HuggingFace inference using transformers if the remote API fails/blocks."""
-        # Always use CPU inside Django request threads to avoid MPS multi-threading errors.
-        return self._run_local_pipeline(context, query, device='cpu')
+        return self._run_local_pipeline(context, query, device=self._best_device())
 
     def _run_local_pipeline(self, context: List[Dict[str, Any]], query: str, device: str = 'cpu') -> str:
         """Run TinyLlama (or configured small model) via local transformers pipeline.
@@ -285,7 +295,7 @@ class LLMRunner:
                 f"<|user|>\n{query}</s>\n"
                 f"<|assistant|>\n"
             )
-            out = pipe(local_prompt, max_new_tokens=min(self.max_tokens, 512), return_full_text=False)
+            out = pipe(local_prompt, max_new_tokens=min(self.max_tokens, 50), return_full_text=False)
             return out[0]['generated_text'].strip()
         except Exception as ex:
             logger.error(f"Local pipeline failed on {device}: {ex}")
@@ -333,7 +343,7 @@ class LLMRunner:
         """Streaming fallback using local transformers. Runs synchronously; yields word-by-word."""
         try:
             logger.info("Starting synchronous local HF generation for stream...")
-            full_text = self._run_local_pipeline(context, query, device='cpu')
+            full_text = self._run_local_pipeline(context, query, device=self._best_device())
             # Simulate token streaming word-by-word
             words = full_text.split(' ')
             for i, word in enumerate(words):
@@ -349,11 +359,11 @@ class LLMRunner:
         directly via transformers — no external API calls, no API key required.
         Always uses CPU to guarantee thread safety inside Django request workers.
         """
-        return self._run_local_pipeline(context or [], query, device='cpu')
+        return self._run_local_pipeline(context or [], query, device=self._best_device())
 
     def _stream_local(self, messages, context=None, query='') -> Generator[str, None, None]:
         """Stream from local transformers model, word-by-word."""
-        full_text = self._run_local_pipeline(context or [], query, device='cpu')
+        full_text = self._run_local_pipeline(context or [], query, device=self._best_device())
         words = full_text.split(' ')
         for i, word in enumerate(words):
             yield word + (' ' if i < len(words) - 1 else '')

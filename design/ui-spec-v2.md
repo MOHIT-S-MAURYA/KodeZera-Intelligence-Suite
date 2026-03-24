@@ -12,11 +12,13 @@
 ## 2. Color System
 
 ### Brand Colors
+
 - **Primary (Indigo)**: `#6366F1` - Buttons, links, active states
 - **Primary Dark**: `#4F46E5` - Hover states
 - **Primary Light**: `#EEF2FF` - Backgrounds, hover backgrounds
 
 ### Neutrals
+
 - **Gray 50**: `#FAFAFA` - Page background
 - **Gray 100**: `#F5F5F5` - Card backgrounds
 - **Gray 200**: `#E5E5E5` - Borders
@@ -25,6 +27,7 @@
 - **Gray 900**: `#171717` - Primary text
 
 ### Semantic
+
 - **Success**: `#22C55E` - Positive actions
 - **Warning**: `#F59E0B` - Caution states
 - **Error**: `#EF4444` - Destructive actions
@@ -37,6 +40,7 @@
 **Font**: Inter (Variable)
 
 ### Hierarchy
+
 - **Display SM**: 30px / Bold / -0.015em
 - **Title LG**: 24px / Semi-bold
 - **Title MD**: 20px / Semi-bold
@@ -63,6 +67,7 @@
 ```
 
 ### Responsive Breakpoints
+
 - Mobile: < 768px (Drawer sidebar)
 - Tablet: 768px - 1024px
 - Desktop: > 1024px
@@ -72,6 +77,7 @@
 ## 5. Component Specifications
 
 ### Button
+
 **Variants**: Primary, Secondary, Ghost, Danger
 **Sizes**: SM (32px), MD (40px), LG (48px)
 **States**: Default, Hover, Active, Disabled, Loading
@@ -83,6 +89,7 @@ Ghost: text-gray-600, hover:bg-gray-100
 ```
 
 ### Card
+
 - Background: White
 - Border: 1px solid gray-200
 - Radius: 12px
@@ -90,6 +97,7 @@ Ghost: text-gray-600, hover:bg-gray-100
 - Padding: 24px
 
 ### Input
+
 - Height: 40px
 - Border: 1px solid gray-200
 - Radius: 8px
@@ -97,6 +105,7 @@ Ghost: text-gray-600, hover:bg-gray-100
 - Icon support: left/right
 
 ### Table
+
 - Header: bg-gray-50, text-label-sm uppercase
 - Row: hover:bg-gray-50
 - Border: gray-200
@@ -107,6 +116,7 @@ Ghost: text-gray-600, hover:bg-gray-100
 ## 6. Page Patterns
 
 ### 6.1 Login
+
 - Centered card (max-width: 400px)
 - Logo + Title
 - Email + Password fields
@@ -115,11 +125,13 @@ Ghost: text-gray-600, hover:bg-gray-100
 - Minimal, no distractions
 
 ### 6.2 Dashboard Home
+
 - 4-col stats grid (responsive to 1-col mobile)
 - Recent activity list
 - Quick actions
 
 ### 6.3 AI Chat
+
 - Left: Conversation list (collapsible)
 - Right: Chat area
   - Messages: User (right, brand-500), AI (left, gray-100)
@@ -127,28 +139,33 @@ Ghost: text-gray-600, hover:bg-gray-100
   - Sources expandable
 
 ### 6.4 Documents
+
 - Search + Filters bar
 - Desktop: Data table
 - Mobile: Card list
 - Upload button (if permission)
 
 ### 6.5 Users
+
 - Search + Role/Status filters
 - Desktop: Table with avatars
 - Mobile: Cards with key info
 - Add user button
 
 ### 6.6 Departments
+
 - Search bar
 - Grid of department cards
 - User count badges
 
 ### 6.7 Roles
+
 - Search bar
 - Cards with permission counts
 - System role badge
 
 ### 6.8 Audit Logs
+
 - Date range + Action type filters
 - Desktop: Detailed table
 - Mobile: Timeline cards
@@ -159,12 +176,14 @@ Ghost: text-gray-600, hover:bg-gray-100
 ## 7. Interactions
 
 ### Animations
+
 - Page transitions: fade-in (300ms)
 - Modal: scale-in (200ms)
 - Hover: 150ms ease-in-out
 - Loading: subtle pulse
 
 ### States
+
 - Hover: Slight background change
 - Active: Deeper color
 - Focus: 2px ring offset

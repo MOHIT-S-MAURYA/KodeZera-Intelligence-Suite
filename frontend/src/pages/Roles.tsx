@@ -28,16 +28,16 @@ const EMPTY_FORM: FormState = { name: '', description: '', parent: '' };
 // ── Skeleton card ─────────────────────────────────────────────────────────────
 
 const SkeletonCard: React.FC = () => (
-    <Card>
+    <Card variant="default">
         <CardHeader>
             <div className="flex items-start justify-between">
-                <div className="w-12 h-12 rounded-lg bg-gray-200 animate-pulse" />
+                <div className="w-12 h-12 rounded-lg bg-surface-hover animate-pulse" />
             </div>
         </CardHeader>
         <CardContent>
-            <div className="h-5 bg-gray-200 rounded animate-pulse mb-2 w-3/4" />
-            <div className="h-4 bg-gray-100 rounded animate-pulse mb-3 w-full" />
-            <div className="h-6 bg-gray-100 rounded animate-pulse w-1/2" />
+            <div className="h-5 bg-surface-hover rounded animate-pulse mb-2 w-3/4" />
+            <div className="h-4 bg-border rounded animate-pulse mb-3 w-full" />
+            <div className="h-6 bg-border rounded animate-pulse w-1/2" />
         </CardContent>
     </Card>
 );
@@ -184,8 +184,8 @@ export const Roles: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-display-sm text-gray-900 mb-2">Roles</h1>
-                    <p className="text-body-md text-gray-600">Manage roles and permissions</p>
+                    <h1 className="text-display-sm text-text-main mb-2">Roles</h1>
+                    <p className="text-body-md text-text-muted">Manage roles and permissions</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="ghost" size="md" icon={<RefreshCw className="w-4 h-4" />}
@@ -211,7 +211,7 @@ export const Roles: React.FC = () => {
 
             {/* Error banner */}
             {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
+                <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-red-500 text-sm">
                     {error}
                     <button className="ml-3 underline" onClick={loadAll}>Retry</button>
                 </div>
@@ -223,18 +223,18 @@ export const Roles: React.FC = () => {
                     ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
                     : filtered.length === 0
                         ? (
-                            <div className="col-span-full text-center py-12 text-gray-400">
+                            <div className="col-span-full text-center py-12 text-text-muted">
                                 {search ? 'No roles match your search.' : 'No roles yet. Create one to get started.'}
                             </div>
                         )
                         : filtered.map((role) => {
                             const canDelete = role.user_count === 0 && !role.is_system_role;
                             return (
-                                <Card key={role.id} hover>
+                                <Card key={role.id} hover variant="default">
                                     <CardHeader>
                                         <div className="flex items-start justify-between">
-                                            <div className="w-12 h-12 rounded-lg bg-brand-100 flex items-center justify-center">
-                                                <Shield className="w-6 h-6 text-brand-600" />
+                                            <div className="w-12 h-12 rounded-lg bg-accent-cyan/10 flex items-center justify-center">
+                                                <Shield className="w-6 h-6 text-accent-cyan" />
                                             </div>
                                             <div className="flex gap-1.5">
                                                 {role.is_system_role && (
@@ -255,7 +255,7 @@ export const Roles: React.FC = () => {
                                     <CardContent>
                                         <CardTitle className="mb-1">{role.name}</CardTitle>
                                         {role.description && (
-                                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{role.description}</p>
+                                            <p className="text-sm text-text-muted mb-3 line-clamp-2">{role.description}</p>
                                         )}
                                         <div className="flex items-center gap-2 mb-4 flex-wrap">
                                             <Badge variant="brand">
@@ -297,9 +297,9 @@ export const Roles: React.FC = () => {
                 title="Delete Role"
             >
                 <div className="space-y-4">
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-text-muted text-sm">
                         Are you sure you want to delete role{' '}
-                        <span className="font-semibold text-gray-900">"{deleteTarget?.name}"</span>?
+                        <span className="font-semibold text-text-main">"{deleteTarget?.name}"</span>?
                         This action cannot be undone.
                     </p>
                     <div className="flex gap-3 pt-1">
@@ -328,30 +328,30 @@ export const Roles: React.FC = () => {
                 title={editTarget ? 'Edit Role' : 'Create Role'}>
                 <div className="space-y-4">
                     {formError && (
-                        <div className="rounded bg-red-50 border border-red-200 px-3 py-2 text-red-800 text-sm">
+                        <div className="rounded bg-red-500/10 border border-red-500/20 px-3 py-2 text-red-500 text-sm">
                             {formError}
                         </div>
                     )}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-text-main mb-1">
                             Name <span className="text-red-500">*</span>
                         </label>
                         <Input placeholder="e.g. Developer" value={form.name}
                             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <label className="block text-sm font-medium text-text-main mb-1">Description</label>
                         <textarea
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-surface text-text-main placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-cyan resize-none"
                             rows={3} placeholder="Describe what this role can do…"
                             value={form.description}
                             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Parent Role</label>
+                        <label className="block text-sm font-medium text-text-main mb-1">Parent Role</label>
                         <select
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-surface text-text-main focus:outline-none focus:ring-2 focus:ring-accent-cyan"
                             value={form.parent}
                             onChange={(e) => setForm((f) => ({ ...f, parent: e.target.value }))}
                         >

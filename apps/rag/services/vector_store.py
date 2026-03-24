@@ -48,6 +48,9 @@ def _create_client() -> QdrantClient:
       1. Local persistent path  (QDRANT_LOCAL_PATH set and non-empty)
       2. Remote Qdrant server   (QDRANT_URL set)
       3. In-memory              (fallback — warns the user)
+
+    If local-path mode fails (e.g. another process has the file lock),
+    the function silently falls through to remote or in-memory mode.
     """
     global _QDRANT_CLIENT
 
@@ -65,11 +68,19 @@ def _create_client() -> QdrantClient:
 
         # ── 1. Local persistent path ──────────────────────────────────────────
         if local_path:
-            os.makedirs(local_path, exist_ok=True)
-            client = QdrantClient(path=local_path)
-            logger.info(f"Qdrant: using local persistent store at '{local_path}'")
-            _QDRANT_CLIENT = client
-            return client
+            try:
+                os.makedirs(local_path, exist_ok=True)
+                client = QdrantClient(path=local_path)
+                logger.info(f"Qdrant: using local persistent store at '{local_path}'")
+                _QDRANT_CLIENT = client
+                return client
+            except (RuntimeError, Exception) as e:
+                # AlreadyLocked / RuntimeError — another process (e.g. Celery)
+                # already holds the exclusive file lock on qdrant_data/.
+                logger.warning(
+                    f"Qdrant: local path '{local_path}' is locked by another process "
+                    f"({type(e).__name__}). Falling back to remote server or in-memory."
+                )
 
         # ── 2. Remote Qdrant server ───────────────────────────────────────────
         try:
@@ -90,6 +101,13 @@ def _create_client() -> QdrantClient:
         logger.info("Qdrant: using in-memory store (dev fallback).")
         _QDRANT_CLIENT = client
         return client
+
+
+def reset_client():
+    """Reset the singleton client (e.g. after Celery releases the lock)."""
+    global _QDRANT_CLIENT
+    with _CLIENT_LOCK:
+        _QDRANT_CLIENT = None
 
 
 class VectorStoreService:

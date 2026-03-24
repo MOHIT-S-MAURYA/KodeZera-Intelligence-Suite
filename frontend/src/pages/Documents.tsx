@@ -12,10 +12,10 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import {
-    Search, Upload, FileText, Download, Trash2, Eye, X, FilePlus2,
-    FolderPlus, ChevronRight, ChevronDown, RotateCcw, Tag, History,
-    LayoutGrid, List, MoreVertical, RefreshCw, FolderIcon, Plus,
+import { 
+    FileText, Folder as FolderIcon, Upload, Download, Trash2, 
+    Search, ChevronRight, ChevronDown, 
+    RotateCcw, X, FilePlus2, History, RefreshCw, LayoutGrid, List, FolderPlus
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -56,10 +56,10 @@ const visBadge = (v: string) => {
 // ── Skeleton row ──────────────────────────────────────────────────────────
 
 const SkeletonRow: React.FC = () => (
-    <tr className="border-b border-gray-100">
+    <tr className="border-b border-border">
         {[180, 60, 60, 120, 90, 80, 90].map((w, i) => (
             <td key={i} className="py-3 px-4">
-                <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: w }} />
+                <div className="h-4 bg-background-secondary rounded animate-pulse" style={{ width: w }} />
             </td>
         ))}
     </tr>
@@ -67,12 +67,12 @@ const SkeletonRow: React.FC = () => (
 
 const EmptyState: React.FC<{ hasFilter: boolean }> = ({ hasFilter }) => (
     <tr>
-        <td colSpan={8} className="py-16 text-center">
-            <FilePlus2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-600 font-medium mb-1">
+        <td colSpan={8} className="py-20 text-center">
+            <FilePlus2 className="w-12 h-12 text-text-muted opacity-40 mx-auto mb-4" />
+            <p className="text-text-main font-semibold text-lg mb-1 tracking-tight">
                 {hasFilter ? 'No documents match your filter' : 'No documents yet'}
             </p>
-            <p className="text-gray-400 text-sm">
+            <p className="text-text-muted text-sm font-medium">
                 {hasFilter ? 'Try clearing your search or filters.' : 'Upload your first document to get started.'}
             </p>
         </td>
@@ -96,8 +96,8 @@ const FolderNode: React.FC<FolderNodeProps> = ({ folder, allFolders, selected, o
     return (
         <div>
             <button
-                className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors ${
-                    isSelected ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700 hover:bg-gray-100'
+                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                    isSelected ? 'bg-accent-cyan/10 text-accent-cyan font-semibold border-l-2 border-accent-cyan' : 'text-text-main hover:bg-surface-hover border-l-2 border-transparent'
                 }`}
                 onClick={() => onSelect(isSelected ? null : folder.id)}
             >
@@ -106,12 +106,12 @@ const FolderNode: React.FC<FolderNodeProps> = ({ folder, allFolders, selected, o
                         {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     </span>
                 ) : <span className="w-3.5" />}
-                <FolderIcon className="w-4 h-4 flex-shrink-0" />
-                <span className="truncate">{folder.name}</span>
-                <span className="ml-auto text-xs text-gray-400">{folder.document_count}</span>
+                <FolderIcon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-accent-cyan' : 'text-text-muted'}`} />
+                <span className="truncate tracking-wide">{folder.name}</span>
+                <span className="ml-auto text-xs text-text-muted font-medium bg-background-secondary px-1.5 py-0.5 rounded">{folder.document_count}</span>
             </button>
             {open && children.length > 0 && (
-                <div className="pl-4">
+                <div className="pl-4 mt-1 space-y-0.5 border-l border-border/40 ml-4">
                     {children.map(c => (
                         <FolderNode key={c.id} folder={c} allFolders={allFolders}
                             selected={selected} onSelect={onSelect} />
@@ -124,15 +124,12 @@ const FolderNode: React.FC<FolderNodeProps> = ({ folder, allFolders, selected, o
 
 // ── Document Detail Drawer ───────────────────────────────────────────────
 
-interface DrawerProps {
-    doc: Document | null;
+const DocumentDrawer: React.FC<{ 
+    doc: Document; 
     onClose: () => void;
     onDownload: (doc: Document) => void;
     onReprocess: (doc: Document) => void;
-    addToast: (type: 'success' | 'error', msg: string) => void;
-}
-
-const DocumentDrawer: React.FC<DrawerProps> = ({ doc, onClose, onDownload, onReprocess, addToast }) => {
+}> = ({ doc, onClose, onDownload, onReprocess }) => {
     const [versions, setVersions] = useState<DocumentVersion[]>([]);
     const [loadingVersions, setLoadingVersions] = useState(false);
 
@@ -148,38 +145,38 @@ const DocumentDrawer: React.FC<DrawerProps> = ({ doc, onClose, onDownload, onRep
     if (!doc) return null;
 
     return (
-        <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl border-l border-gray-200 z-50 flex flex-col animate-slide-in-right overflow-y-auto">
+        <div className="fixed inset-y-0 right-0 w-full max-w-md bg-surface shadow-xl border-l border-border z-50 flex flex-col animate-slide-in-right overflow-y-auto">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                <h2 className="font-semibold text-gray-900 truncate">{doc.title}</h2>
-                <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-surface sticky top-0 z-10">
+                <h2 className="font-bold text-text-main truncate text-lg tracking-tight">{doc.title}</h2>
+                <button onClick={onClose} className="p-1.5 hover:bg-surface-hover text-text-muted hover:text-text-main rounded-md transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="p-5 space-y-5 flex-1">
+            <div className="p-6 space-y-8 flex-1">
                 {/* Metadata */}
                 <section>
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Metadata</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                        <span className="text-gray-500">Type</span><span>{doc.file_type || 'N/A'}</span>
-                        <span className="text-gray-500">Size</span><span>{fmtSize(doc.file_size)}</span>
-                        <span className="text-gray-500">Pages</span><span>{doc.page_count || '—'}</span>
-                        <span className="text-gray-500">Status</span><span>{statusBadge(doc.status)}</span>
-                        <span className="text-gray-500">Visibility</span><span>{visBadge(doc.visibility_type)}</span>
-                        <span className="text-gray-500">Classification</span><span>Level {doc.classification_level}</span>
-                        <span className="text-gray-500">Uploaded by</span><span>{doc.uploaded_by_name}</span>
-                        <span className="text-gray-500">Created</span><span>{new Date(doc.created_at).toLocaleDateString()}</span>
-                        {doc.folder_name && (<><span className="text-gray-500">Folder</span><span>{doc.folder_name}</span></>)}
+                    <h3 className="text-xs font-bold text-accent-cyan tracking-wider uppercase mb-3 text-shadow-sm">Metadata</h3>
+                    <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm bg-background-secondary p-4 rounded-xl border border-border">
+                        <span className="text-text-muted font-medium">Type</span><span className="text-text-main font-semibold uppercase">{doc.file_type || 'N/A'}</span>
+                        <span className="text-text-muted font-medium">Size</span><span className="text-text-main font-medium">{fmtSize(doc.file_size)}</span>
+                        <span className="text-text-muted font-medium">Pages</span><span className="text-text-main font-medium">{doc.page_count || '—'}</span>
+                        <span className="text-text-muted font-medium mt-1">Status</span><span className="mt-1">{statusBadge(doc.status)}</span>
+                        <span className="text-text-muted font-medium mt-1">Visibility</span><span className="mt-1">{visBadge(doc.visibility_type)}</span>
+                        <span className="text-text-muted font-medium mt-1">Classification</span><span className="text-text-main font-medium mt-1">Level {doc.classification_level}</span>
+                        <span className="text-text-muted font-medium">Uploaded by</span><span className="text-text-main font-medium">{doc.uploaded_by_name}</span>
+                        <span className="text-text-muted font-medium">Created</span><span className="text-text-main font-medium">{new Date(doc.created_at).toLocaleDateString()}</span>
+                        {doc.folder_name && (<><span className="text-text-muted font-medium">Folder</span><span className="text-text-main font-medium">{doc.folder_name}</span></>)}
                     </div>
-                    {doc.description && <p className="mt-2 text-sm text-gray-600">{doc.description}</p>}
+                    {doc.description && <p className="mt-3 text-sm text-text-muted leading-relaxed">{doc.description}</p>}
                 </section>
 
                 {/* Tags */}
                 {doc.tags && doc.tags.length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Tags</h3>
-                        <div className="flex flex-wrap gap-1.5">
+                        <h3 className="text-xs font-bold text-accent-cyan tracking-wider uppercase mb-3 text-shadow-sm">Tags</h3>
+                        <div className="flex flex-wrap gap-2">
                             {doc.tags.map(t => (
-                                <span key={t} className="px-2 py-0.5 bg-brand-50 text-brand-700 rounded text-xs font-medium">{t}</span>
+                                <span key={t} className="px-2.5 py-1 bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan rounded-md text-xs font-semibold shadow-[0_0_10px_rgba(6,182,212,0.1)]">{t}</span>
                             ))}
                         </div>
                     </section>
@@ -188,38 +185,40 @@ const DocumentDrawer: React.FC<DrawerProps> = ({ doc, onClose, onDownload, onRep
                 {/* Processing progress */}
                 {(doc.status === 'processing' || doc.status === 'pending') && (
                     <section>
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Processing</h3>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div className="bg-brand-500 h-2 rounded-full transition-all" style={{ width: `${doc.processing_progress}%` }} />
+                        <h3 className="text-xs font-bold text-accent-cyan tracking-wider uppercase mb-3 text-shadow-sm">Processing</h3>
+                        <div className="w-full bg-background-secondary rounded-full h-2 overflow-hidden border border-border shadow-inner">
+                            <div className="bg-accent-cyan h-2 rounded-full transition-all duration-300 relative" style={{ width: `${doc.processing_progress}%` }}>
+                                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                            </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{doc.processing_progress}% complete</p>
+                        <p className="text-xs text-text-muted font-medium mt-1.5">{doc.processing_progress}% complete</p>
                     </section>
                 )}
 
                 {/* Versions */}
                 <section>
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                        <History className="w-3.5 h-3.5 inline mr-1" /> Versions
+                    <h3 className="text-xs font-bold text-accent-cyan tracking-wider uppercase mb-3 flex items-center text-shadow-sm">
+                        <History className="w-3.5 h-3.5 mr-1.5" /> Versions
                     </h3>
                     {loadingVersions ? (
-                        <p className="text-sm text-gray-400">Loading…</p>
+                        <p className="text-sm text-text-muted animate-pulse">Loading history…</p>
                     ) : versions.length === 0 ? (
-                        <p className="text-sm text-gray-400">No versions found.</p>
+                        <p className="text-sm text-text-muted">No prior versions found.</p>
                     ) : (
                         <div className="space-y-2">
                             {versions.map(v => (
-                                <div key={v.id} className="flex items-center justify-between text-sm border rounded-lg px-3 py-2">
+                                <div key={v.id} className="flex items-center justify-between text-sm bg-surface hover:bg-surface-hover border border-border transition-colors rounded-xl px-4 py-3 shadow-sm hover:border-border-light group">
                                     <div>
-                                        <span className="font-medium">v{v.version_number}</span>
-                                        {v.change_note && <span className="text-gray-500 ml-2">— {v.change_note}</span>}
-                                        <p className="text-xs text-gray-400">{v.uploaded_by_name} · {new Date(v.created_at).toLocaleDateString()}</p>
+                                        <span className="font-bold text-text-main">v{v.version_number}</span>
+                                        {v.change_note && <span className="text-text-muted ml-2">— {v.change_note}</span>}
+                                        <p className="text-[11px] font-medium text-text-muted mt-1.5 tracking-wider uppercase">{v.uploaded_by_name} · {new Date(v.created_at).toLocaleDateString()}</p>
                                     </div>
                                     <button
-                                        className="p-1 hover:bg-gray-100 rounded"
+                                        className="p-2 hover:bg-background rounded-md text-text-muted hover:text-accent-cyan transition-colors"
                                         title="Download this version"
                                         onClick={() => documentService.downloadVersion(doc.id, v.version_number, `${doc.title}_v${v.version_number}`)}
                                     >
-                                        <Download className="w-4 h-4 text-gray-500" />
+                                        <Download className="w-4 h-4" />
                                     </button>
                                 </div>
                             ))}
@@ -229,11 +228,11 @@ const DocumentDrawer: React.FC<DrawerProps> = ({ doc, onClose, onDownload, onRep
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 px-5 py-4 border-t border-gray-200">
-                <Button variant="primary" size="sm" icon={<Download className="w-4 h-4" />}
-                    onClick={() => onDownload(doc)}>Download</Button>
+            <div className="flex gap-3 px-6 py-5 border-t border-border bg-surface sticky bottom-0">
+                <Button variant="primary" className="flex-1 shadow-sm" icon={<Download className="w-4 h-4" />}
+                    onClick={() => onDownload(doc)}>Download File</Button>
                 {doc.status === 'failed' && (
-                    <Button variant="secondary" size="sm" icon={<RefreshCw className="w-4 h-4" />}
+                    <Button variant="secondary" className="flex-1" icon={<RefreshCw className="w-4 h-4" />}
                         onClick={() => onReprocess(doc)}>Reprocess</Button>
                 )}
             </div>
@@ -453,66 +452,69 @@ export const Documents: React.FC = () => {
     const rootFolders = folders.filter(f => !f.parent);
 
     return (
-        <div className="flex gap-6 animate-fade-in h-full">
+        <div className="flex flex-col md:flex-row gap-6 animate-fade-in h-[calc(100vh-8rem)]">
             {/* ── Folder Sidebar ─────────────────────────────────────── */}
-            <aside className="w-56 flex-shrink-0 space-y-1">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Folders</span>
+            <aside className="w-full md:w-64 flex-shrink-0 space-y-2 bg-surface border border-border rounded-2xl p-4 shadow-sm overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-bold text-accent-cyan tracking-wider uppercase">Folders</span>
                     <button onClick={() => setFolderModalOpen(true)}
-                        className="p-1 hover:bg-gray-100 rounded" title="New folder">
-                        <FolderPlus className="w-4 h-4 text-gray-500" />
+                        className="p-1.5 hover:bg-surface-hover hover:text-accent-cyan text-text-muted rounded-md transition-colors shadow-sm" title="New folder">
+                        <FolderPlus className="w-4 h-4" />
                     </button>
                 </div>
 
                 <button
-                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors ${
-                        !selectedFolder && !showTrash ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700 hover:bg-gray-100'
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all shadow-sm ${
+                        !selectedFolder && !showTrash ? 'bg-accent-cyan/10 text-accent-cyan font-bold border border-accent-cyan/20' : 'text-text-main hover:bg-surface-hover border border-transparent'
                     }`}
                     onClick={() => { setSelectedFolder(null); setShowTrash(false); }}
                 >
                     <FileText className="w-4 h-4" /> All Documents
                 </button>
 
+                <div className="pt-2">
                 {rootFolders.map(f => (
                     <FolderNode key={f.id} folder={f} allFolders={folders}
                         selected={selectedFolder}
                         onSelect={id => { setSelectedFolder(id); setShowTrash(false); }} />
                 ))}
+                </div>
 
-                <hr className="my-2" />
+                <hr className="my-4 border-border" />
 
                 <button
-                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors ${
-                        showTrash ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-500 hover:bg-gray-100'
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all shadow-sm ${
+                        showTrash ? 'bg-accent-red/10 text-accent-red font-bold border border-accent-red/20' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-transparent'
                     }`}
                     onClick={() => { setShowTrash(!showTrash); setSelectedFolder(null); }}
                 >
-                    <Trash2 className="w-4 h-4" /> Trash
+                    <Trash2 className="w-4 h-4 text-accent-red/80" /> Trash
                 </button>
 
                 {tags.length > 0 && (
-                    <>
-                        <hr className="my-2" />
-                        <span className="text-xs font-semibold text-gray-500 uppercase px-2">Tags</span>
+                    <div className="pt-4">
+                        <span className="text-xs font-bold text-text-muted tracking-wider uppercase px-2 mb-2 block">Tags</span>
+                        <div className="space-y-0.5">
                         {tags.map(t => (
-                            <span key={t.id} className="flex items-center gap-1.5 px-2 py-1 text-sm text-gray-600">
-                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                            <span key={t.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-main hover:bg-surface-hover rounded-lg transition-colors cursor-pointer">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: t.color }} />
                                 {t.name}
                             </span>
                         ))}
-                    </>
+                        </div>
+                    </div>
                 )}
             </aside>
 
             {/* ── Main content ───────────────────────────────────────── */}
-            <div className="flex-1 space-y-4 min-w-0">
+            <div className="flex-1 space-y-4 min-w-0 flex flex-col h-full">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-display-sm text-gray-900 mb-1">
+                        <h1 className="text-3xl font-bold tracking-tight text-text-main mb-1.5 flex items-center">
                             {showTrash ? 'Trash' : 'Documents'}
                         </h1>
-                        <p className="text-body-md text-gray-600">
+                        <p className="text-sm font-medium text-text-muted">
                             {showTrash ? 'Soft-deleted documents — restore or permanently delete' : 'Manage and search your document library'}
                         </p>
                     </div>
@@ -526,50 +528,50 @@ export const Documents: React.FC = () => {
 
                 {/* Error / forbidden */}
                 {isForbidden && (
-                    <div className="rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 text-sm flex items-start gap-2">
-                        <span className="text-lg leading-none">🔒</span>
+                    <div className="rounded-xl bg-accent-orange/10 border border-accent-orange/20 text-accent-orange px-5 py-4 text-sm flex items-start gap-3 shadow-inner">
+                        <span className="text-xl leading-none">🔒</span>
                         <div>
-                            <p className="font-medium">Access Restricted</p>
-                            <p className="mt-0.5">Contact your administrator to get access.</p>
+                            <p className="font-bold text-base">Access Restricted</p>
+                            <p className="mt-1 font-medium">Contact your administrator to get access.</p>
                         </div>
                     </div>
                 )}
 
                 {error && !isForbidden && (
-                    <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm flex items-center justify-between">
-                        <span>{error}</span>
+                    <div className="rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red px-5 py-4 text-sm flex items-center justify-between shadow-inner">
+                        <span className="font-medium">{error}</span>
                         <Button variant="ghost" size="sm" onClick={loadDocuments}>Retry</Button>
                     </div>
                 )}
 
                 {/* Search / Filters / View toggle */}
                 {!isForbidden && (
-                    <Card>
-                        <div className="flex gap-3 items-center">
-                            <div className="flex-1">
+                    <Card variant="default" className="p-1">
+                        <div className="flex flex-wrap gap-3 items-center p-2">
+                            <div className="flex-1 min-w-[200px]">
                                 <Input placeholder="Search documents…" value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     leftIcon={<Search className="w-5 h-5" />} />
                             </div>
-                            <select className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                            <select className="px-4 py-2.5 rounded-xl border border-border bg-surface text-text-main text-sm font-medium focus:ring-2 focus:ring-accent-cyan focus:outline-none transition-colors shadow-sm"
                                 value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
                                 <option value="all">All Types</option>
                                 <option value=".pdf">PDF</option><option value=".docx">DOCX</option>
                                 <option value=".txt">TXT</option><option value=".csv">CSV</option>
                                 <option value=".xlsx">XLSX</option>
                             </select>
-                            <select className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                            <select className="px-4 py-2.5 rounded-xl border border-border bg-surface text-text-main text-sm font-medium focus:ring-2 focus:ring-accent-cyan focus:outline-none transition-colors shadow-sm"
                                 value={visibilityFilter} onChange={e => setVisibilityFilter(e.target.value)}>
                                 <option value="all">All Visibility</option>
                                 <option value="public">Public</option><option value="private">Private</option>
                                 <option value="restricted">Restricted</option>
                             </select>
-                            <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-                                <button className={`p-2 ${viewMode === 'list' ? 'bg-brand-50 text-brand-600' : 'text-gray-500 hover:bg-gray-50'}`}
+                            <div className="flex border border-border bg-background-secondary rounded-xl overflow-hidden shadow-inner p-1">
+                                <button className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-surface text-accent-cyan shadow-sm font-bold' : 'text-text-muted hover:text-text-main'}`}
                                     onClick={() => setViewMode('list')} title="List view">
                                     <List className="w-4 h-4" />
                                 </button>
-                                <button className={`p-2 ${viewMode === 'grid' ? 'bg-brand-50 text-brand-600' : 'text-gray-500 hover:bg-gray-50'}`}
+                                <button className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-surface text-accent-cyan shadow-sm font-bold' : 'text-text-muted hover:text-text-main'}`}
                                     onClick={() => setViewMode('grid')} title="Grid view">
                                     <LayoutGrid className="w-4 h-4" />
                                 </button>
@@ -580,59 +582,59 @@ export const Documents: React.FC = () => {
 
                 {/* Document List / Grid */}
                 {!isForbidden && viewMode === 'list' && (
-                    <Card>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-gray-200">
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Document</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Type</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Size</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Uploaded By</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Date</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Status</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Visibility</th>
-                                        <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Actions</th>
+                    <Card variant="default" className="flex-1 overflow-hidden flex flex-col">
+                        <div className="overflow-x-auto flex-1">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-background-secondary sticky top-0 z-10 border-b border-border">
+                                    <tr>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Document</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Type</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Size</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Uploaded By</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Date</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Status</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider">Visibility</th>
+                                        <th className="py-4 px-5 text-xs font-bold text-text-muted uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-border/30">
                                     {loading ? (
                                         Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
                                     ) : filteredDocuments.length === 0 ? (
                                         <EmptyState hasFilter={hasFilter} />
                                     ) : (
                                         filteredDocuments.map(doc => (
-                                            <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                                            <tr key={doc.id} className="hover:bg-surface-hover/80 transition-colors cursor-pointer group"
                                                 onClick={() => setDrawerDoc(doc)}>
-                                                <td className="py-3 px-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
-                                                            <FileText className="w-5 h-5 text-brand-600" />
+                                                <td className="py-4 px-5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-xl bg-accent-cyan/10 border border-accent-cyan/20 flex flex-shrink-0 items-center justify-center shadow-sm group-hover:bg-accent-cyan border-transparent transition-colors">
+                                                            <FileText className="w-5 h-5 text-accent-cyan group-hover:text-white transition-colors" />
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <span className="font-medium text-gray-900 truncate block max-w-[200px]">{doc.title}</span>
-                                                            <span className="text-xs text-gray-400">
+                                                            <span className="font-semibold text-text-main truncate block max-w-[250px] group-hover:text-accent-cyan transition-colors">{doc.title}</span>
+                                                            <span className="text-xs font-medium text-text-muted mt-0.5 block">
                                                                 v{doc.current_version_number}
-                                                                {doc.tags?.length > 0 && ` · ${doc.tags.slice(0, 2).join(', ')}`}
+                                                                {doc.tags?.length > 0 && <span className="text-accent-blue font-semibold"> · {doc.tags.slice(0, 2).join(', ')}</span>}
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-3 px-4 text-gray-600 text-sm uppercase">{doc.file_type}</td>
-                                                <td className="py-3 px-4 text-gray-600 text-sm">{fmtSize(doc.file_size)}</td>
-                                                <td className="py-3 px-4 text-gray-600 text-sm">{doc.uploaded_by_name}</td>
-                                                <td className="py-3 px-4 text-gray-600 text-sm">{new Date(doc.created_at).toLocaleDateString()}</td>
-                                                <td className="py-3 px-4">{statusBadge(doc.status)}</td>
-                                                <td className="py-3 px-4">{visBadge(doc.visibility_type)}</td>
-                                                <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
-                                                    <div className="flex items-center gap-1">
-                                                        <button title="Download" className="p-1.5 text-gray-500 hover:text-brand-600 rounded"
+                                                <td className="py-4 px-5 text-text-muted text-sm font-semibold uppercase tracking-wider">{doc.file_type}</td>
+                                                <td className="py-4 px-5 text-text-muted text-sm font-medium">{fmtSize(doc.file_size)}</td>
+                                                <td className="py-4 px-5 text-text-main text-sm font-medium">{doc.uploaded_by_name}</td>
+                                                <td className="py-4 px-5 text-text-muted text-sm font-medium">{new Date(doc.created_at).toLocaleDateString()}</td>
+                                                <td className="py-4 px-5">{statusBadge(doc.status)}</td>
+                                                <td className="py-4 px-5">{visBadge(doc.visibility_type)}</td>
+                                                <td className="py-4 px-5 text-right" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button title="Download" className="p-2 text-text-muted hover:text-accent-cyan hover:bg-surface rounded-lg transition-all"
                                                             onClick={() => handleDownload(doc)}><Download className="w-4 h-4" /></button>
                                                         {showTrash ? (
-                                                            <button title="Restore" className="p-1.5 text-gray-500 hover:text-green-600 rounded"
+                                                            <button title="Restore" className="p-2 text-text-muted hover:text-accent-green hover:bg-surface rounded-lg transition-all"
                                                                 onClick={() => handleRestore(doc)}><RotateCcw className="w-4 h-4" /></button>
                                                         ) : (
-                                                            <button title="Delete" className="p-1.5 text-gray-500 hover:text-red-600 rounded"
+                                                            <button title="Delete" className="p-2 text-text-muted hover:text-accent-red hover:bg-surface rounded-lg transition-all"
                                                                 onClick={() => setDeleteTarget(doc)}><Trash2 className="w-4 h-4" /></button>
                                                         )}
                                                     </div>
@@ -644,54 +646,60 @@ export const Documents: React.FC = () => {
                             </table>
                         </div>
                         {!loading && (
-                            <p className="text-xs text-gray-400 mt-4">
-                                Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
-                            </p>
+                            <div className="p-4 border-t border-border bg-background-secondary">
+                                <p className="text-xs font-medium text-text-muted">
+                                    Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
                         )}
                     </Card>
                 )}
 
                 {/* Grid view */}
                 {!isForbidden && viewMode === 'grid' && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {loading ? (
-                            Array.from({ length: 8 }).map((_, i) => (
-                                <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-                                    <div className="h-10 w-10 bg-gray-200 rounded-lg mb-3" />
-                                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-                                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                            Array.from({ length: 10 }).map((_, i) => (
+                                <div key={i} className="bg-surface rounded-2xl border border-border p-5 shadow-sm animate-pulse">
+                                    <div className="h-12 w-12 bg-background-secondary rounded-xl mb-4" />
+                                    <div className="h-4 bg-background-secondary rounded w-3/4 mb-2" />
+                                    <div className="h-3 bg-background-secondary rounded w-1/2" />
                                 </div>
                             ))
                         ) : filteredDocuments.length === 0 ? (
-                            <div className="col-span-full py-16 text-center">
-                                <FilePlus2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                <p className="text-gray-600 font-medium">{hasFilter ? 'No matches' : 'No documents yet'}</p>
+                            <div className="col-span-full py-16 text-center bg-surface rounded-2xl border border-border shadow-inner">
+                                <FilePlus2 className="w-12 h-12 text-text-muted opacity-40 mx-auto mb-4" />
+                                <p className="text-text-main font-semibold text-lg">{hasFilter ? 'No matches' : 'No documents yet'}</p>
                             </div>
                         ) : (
                             filteredDocuments.map(doc => (
                                 <div key={doc.id}
-                                    className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                                    className="bg-surface hover:bg-surface-hover transition-all duration-300 rounded-2xl border border-border p-5 shadow-sm hover:shadow-md cursor-pointer group flex flex-col h-full"
                                     onClick={() => setDrawerDoc(doc)}>
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
-                                            <FileText className="w-5 h-5 text-brand-600" />
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="w-12 h-12 rounded-xl bg-accent-cyan/10 border border-accent-cyan/20 flex flex-shrink-0 items-center justify-center shadow-sm group-hover:bg-accent-cyan transition-colors">
+                                            <FileText className="w-6 h-6 text-accent-cyan group-hover:text-white transition-colors" />
                                         </div>
-                                        {statusBadge(doc.status)}
+                                        <div className="scale-90 origin-top-right">{statusBadge(doc.status)}</div>
                                     </div>
-                                    <h3 className="font-medium text-gray-900 truncate text-sm">{doc.title}</h3>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {doc.file_type?.toUpperCase()} · {fmtSize(doc.file_size)} · v{doc.current_version_number}
-                                    </p>
-                                    {doc.tags?.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-2">
-                                            {doc.tags.slice(0, 3).map(t => (
-                                                <span key={t} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px]">{t}</span>
-                                            ))}
-                                        </div>
-                                    )}
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-text-main leading-tight mb-2 group-hover:text-accent-cyan transition-colors line-clamp-2">{doc.title}</h3>
+                                        <p className="text-[11px] font-bold text-text-muted tracking-wider uppercase mb-3">
+                                            {doc.file_type?.replace('.', '')} · {fmtSize(doc.file_size)} · v{doc.current_version_number}
+                                        </p>
+                                        {doc.tags?.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 mt-auto">
+                                                {doc.tags.slice(0, 3).map(t => (
+                                                    <span key={t} className="px-2 py-0.5 bg-background-secondary text-text-muted border border-border rounded-md text-[10px] font-bold">{t}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                     {doc.status === 'processing' && (
-                                        <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
-                                            <div className="bg-brand-500 h-1 rounded-full" style={{ width: `${doc.processing_progress}%` }} />
+                                        <div className="mt-4 w-full bg-background-secondary rounded-full h-1.5 overflow-hidden shadow-inner border border-border">
+                                            <div className="bg-accent-cyan h-1.5 rounded-full relative" style={{ width: `${doc.processing_progress}%` }}>
+                                                 <div className="absolute inset-0 bg-white/30 animate-pulse" />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -704,51 +712,57 @@ export const Documents: React.FC = () => {
             {/* ── Document Detail Drawer ─────────────────────────────── */}
             {drawerDoc && (
                 <>
-                    <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setDrawerDoc(null)} />
+                    <div className="fixed inset-0 bg-background/80 z-40 animate-fade-in" onClick={() => setDrawerDoc(null)} />
                     <DocumentDrawer doc={drawerDoc} onClose={() => setDrawerDoc(null)}
-                        onDownload={handleDownload} onReprocess={handleReprocess} addToast={addToast} />
+                        onDownload={handleDownload} onReprocess={handleReprocess} />
                 </>
             )}
 
             {/* ── Delete Modal ───────────────────────────────────────── */}
             <Modal isOpen={!!deleteTarget} onClose={() => !isDeleting && setDeleteTarget(null)} title="Delete Document">
-                <div className="space-y-4">
-                    <p className="text-gray-600 text-sm">
-                        Move <span className="font-semibold text-gray-900">"{deleteTarget?.title}"</span> to trash?
-                        You can restore it later.
+                <div className="space-y-6">
+                    <p className="text-text-muted text-sm leading-relaxed">
+                        Are you sure you want to move <span className="font-bold text-text-main">"{deleteTarget?.title}"</span> to the trash?
+                        You can restore it later if needed.
                     </p>
-                    <div className="flex gap-3 pt-1">
+                    <div className="flex gap-3">
                         <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>Cancel</Button>
-                        <Button variant="danger" className="flex-1" onClick={handleDelete} loading={isDeleting}>Delete</Button>
+                        <Button variant="danger" className="flex-1 shadow-sm" onClick={handleDelete} loading={isDeleting}>Delete Document</Button>
                     </div>
                 </div>
             </Modal>
 
             {/* ── Upload Modal ───────────────────────────────────────── */}
             <Modal isOpen={uploadModalOpen} onClose={closeUploadModal} title="Upload Document">
-                <div className="space-y-4">
+                <div className="space-y-5">
                     <input ref={fileInputRef} type="file"
                         accept=".pdf,.docx,.doc,.txt,.csv,.xlsx,.pptx,.md"
                         onChange={handleFileSelect} className="hidden" />
 
-                    <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-                        isDragging ? 'border-brand-500 bg-brand-50' : 'border-gray-300 hover:border-brand-400'
+                    <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
+                        isDragging ? 'border-accent-cyan bg-accent-cyan/10' : 'border-border hover:border-accent-cyan/50 hover:bg-surface-hover bg-background-secondary/30'
                     }`}
                         onClick={() => fileInputRef.current?.click()}
                         onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-                        <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600 mb-1">Click to choose a file or drag and drop</p>
-                        <p className="text-xs text-gray-400">PDF, DOCX, TXT, CSV, XLSX, PPTX, MD — max 50 MB</p>
+                        <div className={`w-14 h-14 mx-auto mb-4 rounded-xl flex items-center justify-center transition-colors ${isDragging ? 'bg-accent-cyan text-white shadow-md' : 'bg-surface border border-border text-text-muted shadow-sm'}`}>
+                            <Upload className="w-6 h-6" />
+                        </div>
+                        <p className="text-sm font-semibold text-text-main mb-1.5">Click to choose a file or drag and drop</p>
+                        <p className="text-xs font-medium text-text-muted uppercase tracking-wider">PDF, DOCX, TXT, CSV, XLSX, PPTX, MD — max 50 MB</p>
 
                         {selectedFile && (
-                            <div className="mt-4 p-3 bg-brand-50 rounded-lg flex items-center justify-between"
+                            <div className="mt-6 p-3 bg-surface border border-border/80 rounded-xl flex items-center justify-between shadow-sm animate-scale-in"
                                 onClick={e => e.stopPropagation()}>
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <FileText className="w-5 h-5 text-brand-600 flex-shrink-0" />
-                                    <span className="text-sm font-medium text-brand-900 truncate">{selectedFile.name}</span>
-                                    <span className="text-xs text-brand-600 flex-shrink-0">({fmtSize(selectedFile.size)})</span>
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-8 h-8 rounded-lg bg-accent-cyan/10 flex items-center justify-center flex-shrink-0">
+                                        <FileText className="w-4 h-4 text-accent-cyan" />
+                                    </div>
+                                    <div className="flex flex-col text-left">
+                                        <span className="text-sm font-bold text-text-main truncate max-w-[200px]">{selectedFile.name}</span>
+                                        <span className="text-xs font-medium text-text-muted">{fmtSize(selectedFile.size)}</span>
+                                    </div>
                                 </div>
-                                <button className="text-brand-600 hover:text-brand-700 ml-2 flex-shrink-0"
+                                <button className="p-1.5 text-text-muted hover:text-accent-red hover:bg-accent-red/10 rounded-md transition-colors flex-shrink-0"
                                     onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
                                     <X className="w-4 h-4" />
                                 </button>
@@ -757,47 +771,49 @@ export const Documents: React.FC = () => {
                     </div>
 
                     <Input label="Document Title" placeholder="Enter a descriptive title"
-                        value={documentTitle} onChange={e => setDocumentTitle(e.target.value)} disabled={isUploading} />
+                        value={documentTitle} onChange={e => setDocumentTitle(e.target.value)} disabled={isUploading} autoFocus />
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Visibility</label>
-                        <select className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                        <label className="block text-sm font-bold text-text-main mb-2">Visibility Settings</label>
+                        <select className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-main text-sm focus:outline-none focus:ring-2 focus:ring-accent-cyan shadow-sm transition-shadow appearance-none"
                             value={documentVisibility} onChange={e => setDocumentVisibility(e.target.value as VisType)} disabled={isUploading}>
-                            <option value="public">Public — visible to all members</option>
-                            <option value="restricted">Restricted — visible via access grants</option>
-                            <option value="private">Private — only you can see it</option>
+                            <option value="public">Public — visible to all workspace members</option>
+                            <option value="restricted">Restricted — visible only via access grants</option>
+                            <option value="private">Private — only you can view this</option>
                         </select>
                     </div>
 
                     {isUploading && (
-                        <div className="space-y-1.5">
-                            <div className="flex justify-between text-xs font-medium text-gray-600">
-                                <span>Uploading…</span><span>{uploadProgress}%</span>
+                        <div className="space-y-2 pt-2 animate-fade-in">
+                            <div className="flex justify-between text-xs font-bold text-text-main uppercase tracking-wider">
+                                <span className="text-accent-cyan animate-pulse">Uploading…</span><span>{uploadProgress}%</span>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div className="bg-brand-500 h-2 rounded-full transition-all duration-300 ease-out"
-                                    style={{ width: `${uploadProgress}%` }} />
+                            <div className="w-full bg-background-secondary rounded-full h-2.5 shadow-inner overflow-hidden border border-border">
+                                <div className="bg-accent-cyan h-2.5 rounded-full transition-all duration-300 ease-out relative"
+                                    style={{ width: `${uploadProgress}%` }}>
+                                    <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="flex gap-3 pt-1">
+                    <div className="flex gap-3 pt-4 border-t border-border/30">
                         <Button variant="secondary" className="flex-1" onClick={closeUploadModal} disabled={isUploading}>Cancel</Button>
-                        <Button variant="primary" className="flex-1" onClick={handleUpload} loading={isUploading}>
-                            {isUploading ? 'Uploading…' : 'Upload'}
+                        <Button variant="primary" className="flex-1 shadow-glow-cyan/20" onClick={handleUpload} loading={isUploading}>
+                            {isUploading ? 'Uploading…' : 'Upload Document'}
                         </Button>
                     </div>
                 </div>
             </Modal>
 
             {/* ── Create Folder Modal ────────────────────────────────── */}
-            <Modal isOpen={folderModalOpen} onClose={() => setFolderModalOpen(false)} title="New Folder">
-                <div className="space-y-4">
-                    <Input label="Folder Name" placeholder="e.g. HR Policies"
-                        value={newFolderName} onChange={e => setNewFolderName(e.target.value)} />
-                    <div className="flex gap-3">
+            <Modal isOpen={folderModalOpen} onClose={() => setFolderModalOpen(false)} title="Create New Folder">
+                <div className="space-y-5">
+                    <Input label="Folder Name" placeholder="e.g., HR Policies, Q4 Reports"
+                        value={newFolderName} onChange={e => setNewFolderName(e.target.value)} autoFocus />
+                    <div className="flex gap-3 pt-2">
                         <Button variant="secondary" className="flex-1" onClick={() => setFolderModalOpen(false)}>Cancel</Button>
-                        <Button variant="primary" className="flex-1" onClick={handleCreateFolder}>Create</Button>
+                        <Button variant="primary" className="flex-1 shadow-glow-cyan/20" onClick={handleCreateFolder}>Create Folder</Button>
                     </div>
                 </div>
             </Modal>

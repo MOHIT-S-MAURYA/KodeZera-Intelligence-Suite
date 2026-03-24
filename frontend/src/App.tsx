@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MainLayout } from './components/layout/MainLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastContainer } from './components/ui/Toast';
 import { useUIStore } from './store/ui.store';
 import { PageLoader } from './components/ui/Spinner';
@@ -43,7 +44,8 @@ function App() {
     <BrowserRouter>
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      {/* Suspense boundary catches lazy-chunk loading; PageLoader shown during chunk fetch */}
+      {/* ErrorBoundary catches render crashes; Suspense catches lazy-chunk loading */}
+      <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public routes */}
@@ -281,6 +283,7 @@ function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

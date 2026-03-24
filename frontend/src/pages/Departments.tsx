@@ -27,20 +27,20 @@ const EMPTY_FORM: FormState = { name: '', description: '', parent: '' };
 // ── Skeleton card ─────────────────────────────────────────────────────────────
 
 const SkeletonCard: React.FC = () => (
-    <Card>
+    <Card variant="default">
         <CardHeader>
             <div className="flex items-start justify-between">
-                <div className="w-12 h-12 rounded-lg bg-gray-200 animate-pulse" />
-                <div className="h-6 w-16 bg-gray-200 rounded animate-pulse" />
+                <div className="w-12 h-12 rounded-lg bg-surface-hover animate-pulse" />
+                <div className="h-6 w-16 bg-surface-hover rounded animate-pulse" />
             </div>
         </CardHeader>
         <CardContent>
-            <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse mb-2" />
-            <div className="h-4 w-full bg-gray-100 rounded animate-pulse mb-1" />
-            <div className="h-4 w-2/3 bg-gray-100 rounded animate-pulse mb-4" />
+            <div className="h-5 w-3/4 bg-surface-hover rounded animate-pulse mb-2" />
+            <div className="h-4 w-full bg-border rounded animate-pulse mb-1" />
+            <div className="h-4 w-2/3 bg-border rounded animate-pulse mb-4" />
             <div className="flex gap-2">
-                <div className="flex-1 h-8 bg-gray-200 rounded animate-pulse" />
-                <div className="flex-1 h-8 bg-gray-200 rounded animate-pulse" />
+                <div className="flex-1 h-8 bg-surface-hover rounded animate-pulse" />
+                <div className="flex-1 h-8 bg-surface-hover rounded animate-pulse" />
             </div>
         </CardContent>
     </Card>
@@ -193,8 +193,8 @@ export const Departments: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-display-sm text-gray-900 mb-2">Departments</h1>
-                    <p className="text-body-md text-gray-600">Organise users into departments</p>
+                    <h1 className="text-display-sm text-text-main mb-2">Departments</h1>
+                    <p className="text-body-md text-text-muted">Organise users into departments</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="ghost" size="lg" icon={<RefreshCw className="w-4 h-4" />} onClick={loadAll}>
@@ -228,16 +228,16 @@ export const Departments: React.FC = () => {
                 {loading ? (
                     Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
                 ) : filteredDepts.length === 0 ? (
-                    <div className="col-span-3 py-16 text-center text-gray-500 text-sm">
+                    <div className="col-span-3 py-16 text-center text-text-muted text-sm">
                         {searchQuery ? 'No departments match the search.' : 'No departments yet. Create one to get started.'}
                     </div>
                 ) : (
                     filteredDepts.map(d => (
-                        <Card key={d.id} hover>
+                        <Card key={d.id} hover variant="default">
                             <CardHeader>
                                 <div className="flex items-start justify-between">
-                                    <div className="w-12 h-12 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
-                                        <UsersIcon className="w-6 h-6 text-brand-600" />
+                                    <div className="w-12 h-12 rounded-lg bg-accent-cyan/10 flex items-center justify-center flex-shrink-0">
+                                        <UsersIcon className="w-6 h-6 text-accent-cyan" />
                                     </div>
                                     <Badge variant="brand">
                                         {d.user_count} {d.user_count === 1 ? 'user' : 'users'}
@@ -249,19 +249,19 @@ export const Departments: React.FC = () => {
 
                                 {/* Parent breadcrumb */}
                                 {d.parent_name && (
-                                    <p className="text-xs text-brand-600 flex items-center gap-1 mb-2">
+                                    <p className="text-xs text-accent-cyan flex items-center gap-1 mb-2">
                                         <GitBranch className="w-3 h-3" />
                                         {d.parent_name}
                                     </p>
                                 )}
 
-                                <p className="text-sm text-gray-600 mb-1 min-h-[2.5rem] line-clamp-2">
-                                    {d.description || <span className="text-gray-400 italic">No description</span>}
+                                <p className="text-sm text-text-muted mb-1 min-h-[2.5rem] line-clamp-2">
+                                    {d.description || <span className="text-text-muted italic opacity-70">No description</span>}
                                 </p>
 
                                 {/* Sub-dept count */}
                                 {d.children_count > 0 && (
-                                    <p className="text-xs text-gray-400 mb-3">
+                                    <p className="text-xs text-text-muted mb-3 opacity-80">
                                         {d.children_count} sub-department{d.children_count !== 1 ? 's' : ''}
                                     </p>
                                 )}
@@ -295,7 +295,7 @@ export const Departments: React.FC = () => {
 
             {/* Footer count */}
             {!loading && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-text-muted">
                     Showing {filteredDepts.length} of {departments.length} department{departments.length !== 1 ? 's' : ''}
                 </p>
             )}
@@ -307,9 +307,9 @@ export const Departments: React.FC = () => {
                 title="Delete Department"
             >
                 <div className="space-y-4">
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-text-muted text-sm">
                         Are you sure you want to delete{' '}
-                        <span className="font-semibold text-gray-900">"{deleteTarget?.name}"</span>?
+                        <span className="font-semibold text-text-main">"{deleteTarget?.name}"</span>?
                         This action cannot be undone.
                     </p>
                     <div className="flex gap-3 pt-1">
@@ -354,11 +354,11 @@ export const Departments: React.FC = () => {
                     />
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Description <span className="text-gray-400 font-normal">(optional)</span>
+                        <label className="block text-sm font-medium text-text-main mb-2">
+                            Description <span className="text-text-muted font-normal">(optional)</span>
                         </label>
                         <textarea
-                            className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none text-sm"
+                            className="w-full px-4 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan resize-none text-sm bg-surface text-text-main placeholder-text-muted"
                             rows={3}
                             placeholder="What does this department do?"
                             value={form.description}
@@ -367,11 +367,11 @@ export const Departments: React.FC = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Parent Department <span className="text-gray-400 font-normal">(optional)</span>
+                        <label className="block text-sm font-medium text-text-main mb-2">
+                            Parent Department <span className="text-text-muted font-normal">(optional)</span>
                         </label>
                         <select
-                            className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                            className="w-full px-4 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan text-sm bg-surface text-text-main"
                             value={form.parent}
                             onChange={e => patch('parent', e.target.value)}
                         >

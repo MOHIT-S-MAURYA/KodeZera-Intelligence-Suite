@@ -30,32 +30,33 @@ export const Toast: React.FC<ToastProps> = ({
     }, [id, duration, onClose]);
 
     const icons = {
-        success: <CheckCircle className="w-5 h-5" />,
-        error: <XCircle className="w-5 h-5" />,
-        warning: <AlertCircle className="w-5 h-5" />,
-        info: <Info className="w-5 h-5" />,
+        success: <CheckCircle className="w-5 h-5 text-accent-green" />,
+        error: <XCircle className="w-5 h-5 text-accent-red" />,
+        warning: <AlertCircle className="w-5 h-5 text-accent-orange" />,
+        info: <Info className="w-5 h-5 text-accent-blue" />,
     };
 
     const styles = {
-        success: 'bg-success-50 border-success-500 text-success-600',
-        error: 'bg-error-50 border-error-500 text-error-600',
-        warning: 'bg-warning-50 border-warning-500 text-warning-600',
-        info: 'bg-info-50 border-info-500 text-info-600',
+        success: 'border-l-accent-green shadow-[0_0_15px_rgba(34,197,94,0.05)]',
+        error: 'border-l-accent-red shadow-[0_0_15px_rgba(239,68,68,0.05)]',
+        warning: 'border-l-accent-orange shadow-[0_0_15px_rgba(249,115,22,0.05)]',
+        info: 'border-l-accent-blue shadow-[0_0_15px_rgba(59,130,246,0.05)]',
     };
 
     return (
         <div
             className={clsx(
-                'flex items-center gap-3 p-4 rounded-lg border-l-4 shadow-lg animate-slide-down',
-                'min-w-[300px] max-w-md',
+                'flex items-center gap-3 p-4 rounded-xl border-l-[3px] border-t border-r border-b border-border shadow-glass animate-slide-down',
+                'min-w-[300px] max-w-md bg-surface',
                 styles[type]
             )}
         >
             {icons[type]}
-            <p className="flex-1 text-sm font-medium">{message}</p>
+            <p className="flex-1 text-sm font-medium text-text-main">{message}</p>
             <button
                 onClick={() => onClose(id)}
-                className="text-current opacity-70 hover:opacity-100 transition-opacity"
+                className="text-text-muted hover:text-text-main hover:bg-surface-hover p-1 rounded-md transition-colors"
+                aria-label="Close"
             >
                 <X className="w-4 h-4" />
             </button>
@@ -74,7 +75,7 @@ interface ToastContainerProps {
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose }) => {
     return (
-        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-3">
             {toasts.map((toast) => (
                 <Toast key={toast.id} {...toast} onClose={onClose} />
             ))}

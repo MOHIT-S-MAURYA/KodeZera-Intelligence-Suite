@@ -169,7 +169,7 @@ export interface SubscriptionPlan {
     id: string;
     name: string;
     plan_type: string;
-    price: string;
+    price_monthly: string;
     max_users: number;
     max_documents: number;
     max_storage_gb: number;

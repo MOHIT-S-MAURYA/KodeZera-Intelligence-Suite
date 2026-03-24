@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { User, Mail, Phone, MapPin, Shield, Activity, Camera, RefreshCw, Lock, Calendar, Smartphone, Monitor, Trash2, ShieldCheck, QrCode, Copy } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Shield, Activity, Camera, RefreshCw, Lock, Calendar, Smartphone, Monitor, Trash2, ShieldCheck, Copy } from 'lucide-react';
 import authService from '../services/auth.service';
 import type { SessionInfo, MFADevice, MFASetupResponse } from '../services/auth.service';
 import { Card } from '../components/ui/Card';

@@ -14,10 +14,10 @@ type ChartTab = 'queries' | 'latency' | 'users' | 'tokens' | 'quality' | 'foreca
 const tooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
     return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-            <p className="text-sm font-semibold text-gray-900 mb-2">{label}</p>
+        <div className="bg-surface border border-border rounded-lg shadow-xl p-3">
+            <p className="text-sm font-semibold text-text-main mb-2">{label}</p>
             {payload.map((entry: any, idx: number) => (
-                <div key={idx} className="text-xs text-gray-700 flex items-center gap-2">
+                <div key={idx} className="text-xs text-text-muted flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                     <span>{entry.name}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</span>
                 </div>
@@ -182,8 +182,8 @@ export const PlatformAnalytics: React.FC = () => {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Platform Analytics</h1>
-                        <p className="text-gray-600 mt-1">Dashboard, quality, forecast, and tenant breakdown.</p>
+                        <h1 className="text-3xl font-bold text-text-main">Platform Analytics</h1>
+                        <p className="text-text-muted mt-1">Dashboard, quality, forecast, and tenant breakdown.</p>
                     </div>
                     <div className="w-full md:w-72">
                         <SearchableSelect
@@ -200,7 +200,7 @@ export const PlatformAnalytics: React.FC = () => {
                         <button
                             key={r}
                             onClick={() => setRange(r)}
-                            className={`px-3 py-1.5 rounded-md text-sm border ${range === r ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-200'}`}
+                            className={`px-3 py-1.5 rounded-md text-sm border ${range === r ? 'bg-brand text-white border-brand' : 'bg-surface text-text-main border-border hover:bg-surface-hover focus:ring-accent-cyan'}`}
                         >
                             {r === 'custom' ? 'Custom' : r.replace('d', ' days')}
                         </button>
@@ -209,19 +209,19 @@ export const PlatformAnalytics: React.FC = () => {
 
                 {range === 'custom' && (
                     <div className="flex flex-wrap gap-2 items-center">
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" />
-                        <span className="text-sm text-gray-500">to</span>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm bg-surface text-text-main focus:ring-accent-cyan" />
+                        <span className="text-sm text-text-muted">to</span>
+                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm bg-surface text-text-main focus:ring-accent-cyan" />
                     </div>
                 )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center"><BarChart3 className="w-5 h-5 text-sky-700" /></div><div><p className="text-xs text-gray-600">Total Queries</p><p className="text-xl font-bold">{summary?.total_queries?.toLocaleString() || 0}</p></div></div></Card>
-                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center"><Target className="w-5 h-5 text-emerald-700" /></div><div><p className="text-xs text-gray-600">Success Rate</p><p className="text-xl font-bold">{summary?.success_rate?.toFixed(1) || '0.0'}%</p></div></div></Card>
-                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center"><Clock className="w-5 h-5 text-amber-700" /></div><div><p className="text-xs text-gray-600">Avg Latency</p><p className="text-xl font-bold">{summary?.avg_latency_ms?.toFixed(0) || 0}ms</p></div></div></Card>
-                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center"><Database className="w-5 h-5 text-orange-700" /></div><div><p className="text-xs text-gray-600">Tokens Used</p><p className="text-xl font-bold">{summary?.total_tokens?.toLocaleString() || 0}</p></div></div></Card>
-                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center"><Users className="w-5 h-5 text-violet-700" /></div><div><p className="text-xs text-gray-600">Relevance</p><p className="text-xl font-bold">{quality?.avg_relevance_score?.toFixed(2) || '0.00'}</p></div></div></Card>
+                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center"><BarChart3 className="w-5 h-5 text-blue-500" /></div><div><p className="text-xs text-text-muted">Total Queries</p><p className="text-xl font-bold text-text-main">{summary?.total_queries?.toLocaleString() || 0}</p></div></div></Card>
+                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center"><Target className="w-5 h-5 text-green-500" /></div><div><p className="text-xs text-text-muted">Success Rate</p><p className="text-xl font-bold text-text-main">{summary?.success_rate?.toFixed(1) || '0.0'}%</p></div></div></Card>
+                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center"><Clock className="w-5 h-5 text-amber-500" /></div><div><p className="text-xs text-text-muted">Avg Latency</p><p className="text-xl font-bold text-text-main">{summary?.avg_latency_ms?.toFixed(0) || 0}ms</p></div></div></Card>
+                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center"><Database className="w-5 h-5 text-orange-500" /></div><div><p className="text-xs text-text-muted">Tokens Used</p><p className="text-xl font-bold text-text-main">{summary?.total_tokens?.toLocaleString() || 0}</p></div></div></Card>
+                <Card><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center"><Users className="w-5 h-5 text-purple-500" /></div><div><p className="text-xs text-text-muted">Relevance</p><p className="text-xl font-bold text-text-main">{quality?.avg_relevance_score?.toFixed(2) || '0.00'}</p></div></div></Card>
             </div>
 
             <Card className="p-5">
@@ -237,7 +237,7 @@ export const PlatformAnalytics: React.FC = () => {
                         <button
                             key={k}
                             onClick={() => setTab(k)}
-                            className={`px-3 py-1.5 text-sm rounded-md border ${tab === k ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-200'}`}
+                            className={`px-3 py-1.5 text-sm rounded-md border ${tab === k ? 'bg-brand text-white border-brand' : 'bg-surface text-text-main border-border hover:bg-surface-hover focus:ring-accent-cyan'}`}
                         >
                             {label}
                         </button>
@@ -249,19 +249,19 @@ export const PlatformAnalytics: React.FC = () => {
                     </Recharts.ResponsiveContainer>
                 </div>
                 {tab === 'forecast' && (
-                    <p className="text-xs text-gray-500 mt-3">Forecast uses moving average projection over the selected period.</p>
+                    <p className="text-xs text-text-muted mt-3">Forecast uses moving average projection over the selected period.</p>
                 )}
             </Card>
 
             <Card className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Tenant Breakdown</h3>
-                    <TrendingUp className="w-5 h-5 text-gray-500" />
+                    <h3 className="text-lg font-semibold text-text-main">Tenant Breakdown</h3>
+                    <TrendingUp className="w-5 h-5 text-text-muted" />
                 </div>
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                         <thead>
-                            <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <tr className="text-left text-text-muted border-b border-border">
                                 <th className="py-2 pr-4">Tenant</th>
                                 <th className="py-2 pr-4">Queries</th>
                                 <th className="py-2 pr-4">Users</th>
@@ -271,23 +271,23 @@ export const PlatformAnalytics: React.FC = () => {
                         </thead>
                         <tbody>
                             {(analytics?.tenant_breakdown || []).map((row) => (
-                                <tr key={row.tenant_id} className="border-b border-gray-100">
-                                    <td className="py-2 pr-4 font-medium text-gray-900">{row.tenant_name}</td>
-                                    <td className="py-2 pr-4 text-gray-700">{row.queries.toLocaleString()}</td>
-                                    <td className="py-2 pr-4 text-gray-700">{row.users.toLocaleString()}</td>
-                                    <td className="py-2 pr-4 text-gray-700">{row.tokens.toLocaleString()}</td>
-                                    <td className="py-2 pr-4 text-gray-700">{(row.storage_bytes / (1024 ** 3)).toFixed(2)} GB</td>
+                                <tr key={row.tenant_id} className="border-b border-border hover:bg-surface-hover">
+                                    <td className="py-2 pr-4 font-medium text-text-main">{row.tenant_name}</td>
+                                    <td className="py-2 pr-4 text-text-main">{row.queries.toLocaleString()}</td>
+                                    <td className="py-2 pr-4 text-text-main">{row.users.toLocaleString()}</td>
+                                    <td className="py-2 pr-4 text-text-main">{row.tokens.toLocaleString()}</td>
+                                    <td className="py-2 pr-4 text-text-main">{(row.storage_bytes / (1024 ** 3)).toFixed(2)} GB</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                     {(!analytics?.tenant_breakdown || analytics.tenant_breakdown.length === 0) && (
-                        <p className="text-sm text-gray-500 py-6">No tenant breakdown available for current filter.</p>
+                        <p className="text-sm text-text-muted py-6">No tenant breakdown available for current filter.</p>
                     )}
                 </div>
             </Card>
 
-            {loading && <p className="text-sm text-gray-500">Loading analytics...</p>}
+            {loading && <p className="text-sm text-text-muted">Loading analytics...</p>}
         </div>
     );
 };

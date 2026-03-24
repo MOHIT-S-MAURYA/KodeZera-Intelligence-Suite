@@ -69,7 +69,7 @@ export const Sidebar: React.FC = () => {
             {/* Mobile overlay */}
             {sidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    className="fixed inset-0 bg-black/60 z-40 lg:hidden transition-opacity duration-300"
                     onClick={() => setSidebarOpen(false)}
                 />
             )}
@@ -77,22 +77,22 @@ export const Sidebar: React.FC = () => {
             {/* Sidebar */}
             <aside
                 className={clsx(
-                    'fixed lg:sticky top-0 left-0 h-screen bg-gray-900 text-white transition-transform duration-300 z-50',
-                    'w-64 flex flex-col',
+                    'fixed lg:sticky top-0 left-0 h-screen bg-background-secondary border-r border-border text-text-main transition-transform duration-300 ease-in-out z-50',
+                    'w-64 flex flex-col shadow-lg lg:shadow-none',
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                 )}
             >
                 {/* Brand header — visible on all screen sizes */}
-                <div className="flex items-center justify-between px-5 h-16 flex-shrink-0 border-b border-gray-800">
+                <div className="flex items-center justify-between px-5 h-16 flex-shrink-0 border-b border-border">
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg gradient-primary flex-shrink-0 flex items-center justify-center">
-                            <span className="text-white font-bold text-sm">K</span>
+                        <div className="w-8 h-8 rounded-lg bg-accent-cyan text-white flex-shrink-0 flex items-center justify-center shadow-sm">
+                            <span className="font-bold text-sm">K</span>
                         </div>
-                        <span className="text-white font-semibold text-sm truncate">Kodezera</span>
+                        <span className="text-text-main font-bold text-sm truncate tracking-tight">Kodezera</span>
                     </div>
                     <button
                         onClick={() => setSidebarOpen(false)}
-                        className="lg:hidden text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                        className="lg:hidden text-text-muted hover:text-text-main transition-colors flex-shrink-0 hover:bg-surface-hover p-1.5 rounded-md"
                         aria-label="Close sidebar"
                     >
                         <X className="w-5 h-5" />
@@ -100,7 +100,7 @@ export const Sidebar: React.FC = () => {
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+                <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
                     {navItems.map((item) => (
                         <NavLink
                             key={item.path}
@@ -114,24 +114,31 @@ export const Sidebar: React.FC = () => {
                             }}
                             className={({ isActive }) =>
                                 clsx(
-                                    'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-150',
+                                    'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 font-medium',
                                     isActive
-                                        ? 'bg-brand-600 text-white shadow-lg'
-                                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                                        ? 'bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20 shadow-sm'
+                                        : 'text-text-muted hover:bg-surface-hover hover:text-text-main hover:pl-5 hover-lift'
                                 )
                             }
                         >
-                            {item.icon}
-                            <span className="font-medium">{item.name}</span>
+                            <span className={clsx("transition-transform duration-200", ({ isActive }: { isActive: boolean }) => isActive ? 'scale-110' : '')}>
+                                {item.icon}
+                            </span>
+                            <span className="text-sm">{item.name}</span>
                         </NavLink>
                     ))}
                 </nav>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-800">
-                    <p className="text-xs text-gray-500 text-center">
-                        © 2026 Kodezera Intelligence Suite
-                    </p>
+                <div className="p-4 border-t border-border mt-auto">
+                    <div className="bg-surface rounded-xl p-3 border border-border-light text-center">
+                        <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">
+                            Enterprise Edition
+                        </p>
+                        <p className="text-[10px] text-text-muted opacity-70">
+                            © 2026 Kodezera
+                        </p>
+                    </div>
                 </div>
             </aside>
         </>

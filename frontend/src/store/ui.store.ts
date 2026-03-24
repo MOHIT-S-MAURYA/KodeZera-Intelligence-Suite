@@ -13,6 +13,7 @@ export type { NotificationData as Notification };
 
 interface UIState {
     sidebarOpen: boolean;
+
     toasts: Toast[];
     notifications: NotificationData[];
     notificationsLoading: boolean;
@@ -24,6 +25,7 @@ interface UIState {
     preferencesLoading: boolean;
     toggleSidebar: () => void;
     setSidebarOpen: (open: boolean) => void;
+
     addToast: (type: ToastType, message: string) => void;
     removeToast: (id: string) => void;
     fetchNotifications: (reset?: boolean) => Promise<void>;
@@ -35,6 +37,7 @@ interface UIState {
     fetchPreferences: () => Promise<void>;
     updatePreferences: (prefs: NotificationPreference[]) => Promise<void>;
 }
+
 
 export const useUIStore = create<UIState>((set, get) => ({
     sidebarOpen: true,
@@ -51,6 +54,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
     setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
 
     addToast: (type, message) => {
         const id = Math.random().toString(36).substring(7);
@@ -74,7 +78,6 @@ export const useUIStore = create<UIState>((set, get) => ({
                 limit: 50,
                 offset: reset ? 0 : notificationOffset,
             });
-            // Map new fields to legacy compat
             const mapped = data.results.map((n) => ({
                 ...n,
                 time: n.time_ago,
@@ -90,7 +93,6 @@ export const useUIStore = create<UIState>((set, get) => ({
                 }));
             }
         } catch {
-            // silently fail — don't block the rest of the UI
         } finally {
             set({ notificationsLoading: false });
         }
@@ -100,9 +102,7 @@ export const useUIStore = create<UIState>((set, get) => ({
         try {
             const count = await notificationService.getUnreadCount();
             set({ unreadCount: count });
-        } catch {
-            // silently fail
-        }
+        } catch {}
     },
 
     setNotificationCategory: (category) => {
@@ -111,7 +111,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     },
 
     markAsRead: async (id: string) => {
-        // Optimistic update
         set((state) => ({
             notifications: state.notifications.map((n) =>
                 n.id === id ? { ...n, is_read: true, unread: false } : n
@@ -121,7 +120,6 @@ export const useUIStore = create<UIState>((set, get) => ({
         try {
             await notificationService.markRead(id);
         } catch {
-            // Revert on failure
             get().fetchNotifications();
             get().fetchUnreadCount();
         }
@@ -161,7 +159,6 @@ export const useUIStore = create<UIState>((set, get) => ({
             const prefs = await notificationService.getPreferences();
             set({ preferences: prefs });
         } catch {
-            // silently fail
         } finally {
             set({ preferencesLoading: false });
         }
@@ -172,7 +169,6 @@ export const useUIStore = create<UIState>((set, get) => ({
             const updated = await notificationService.updatePreferences(prefs);
             set({ preferences: updated });
         } catch {
-            // revert
             get().fetchPreferences();
         }
     },

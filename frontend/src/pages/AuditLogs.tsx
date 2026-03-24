@@ -52,10 +52,10 @@ function formatTs(iso: string): string {
 // ── Skeleton row ──────────────────────────────────────────────────────────────
 
 const SkeletonRow: React.FC = () => (
-    <tr className="border-b border-gray-100">
+    <tr className="border-b border-border">
         {Array.from({ length: 6 }).map((_, i) => (
             <td key={i} className="py-3 px-4">
-                <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: `${60 + i * 8}%` }} />
+                <div className="h-4 bg-surface-hover rounded animate-pulse" style={{ width: `${60 + i * 8}%` }} />
             </td>
         ))}
     </tr>
@@ -65,42 +65,42 @@ const SkeletonRow: React.FC = () => (
 
 const EventDetailModal: React.FC<{ event: AuditEventDetail; onClose: () => void }> = ({ event, onClose }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Event Detail</h2>
-                <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+        <div className="bg-surface rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+                <h2 className="text-lg font-semibold text-text-main">Event Detail</h2>
+                <button onClick={onClose} className="p-1 hover:bg-surface-hover text-text-muted rounded"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-4 text-sm">
                 <div className="grid grid-cols-2 gap-3">
-                    <div><span className="text-gray-500">Action:</span> <Badge variant={ACTION_VARIANT[event.action] ?? 'default'}>{event.action}</Badge></div>
-                    <div><span className="text-gray-500">Outcome:</span> <Badge variant={OUTCOME_VARIANT[event.outcome] ?? 'default'}>{event.outcome}</Badge></div>
-                    <div><span className="text-gray-500">User:</span> {event.user_name} {event.user_email && <span className="text-gray-400">({event.user_email})</span>}</div>
-                    <div><span className="text-gray-500">Resource:</span> {event.resource_type} {event.resource_id && <span className="text-gray-400 font-mono">#{event.resource_id.slice(0, 8)}</span>}</div>
-                    <div><span className="text-gray-500">Endpoint:</span> <span className="font-mono text-xs">{event.http_method} {event.endpoint}</span></div>
-                    <div><span className="text-gray-500">IP:</span> <span className="font-mono">{event.ip_address ?? '—'}</span></div>
-                    <div><span className="text-gray-500">Request ID:</span> <span className="font-mono text-xs">{event.request_id || '—'}</span></div>
-                    <div><span className="text-gray-500">Trigger:</span> {event.trigger}</div>
-                    <div><span className="text-gray-500">Status Code:</span> {event.status_code ?? '—'}</div>
-                    <div><span className="text-gray-500">Timestamp:</span> {formatTs(event.timestamp)}</div>
+                    <div><span className="text-text-muted">Action:</span> <Badge variant={ACTION_VARIANT[event.action] ?? 'default'}>{event.action}</Badge></div>
+                    <div><span className="text-text-muted">Outcome:</span> <Badge variant={OUTCOME_VARIANT[event.outcome] ?? 'default'}>{event.outcome}</Badge></div>
+                    <div><span className="text-text-muted">User:</span> <span className="text-text-main">{event.user_name}</span> {event.user_email && <span className="text-text-muted opacity-80">({event.user_email})</span>}</div>
+                    <div><span className="text-text-muted">Resource:</span> <span className="text-text-main">{event.resource_type}</span> {event.resource_id && <span className="text-text-muted opacity-80 font-mono">#{event.resource_id.slice(0, 8)}</span>}</div>
+                    <div><span className="text-text-muted">Endpoint:</span> <span className="font-mono text-xs text-text-main">{event.http_method} {event.endpoint}</span></div>
+                    <div><span className="text-text-muted">IP:</span> <span className="font-mono text-text-main">{event.ip_address ?? '—'}</span></div>
+                    <div><span className="text-text-muted">Request ID:</span> <span className="font-mono text-xs text-text-main">{event.request_id || '—'}</span></div>
+                    <div><span className="text-text-muted">Trigger:</span> <span className="text-text-main">{event.trigger}</span></div>
+                    <div><span className="text-text-muted">Status Code:</span> <span className="text-text-main">{event.status_code ?? '—'}</span></div>
+                    <div><span className="text-text-muted">Timestamp:</span> <span className="text-text-main">{formatTs(event.timestamp)}</span></div>
                 </div>
 
                 {event.error_message && (
                     <div>
-                        <span className="text-gray-500 font-medium">Error:</span>
-                        <p className="mt-1 text-red-700 bg-red-50 rounded p-2 text-xs">{event.error_message}</p>
+                        <span className="text-text-muted font-medium">Error:</span>
+                        <p className="mt-1 text-red-500 bg-red-500/10 rounded p-2 text-xs">{event.error_message}</p>
                     </div>
                 )}
 
                 {Object.keys(event.changes || {}).length > 0 && (
                     <div>
-                        <span className="text-gray-500 font-medium">Changes:</span>
-                        <div className="mt-1 bg-gray-50 rounded p-2 space-y-1">
+                        <span className="text-text-muted font-medium">Changes:</span>
+                        <div className="mt-1 bg-surface-hover rounded p-2 space-y-1">
                             {Object.entries(event.changes).map(([field, diff]) => (
                                 <div key={field} className="flex items-start gap-2 text-xs">
-                                    <span className="font-medium text-gray-700 min-w-[100px]">{field}:</span>
-                                    <span className="text-red-600 line-through">{diff.old ?? '—'}</span>
-                                    <span className="text-gray-400">&rarr;</span>
-                                    <span className="text-green-600">{diff.new ?? '—'}</span>
+                                    <span className="font-medium text-text-main min-w-[100px]">{field}:</span>
+                                    <span className="text-red-500 line-through">{diff.old ?? '—'}</span>
+                                    <span className="text-text-muted">&rarr;</span>
+                                    <span className="text-green-500">{diff.new ?? '—'}</span>
                                 </div>
                             ))}
                         </div>
@@ -109,14 +109,14 @@ const EventDetailModal: React.FC<{ event: AuditEventDetail; onClose: () => void 
 
                 {Object.keys(event.metadata || {}).length > 0 && (
                     <div>
-                        <span className="text-gray-500 font-medium">Metadata:</span>
-                        <pre className="mt-1 bg-gray-50 rounded p-2 text-xs overflow-x-auto">{JSON.stringify(event.metadata, null, 2)}</pre>
+                        <span className="text-text-muted font-medium">Metadata:</span>
+                        <pre className="mt-1 bg-surface-hover rounded p-2 text-xs text-text-main overflow-x-auto">{JSON.stringify(event.metadata, null, 2)}</pre>
                     </div>
                 )}
 
-                <div className="pt-2 border-t">
-                    <span className="text-gray-500 font-medium">Integrity:</span>
-                    <div className="mt-1 font-mono text-xs text-gray-500 break-all space-y-1">
+                <div className="pt-2 border-t border-border">
+                    <span className="text-text-muted font-medium">Integrity:</span>
+                    <div className="mt-1 font-mono text-xs text-text-muted break-all space-y-1">
                         <div>Hash: {event.event_hash}</div>
                         <div>Previous: {event.previous_hash}</div>
                     </div>
@@ -134,7 +134,6 @@ export const AuditLogs: React.FC = () => {
     const [error, setError]       = useState<string | null>(null);
     const [total, setTotal]       = useState(0);
     const [selectedEvent, setSelectedEvent] = useState<AuditEventDetail | null>(null);
-    const [detailLoading, setDetailLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'events' | 'alerts'>('events');
 
     // Alerts
@@ -197,12 +196,10 @@ export const AuditLogs: React.FC = () => {
     // ── Event detail ──────────────────────────────────────────────────────────
 
     const openDetail = async (eventId: string) => {
-        setDetailLoading(true);
         try {
             const detail = await auditEventService.getEventDetail(eventId);
             setSelectedEvent(detail);
         } catch { /* ignore */ }
-        finally { setDetailLoading(false); }
     };
 
     // ── Export ────────────────────────────────────────────────────────────────
@@ -242,8 +239,8 @@ export const AuditLogs: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-display-sm text-gray-900 mb-2">Audit Logs</h1>
-                    <p className="text-body-md text-gray-600">Track all system activities, changes, and security events</p>
+                    <h1 className="text-display-sm text-text-main mb-2">Audit Logs</h1>
+                    <p className="text-body-md text-text-muted">Track all system activities, changes, and security events</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="md" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
@@ -257,15 +254,15 @@ export const AuditLogs: React.FC = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+            <div className="flex gap-1 bg-surface-hover p-1 rounded-lg w-fit border border-border">
                 <button
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'events' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-800'}`}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'events' ? 'bg-surface shadow-sm text-text-main' : 'text-text-muted hover:text-text-main'}`}
                     onClick={() => setActiveTab('events')}
                 >
-                    Audit Events {total > 0 && <span className="text-gray-400 ml-1">({total})</span>}
+                    Audit Events {total > 0 && <span className="opacity-80 ml-1">({total})</span>}
                 </button>
                 <button
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${activeTab === 'alerts' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-800'}`}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${activeTab === 'alerts' ? 'bg-surface shadow-sm text-text-main' : 'text-text-muted hover:text-text-main'}`}
                     onClick={() => setActiveTab('alerts')}
                 >
                     <Shield className="w-4 h-4" />
@@ -274,7 +271,7 @@ export const AuditLogs: React.FC = () => {
             </div>
 
             {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
+                <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-red-500 text-sm">
                     {error}
                     <button className="ml-3 underline" onClick={loadEvents}>Retry</button>
                 </div>
@@ -306,9 +303,9 @@ export const AuditLogs: React.FC = () => {
                         {showFilters && (
                             <div className="flex flex-wrap gap-3 pt-1">
                                 <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-600 whitespace-nowrap">Action:</label>
+                                    <label className="text-sm text-text-muted whitespace-nowrap">Action:</label>
                                     <select
-                                        className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                        className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent-cyan bg-surface text-text-main"
                                         value={action}
                                         onChange={(e) => { setAction(e.target.value as AuditAction | ''); setOffset(0); }}
                                     >
@@ -320,9 +317,9 @@ export const AuditLogs: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-600 whitespace-nowrap">Outcome:</label>
+                                    <label className="text-sm text-text-muted whitespace-nowrap">Outcome:</label>
                                     <select
-                                        className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                        className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent-cyan bg-surface text-text-main"
                                         value={outcome}
                                         onChange={(e) => { setOutcome(e.target.value); setOffset(0); }}
                                     >
@@ -334,12 +331,12 @@ export const AuditLogs: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-600 whitespace-nowrap">From:</label>
+                                    <label className="text-sm text-text-muted whitespace-nowrap">From:</label>
                                     <Input type="date" leftIcon={<Calendar className="w-4 h-4" />} value={dateFrom}
                                         onChange={(e) => { setDateFrom(e.target.value); setOffset(0); }} />
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-600 whitespace-nowrap">To:</label>
+                                    <label className="text-sm text-text-muted whitespace-nowrap">To:</label>
                                     <Input type="date" leftIcon={<Calendar className="w-4 h-4" />} value={dateTo}
                                         onChange={(e) => { setDateTo(e.target.value); setOffset(0); }} />
                                 </div>
@@ -358,14 +355,14 @@ export const AuditLogs: React.FC = () => {
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-gray-200">
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Timestamp</th>
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">User</th>
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Action</th>
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Resource</th>
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Outcome</th>
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">IP Address</th>
-                                    <th className="text-left py-3 px-4 text-label text-gray-600 font-medium"></th>
+                                <tr className="border-b border-border">
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Timestamp</th>
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium">User</th>
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Action</th>
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Resource</th>
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Outcome</th>
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium">IP Address</th>
+                                    <th className="text-left py-3 px-4 text-label text-text-muted font-medium"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -374,30 +371,30 @@ export const AuditLogs: React.FC = () => {
                                     : events.length === 0
                                         ? (
                                             <tr>
-                                                <td colSpan={7} className="py-12 text-center text-gray-400">
+                                                <td colSpan={7} className="py-12 text-center text-text-muted opacity-70">
                                                     No audit events found.
                                                 </td>
                                             </tr>
                                         )
                                         : events.map((evt) => (
-                                            <tr key={evt.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                                            <tr key={evt.id} className="border-b border-border hover:bg-surface-hover transition-colors cursor-pointer"
                                                 onClick={() => openDetail(evt.id)}>
-                                                <td className="py-3 px-4 text-gray-600 text-sm font-mono whitespace-nowrap">
+                                                <td className="py-3 px-4 text-text-muted text-sm font-mono whitespace-nowrap">
                                                     {formatTs(evt.timestamp)}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="text-gray-900 text-sm">{evt.user_name}</div>
-                                                    {evt.user_email && <div className="text-gray-500 text-xs">{evt.user_email}</div>}
+                                                    <div className="text-text-main text-sm">{evt.user_name}</div>
+                                                    {evt.user_email && <div className="text-text-muted text-xs opacity-80">{evt.user_email}</div>}
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <Badge variant={ACTION_VARIANT[evt.action] ?? 'default'}>
                                                         {evt.action.replace(/_/g, ' ')}
                                                     </Badge>
                                                 </td>
-                                                <td className="py-3 px-4 text-gray-700 text-sm">
+                                                <td className="py-3 px-4 text-text-main text-sm">
                                                     <span className="font-medium">{evt.resource_type}</span>
                                                     {evt.resource_id && (
-                                                        <span className="text-gray-400 text-xs ml-1 font-mono">
+                                                        <span className="text-text-muted text-xs ml-1 font-mono opacity-80">
                                                             #{evt.resource_id.slice(0, 8)}
                                                         </span>
                                                     )}
@@ -407,11 +404,11 @@ export const AuditLogs: React.FC = () => {
                                                         {evt.outcome}
                                                     </Badge>
                                                 </td>
-                                                <td className="py-3 px-4 text-gray-500 text-sm font-mono">
+                                                <td className="py-3 px-4 text-text-muted text-sm font-mono">
                                                     {evt.ip_address ?? '—'}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <Eye className="w-4 h-4 text-gray-400" />
+                                                    <Eye className="w-4 h-4 text-text-muted opacity-50" />
                                                 </td>
                                             </tr>
                                         ))
@@ -422,8 +419,8 @@ export const AuditLogs: React.FC = () => {
 
                     {/* Pagination */}
                     {!loading && total > limit && (
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                            <span className="text-sm text-gray-500">
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                            <span className="text-sm text-text-muted">
                                 Showing {offset + 1}–{Math.min(offset + limit, total)} of {total}
                             </span>
                             <div className="flex gap-2">
@@ -446,31 +443,31 @@ export const AuditLogs: React.FC = () => {
                 <Card>
                     {alertsLoading ? (
                         <div className="text-center py-12">
-                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-600 mx-auto" />
-                            <p className="text-gray-500 mt-3">Loading alerts...</p>
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent-cyan mx-auto" />
+                            <p className="text-text-muted mt-3">Loading alerts...</p>
                         </div>
                     ) : alerts.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
-                            <Shield className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <div className="text-center py-12 text-text-muted opacity-70">
+                            <Shield className="w-12 h-12 mx-auto mb-3 opacity-30" />
                             No security alerts found.
                         </div>
                     ) : (
                         <div className="space-y-3">
                             {alerts.map(alert => (
-                                <div key={alert.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                                <div key={alert.id} className="p-4 border border-border rounded-lg hover:bg-surface-hover">
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <Badge variant={SEVERITY_VARIANT[alert.severity] ?? 'default'}>
                                                     {alert.severity}
                                                 </Badge>
-                                                <span className="font-medium text-gray-900">{alert.title}</span>
+                                                <span className="font-medium text-text-main">{alert.title}</span>
                                                 <Badge variant={alert.status === 'open' ? 'error' : alert.status === 'resolved' ? 'success' : 'default'}>
                                                     {alert.status}
                                                 </Badge>
                                             </div>
-                                            <p className="text-sm text-gray-600">{alert.description}</p>
-                                            <span className="text-xs text-gray-400">{formatTs(alert.created_at)}</span>
+                                            <p className="text-sm text-text-muted">{alert.description}</p>
+                                            <span className="text-xs text-text-muted opacity-70">{formatTs(alert.created_at)}</span>
                                         </div>
                                         {alert.status === 'open' && (
                                             <div className="flex gap-2">

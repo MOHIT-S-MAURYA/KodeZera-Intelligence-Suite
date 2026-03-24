@@ -9,18 +9,18 @@ export const Spinner: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }
     };
 
     return (
-        <div className="flex items-center justify-center">
-            <Loader2 className={`${sizeStyles[size]} animate-spin text-brand-500`} />
+        <div className="flex items-center justify-center p-2">
+            <Loader2 className={`${sizeStyles[size]} animate-spin text-accent-cyan`} />
         </div>
     );
 };
 
 export const PageLoader: React.FC = () => {
     return (
-        <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center">
+        <div className="flex items-center justify-center min-h-[50vh] w-full">
+            <div className="text-center animate-fade-in flex flex-col items-center">
                 <Spinner size="lg" />
-                <p className="mt-4 text-gray-600">Loading...</p>
+                <p className="mt-4 text-sm font-medium text-text-muted tracking-wide animate-pulse">Loading workspace...</p>
             </div>
         </div>
     );

@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline' | 'glass';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,6 +15,16 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     children: ReactNode;
 }
 
+// Variant inline styles — hardcoded hex so they always render regardless of CSS variable resolution
+const VARIANT_STYLE: Record<ButtonVariant, React.CSSProperties> = {
+    primary:   { backgroundColor: '#007aff', color: '#ffffff' },
+    secondary: { backgroundColor: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0' },
+    ghost:     { backgroundColor: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0' },
+    danger:    { backgroundColor: '#ef4444', color: '#ffffff' },
+    outline:   { backgroundColor: '#ffffff', color: '#007aff', border: '1px solid #007aff' },
+    glass:     { backgroundColor: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+};
+
 export const Button: React.FC<ButtonProps> = ({
     variant = 'primary',
     size = 'md',
@@ -24,38 +34,27 @@ export const Button: React.FC<ButtonProps> = ({
     children,
     className,
     disabled,
+    style,
     ...props
 }) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ripple-effect';
+    const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-px';
 
-    const variantStyles = {
-        primary: 'bg-gradient-to-r from-brand-500 to-brand-600 text-white hover:from-brand-600 hover:to-brand-700 focus:ring-brand-500 shadow-sm hover:shadow-md',
-        secondary: 'border-2 border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
-        ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-500',
-        danger: 'bg-error-500 text-white hover:bg-error-600 focus:ring-error-500 shadow-sm hover:shadow-md',
-        outline: 'border border-brand-500 text-brand-600 hover:bg-brand-50 focus:ring-brand-500',
+    const sizeStyles: Record<ButtonSize, string> = {
+        sm: 'h-8 px-3 text-xs gap-1.5',
+        md: 'h-10 px-4 text-sm gap-2',
+        lg: 'h-12 px-6 text-base gap-2.5 rounded-xl',
     };
 
-    const sizeStyles = {
-        sm: 'h-8 px-3 text-sm gap-1.5',
-        md: 'h-10 px-4 text-base gap-2',
-        lg: 'h-12 px-6 text-lg gap-2.5',
-    };
-
-    const iconSizeStyles = {
-        sm: 'w-4 h-4',
-        md: 'w-5 h-5',
-        lg: 'w-6 h-6',
+    const iconSizeStyles: Record<ButtonSize, string> = {
+        sm: 'w-3.5 h-3.5',
+        md: 'w-4 h-4',
+        lg: 'w-5 h-5',
     };
 
     return (
         <button
-            className={clsx(
-                baseStyles,
-                variantStyles[variant],
-                sizeStyles[size],
-                className
-            )}
+            className={clsx(baseStyles, sizeStyles[size], className)}
+            style={{ ...VARIANT_STYLE[variant], ...style }}
             disabled={disabled || loading}
             {...props}
         >

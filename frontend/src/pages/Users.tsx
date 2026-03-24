@@ -208,8 +208,8 @@ export const Users: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-display-sm text-gray-900 mb-2">Users</h1>
-                    <p className="text-body-md text-gray-600">Manage user accounts and permissions</p>
+                    <h1 className="text-display-sm text-text-main mb-2">Users</h1>
+                    <p className="text-body-md text-text-muted">Manage user accounts and permissions</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="ghost" size="lg" icon={<RefreshCw className="w-4 h-4" />} onClick={loadAll}>
@@ -228,7 +228,7 @@ export const Users: React.FC = () => {
                 </div>
             )}
 
-            <Card>
+            <Card variant="default">
                 {/* Filters */}
                 <div className="flex gap-4 mb-6">
                     <div className="flex-1">
@@ -240,7 +240,7 @@ export const Users: React.FC = () => {
                         />
                     </div>
                     <select
-                        className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                        className="px-4 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan text-sm bg-surface text-text-main"
                         value={roleFilter}
                         onChange={e => setRoleFilter(e.target.value)}
                     >
@@ -253,57 +253,57 @@ export const Users: React.FC = () => {
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-gray-200">
-                                <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">User</th>
-                                <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Role</th>
-                                <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Department</th>
-                                <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Status</th>
-                                <th className="text-left py-3 px-4 text-label text-gray-600 font-medium">Actions</th>
+                            <tr className="border-b border-border">
+                                <th className="text-left py-3 px-4 text-label text-text-muted font-medium">User</th>
+                                <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Role</th>
+                                <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Department</th>
+                                <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Status</th>
+                                <th className="text-left py-3 px-4 text-label text-text-muted font-medium">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 Array.from({ length: 4 }).map((_, i) => (
-                                    <tr key={i} className="border-b border-gray-100">
+                                    <tr key={i} className="border-b border-border">
                                         {Array.from({ length: 5 }).map((__, j) => (
                                             <td key={j} className="py-3 px-4">
-                                                <div className="h-4 bg-gray-200 rounded animate-pulse w-24" />
+                                                <div className="h-4 bg-surface-hover rounded animate-pulse w-24" />
                                             </td>
                                         ))}
                                     </tr>
                                 ))
                             ) : filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="py-10 text-center text-gray-500 text-sm">
+                                    <td colSpan={5} className="py-10 text-center text-text-muted text-sm">
                                         {searchQuery || roleFilter !== 'all' ? 'No users match the current filters.' : 'No users found.'}
                                     </td>
                                 </tr>
                             ) : (
                                 filteredUsers.map(u => (
-                                    <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <tr key={u.id} className="border-b border-border hover:bg-surface-hover transition-colors">
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-3">
                                                 <Avatar name={u.full_name} size="sm" />
                                                 <div>
                                                     <div className="flex items-center gap-1.5">
-                                                        <p className="font-medium text-gray-900">{u.full_name}</p>
+                                                        <p className="font-medium text-text-main">{u.full_name}</p>
                                                         {u.is_tenant_admin && (
                                                             <span title="Tenant Admin">
-                                                                <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
+                                                                <ShieldCheck className="w-3.5 h-3.5 text-accent-cyan" />
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-sm text-gray-500">{u.email}</p>
+                                                    <p className="text-sm text-text-muted">{u.email}</p>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="py-3 px-4">
                                             {u.primary_role_name
                                                 ? <Badge variant="brand">{u.primary_role_name}</Badge>
-                                                : <span className="text-gray-400 text-sm">—</span>}
+                                                : <span className="text-text-muted text-sm">—</span>}
                                         </td>
-                                        <td className="py-3 px-4 text-gray-600 text-sm">
-                                            {u.department_name ?? <span className="text-gray-400">—</span>}
+                                        <td className="py-3 px-4 text-text-main text-sm">
+                                            {u.department_name ?? <span className="text-text-muted">—</span>}
                                         </td>
                                         <td className="py-3 px-4">
                                             <button
@@ -337,7 +337,7 @@ export const Users: React.FC = () => {
                 </div>
 
                 {!loading && (
-                    <p className="text-xs text-gray-400 mt-4">
+                    <p className="text-xs text-text-muted mt-4">
                         Showing {filteredUsers.length} of {users.length} user{users.length !== 1 ? 's' : ''}
                     </p>
                 )}
@@ -350,9 +350,9 @@ export const Users: React.FC = () => {
                 title="Delete User"
             >
                 <div className="space-y-4">
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-text-muted text-sm">
                         Are you sure you want to delete{' '}
-                        <span className="font-semibold text-gray-900">{deleteTarget?.full_name}</span>?
+                        <span className="font-semibold text-text-main">{deleteTarget?.full_name}</span>?
                         This action cannot be undone.
                     </p>
                     <div className="flex gap-3 pt-1">
@@ -405,8 +405,8 @@ export const Users: React.FC = () => {
                     />
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                        <select className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                        <label className="block text-sm font-medium text-text-main mb-2">Role</label>
+                        <select className="w-full px-4 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan text-sm bg-surface text-text-main"
                             value={form.role_id} onChange={e => patch('role_id', e.target.value)}>
                             <option value="">— No role —</option>
                             {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -414,8 +414,8 @@ export const Users: React.FC = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                        <select className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                        <label className="block text-sm font-medium text-text-main mb-2">Department</label>
+                        <select className="w-full px-4 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan text-sm bg-surface text-text-main"
                             value={form.department} onChange={e => patch('department', e.target.value)}>
                             <option value="">— No department —</option>
                             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}

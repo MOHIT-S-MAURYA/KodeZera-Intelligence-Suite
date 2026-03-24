@@ -159,48 +159,48 @@ export const PlatformFeatureFlags: React.FC = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Feature Flags</h1>
-                    <p className="text-gray-600 mt-1">Control feature availability across tenants and plans</p>
+                    <h1 className="text-3xl font-bold text-text-main">Feature Flags</h1>
+                    <p className="text-text-muted mt-1">Control feature availability across tenants and plans</p>
                 </div>
                 <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
                     New Flag
                 </Button>
             </div>
 
-            {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
+            {error && <div className="p-3 bg-red-500/10 text-red-500 rounded-lg text-sm">{error}</div>}
 
             {/* Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card>
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                            <ToggleLeft className="w-6 h-6 text-blue-600" />
+                        <div className="w-12 h-12 rounded-lg bg-brand/10 flex items-center justify-center">
+                            <ToggleLeft className="w-6 h-6 text-brand" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-600">Total Flags</p>
-                            <p className="text-2xl font-bold text-gray-900">{flags.length}</p>
+                            <p className="text-sm text-text-muted">Total Flags</p>
+                            <p className="text-2xl font-bold text-text-main">{flags.length}</p>
                         </div>
                     </div>
                 </Card>
                 <Card>
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                            <ToggleLeft className="w-6 h-6 text-green-600" />
+                        <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                            <ToggleLeft className="w-6 h-6 text-green-500" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-600">Enabled by Default</p>
-                            <p className="text-2xl font-bold text-gray-900">{flags.filter(f => f.default_enabled).length}</p>
+                            <p className="text-sm text-text-muted">Enabled by Default</p>
+                            <p className="text-2xl font-bold text-text-main">{flags.filter(f => f.default_enabled).length}</p>
                         </div>
                     </div>
                 </Card>
                 <Card>
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                            <Building2 className="w-6 h-6 text-orange-600" />
+                        <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                            <Building2 className="w-6 h-6 text-orange-500" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-600">With Overrides</p>
-                            <p className="text-2xl font-bold text-gray-900">{flags.filter(f => f.override_count > 0).length}</p>
+                            <p className="text-sm text-text-muted">With Overrides</p>
+                            <p className="text-2xl font-bold text-text-main">{flags.filter(f => f.override_count > 0).length}</p>
                         </div>
                     </div>
                 </Card>
@@ -210,9 +210,9 @@ export const PlatformFeatureFlags: React.FC = () => {
             <Card>
                 <div className="space-y-2">
                     {flags.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No feature flags configured.</p>
+                        <p className="text-text-muted text-center py-8">No feature flags configured.</p>
                     ) : flags.map(flag => (
-                        <div key={flag.key} className="border border-gray-200 rounded-lg">
+                        <div key={flag.key} className="border border-border rounded-lg">
                             <div className="flex items-center justify-between p-4">
                                 <div className="flex items-center gap-4 flex-1">
                                     <Switch
@@ -222,11 +222,11 @@ export const PlatformFeatureFlags: React.FC = () => {
                                     />
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-900">{flag.name}</span>
-                                            <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{flag.key}</code>
+                                            <span className="font-semibold text-text-main">{flag.name}</span>
+                                            <code className="text-xs bg-surface-hover px-1.5 py-0.5 rounded text-text-muted">{flag.key}</code>
                                             {!flag.is_active && <Badge variant="warning" size="sm">Inactive</Badge>}
                                         </div>
-                                        <p className="text-sm text-gray-500 mt-0.5">{flag.description}</p>
+                                        <p className="text-sm text-text-muted mt-0.5">{flag.description}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -249,9 +249,9 @@ export const PlatformFeatureFlags: React.FC = () => {
                             </div>
 
                             {expandedKey === flag.key && (
-                                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                                <div className="border-t border-border p-4 bg-surface-hover">
                                     <div className="flex items-center justify-between mb-3">
-                                        <h4 className="text-sm font-medium text-gray-700">Tenant Overrides</h4>
+                                        <h4 className="text-sm font-medium text-text-main">Tenant Overrides</h4>
                                         <Button variant="outline" size="sm" onClick={() => openOverrideModal(flag.key)}>
                                             <Plus className="w-3 h-3 mr-1" /> Add Override
                                         </Button>
@@ -259,17 +259,17 @@ export const PlatformFeatureFlags: React.FC = () => {
                                     {overridesLoading ? (
                                         <div className="flex justify-center py-4"><Spinner /></div>
                                     ) : overrides.length === 0 ? (
-                                        <p className="text-sm text-gray-500 text-center py-4">No tenant overrides. Default applies to all.</p>
+                                        <p className="text-sm text-text-muted text-center py-4">No tenant overrides. Default applies to all.</p>
                                     ) : (
                                         <div className="space-y-2">
                                             {overrides.map(o => (
-                                                <div key={o.id} className="flex items-center justify-between p-3 bg-white rounded border">
+                                                <div key={o.id} className="flex items-center justify-between p-3 bg-surface rounded border border-border">
                                                     <div>
-                                                        <span className="font-medium text-sm">{o.tenant_name}</span>
+                                                        <span className="font-medium text-sm text-text-main">{o.tenant_name}</span>
                                                         <Badge variant={o.enabled ? 'success' : 'error'} size="sm" className="ml-2">
                                                             {o.enabled ? 'Enabled' : 'Disabled'}
                                                         </Badge>
-                                                        {o.reason && <span className="text-xs text-gray-500 ml-2">({o.reason})</span>}
+                                                        {o.reason && <span className="text-xs text-text-muted ml-2">({o.reason})</span>}
                                                     </div>
                                                     <Button variant="ghost" size="sm" onClick={() => handleRemoveOverride(flag.key, o.tenant)}>
                                                         <Trash2 className="w-3 h-3 text-red-500" />
@@ -282,7 +282,7 @@ export const PlatformFeatureFlags: React.FC = () => {
                                     {/* Plan Gates */}
                                     {Object.keys(flag.plan_gates).length > 0 && (
                                         <div className="mt-4">
-                                            <h4 className="text-sm font-medium text-gray-700 mb-2">Plan Gates</h4>
+                                            <h4 className="text-sm font-medium text-text-main mb-2">Plan Gates</h4>
                                             <div className="flex flex-wrap gap-2">
                                                 {Object.entries(flag.plan_gates).map(([plan, enabled]) => (
                                                     <Badge key={plan} variant={enabled ? 'success' : 'default'} size="sm">
@@ -322,9 +322,9 @@ export const PlatformFeatureFlags: React.FC = () => {
             <Modal isOpen={showOverride} onClose={() => setShowOverride(false)} title="Add Tenant Override" size="md">
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+                        <label className="block text-sm font-medium text-text-main mb-1">Tenant</label>
                         <select
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-border bg-surface text-text-main focus:outline-none focus:ring-2 focus:ring-accent-cyan rounded-lg px-3 py-2 text-sm"
                             value={overrideForm.tenant_id}
                             onChange={e => setOverrideForm(f => ({ ...f, tenant_id: e.target.value }))}
                         >

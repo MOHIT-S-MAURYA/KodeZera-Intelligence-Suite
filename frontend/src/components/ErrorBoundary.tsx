@@ -13,6 +13,9 @@ interface ErrorBoundaryProps {
 /**
  * Catches any unhandled render errors in the component tree.
  * Prevents the entire app from going blank when a single page fails.
+ *
+ * Auto-resets on navigation (popstate) so clicking a sidebar link
+ * after an error recovers without a full page reload.
  */
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
     constructor(props: ErrorBoundaryProps) {
@@ -27,6 +30,47 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     componentDidCatch(error: Error, info: React.ErrorInfo) {
         console.error('[ErrorBoundary] Caught error:', error, info);
     }
+
+    componentDidMount() {
+        // Reset error state whenever the user navigates (click, popstate, pushState)
+        this._onNavChange = () => {
+            if (this.state.hasError) {
+                this.setState({ hasError: false, error: null });
+            }
+        };
+
+        window.addEventListener('popstate', this._onNavChange);
+
+        // Monkey-patch pushState/replaceState so React-Router link clicks also reset
+        const origPush = history.pushState.bind(history);
+        const origReplace = history.replaceState.bind(history);
+        const self = this;
+
+        history.pushState = function (...args: Parameters<typeof origPush>) {
+            origPush(...args);
+            self._onNavChange?.();
+        };
+        history.replaceState = function (...args: Parameters<typeof origReplace>) {
+            origReplace(...args);
+            self._onNavChange?.();
+        };
+
+        this._origPush = origPush;
+        this._origReplace = origReplace;
+    }
+
+    componentWillUnmount() {
+        if (this._onNavChange) {
+            window.removeEventListener('popstate', this._onNavChange);
+        }
+        // Restore original history methods
+        if (this._origPush) history.pushState = this._origPush;
+        if (this._origReplace) history.replaceState = this._origReplace;
+    }
+
+    private _onNavChange?: () => void;
+    private _origPush?: typeof history.pushState;
+    private _origReplace?: typeof history.replaceState;
 
     handleReset = () => {
         this.setState({ hasError: false, error: null });

@@ -30,25 +30,25 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     if (!isOpen) return null;
     return ReactDOM.createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-in">
+            <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
+            <div className="relative bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 animate-scale-in border border-border">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto
-                    ${danger ? 'bg-red-100' : 'bg-amber-100'}`}>
-                    <TriangleAlert className={`w-6 h-6 ${danger ? 'text-red-600' : 'text-amber-600'}`} />
+                    ${danger ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
+                    <TriangleAlert className={`w-6 h-6 ${danger ? 'text-red-500' : 'text-amber-500'}`} />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">{title}</h3>
-                <p className="text-sm text-gray-600 text-center mb-6">{message}</p>
+                <h3 className="text-lg font-semibold text-text-main text-center mb-2">{title}</h3>
+                <p className="text-sm text-text-muted text-center mb-6">{message}</p>
                 <div className="flex gap-3">
                     <button
                         onClick={onCancel}
-                        className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="flex-1 px-4 py-2.5 rounded-lg border border-border text-sm font-medium text-text-main hover:bg-surface-hover transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
                         className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-colors
-                            ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                            ${danger ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'}`}
                     >
                         {confirmLabel}
                     </button>
@@ -62,9 +62,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 // ─── View Details Panel ──────────────────────────────────────────────────────
 interface DetailRowProps { label: string; value: React.ReactNode; }
 const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-        <span className="text-sm text-gray-500">{label}</span>
-        <span className="text-sm font-medium text-gray-900 text-right">{value}</span>
+    <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
+        <span className="text-sm text-text-muted">{label}</span>
+        <span className="text-sm font-medium text-text-main text-right">{value}</span>
     </div>
 );
 
@@ -76,22 +76,22 @@ const ViewDetailsPanel: React.FC<ViewDetailsPanelProps> = ({ tenant, onClose }) 
     if (!tenant) return null;
     return ReactDOM.createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md animate-scale-in">
+            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+            <div className="relative bg-surface rounded-2xl shadow-xl w-full max-w-md animate-scale-in border border-border">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-lg">
+                        <div className="w-10 h-10 rounded-xl bg-accent-cyan/10 flex items-center justify-center text-accent-cyan font-bold text-lg">
                             {tenant.name.charAt(0)}
                         </div>
                         <div>
-                            <h2 className="text-base font-semibold text-gray-900">{tenant.name}</h2>
-                            <p className="text-xs text-gray-500">@{tenant.slug}</p>
+                            <h2 className="text-base font-semibold text-text-main">{tenant.name}</h2>
+                            <p className="text-xs text-text-muted">@{tenant.slug}</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                        className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -106,12 +106,12 @@ const ViewDetailsPanel: React.FC<ViewDetailsPanelProps> = ({ tenant, onClose }) 
                     } />
                     <DetailRow label="Total Users" value={
                         <span className="flex items-center gap-1">
-                            <Users className="w-3.5 h-3.5 text-gray-400" />{tenant.users_count}
+                            <Users className="w-3.5 h-3.5 text-text-muted opacity-50" />{tenant.users_count}
                         </span>
                     } />
                     <DetailRow label="Documents" value={
                         <span className="flex items-center gap-1">
-                            <FileText className="w-3.5 h-3.5 text-gray-400" />{tenant.documents_count}
+                            <FileText className="w-3.5 h-3.5 text-text-muted opacity-50" />{tenant.documents_count}
                         </span>
                     } />
                     <DetailRow label="Queries Today" value={tenant.queries_today ?? '—'} />
@@ -122,19 +122,19 @@ const ViewDetailsPanel: React.FC<ViewDetailsPanelProps> = ({ tenant, onClose }) 
                     } />
                     <DetailRow label="Created" value={
                         <span className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                            <Calendar className="w-3.5 h-3.5 text-text-muted opacity-50" />
                             {new Date(tenant.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </span>
                     } />
                     <DetailRow label="Tenant ID" value={
-                        <span className="font-mono text-xs text-gray-500 select-all">{tenant.id}</span>
+                        <span className="font-mono text-xs text-text-muted select-all">{tenant.id}</span>
                     } />
                 </div>
 
                 <div className="px-6 pb-5">
                     <button
                         onClick={onClose}
-                        className="w-full px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 transition-colors"
+                        className="w-full px-4 py-2.5 rounded-lg bg-surface-hover hover:bg-border text-sm font-medium text-text-main transition-colors"
                     >
                         Close
                     </button>
@@ -147,12 +147,12 @@ const ViewDetailsPanel: React.FC<ViewDetailsPanelProps> = ({ tenant, onClose }) 
 
 // ─── Inline error/feedback banner ───────────────────────────────────────────
 const ActionError: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
-    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
         <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {message}
         </div>
-        <button onClick={onClose} className="text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} className="text-red-500/60 hover:text-red-500"><X className="w-4 h-4" /></button>
     </div>
 );
 
@@ -388,8 +388,8 @@ export const PlatformTenants: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Tenants Management</h1>
-                    <p className="text-gray-600 mt-1">Manage all organizations on the platform</p>
+                    <h1 className="text-3xl font-bold text-text-main">Tenants Management</h1>
+                    <p className="text-text-muted mt-1">Manage all organizations on the platform</p>
                 </div>
                 <Button variant="primary" className="flex items-center gap-2" onClick={handleOpenModal}>
                     <Plus className="w-4 h-4" />
@@ -406,7 +406,7 @@ export const PlatformTenants: React.FC = () => {
             <Modal isOpen={modalOpen} onClose={handleCloseModal} title="Create New Tenant" size="lg">
                 <div className="space-y-4">
                     {formError && (
-                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             {formError}
                         </div>
@@ -426,7 +426,7 @@ export const PlatformTenants: React.FC = () => {
                             placeholder="organization-slug"
                             required
                         />
-                        <p className="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only</p>
+                        <p className="text-xs text-text-muted mt-1">Lowercase letters, numbers, and hyphens only</p>
                     </div>
                     <div>
                         <Input
@@ -437,7 +437,7 @@ export const PlatformTenants: React.FC = () => {
                             placeholder="admin@example.com"
                             required
                         />
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-text-muted mt-1">
                             A temporary admin account will be created. Credentials will be shared with you after creation.
                         </p>
                     </div>
@@ -456,7 +456,7 @@ export const PlatformTenants: React.FC = () => {
             >
                 {credentials && (
                     <div className="space-y-4">
-                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                        <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-500 text-sm">
                             <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
                             <div>
                                 <p className="font-medium">"{credentials.tenantName}" created!</p>
@@ -467,7 +467,7 @@ export const PlatformTenants: React.FC = () => {
                                 </p>
                             </div>
                         </div>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-text-muted">
                             Share these temporary credentials with the admin. They should change the password on first login.
                         </p>
                         {[
@@ -476,18 +476,18 @@ export const PlatformTenants: React.FC = () => {
                             { label: 'Temporary Password', value: credentials.temporary_password, id: 'password' },
                         ].map(({ label, value, id }) => (
                             <div key={id}>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+                                <label className="block text-xs font-medium text-text-muted mb-1">{label}</label>
                                 <div className="flex items-center gap-2">
-                                    <code className="flex-1 px-3 py-2 bg-gray-100 rounded-lg text-sm font-mono text-gray-800">
+                                    <code className="flex-1 px-3 py-2 bg-surface-hover border border-border rounded-lg text-sm font-mono text-text-main">
                                         {value}
                                     </code>
                                     <button
                                         onClick={() => copyToClipboard(value, id)}
-                                        className="p-2 text-gray-500 hover:text-brand-600 transition-colors"
+                                        className="p-2 text-text-muted hover:text-accent-cyan transition-colors"
                                         title="Copy"
                                     >
                                         {copiedField === id
-                                            ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                            ? <CheckCircle2 className="w-4 h-4 text-green-500" />
                                             : <Copy className="w-4 h-4" />}
                                     </button>
                                 </div>
@@ -501,19 +501,19 @@ export const PlatformTenants: React.FC = () => {
             </Modal>
 
             {/* Search */}
-            <Card>
+            <Card variant="default">
                 <div className="flex items-center gap-4">
                     <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted opacity-50" />
                         <input
                             type="text"
                             placeholder="Search tenants..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
+                            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-surface text-text-main text-sm focus:ring-2 focus:ring-accent-cyan focus:border-transparent outline-none"
                         />
                     </div>
-                    <span className="text-sm text-gray-500 shrink-0">
+                    <span className="text-sm text-text-muted shrink-0">
                         {filteredTenants.length} of {tenants.length}
                     </span>
                 </div>
@@ -521,25 +521,25 @@ export const PlatformTenants: React.FC = () => {
 
             {/* Tenants List */}
             {loading ? (
-                <Card>
+                <Card variant="default">
                     <div className="text-center py-12">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-600 mx-auto" />
-                        <p className="text-gray-600 mt-4">Loading tenants...</p>
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent-cyan mx-auto" />
+                        <p className="text-text-muted mt-4">Loading tenants...</p>
                     </div>
                 </Card>
             ) : (
                 <div className="grid gap-4" ref={menuRef}>
                     {filteredTenants.map((tenant) => (
-                        <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
+                        <Card key={tenant.id} hover variant="default">
                             <div className="flex items-center justify-between">
                                 {/* Left: identity */}
                                 <div className="flex items-center gap-4 min-w-0">
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-lg">
+                                    <div className="w-12 h-12 rounded-xl bg-accent-cyan/10 flex items-center justify-center flex-shrink-0 text-accent-cyan font-bold text-lg">
                                         {tenant.name.charAt(0)}
                                     </div>
                                     <div className="min-w-0">
-                                        <h3 className="text-base font-semibold text-gray-900 truncate">{tenant.name}</h3>
-                                        <p className="text-sm text-gray-500">@{tenant.slug}</p>
+                                        <h3 className="text-base font-semibold text-text-main truncate">{tenant.name}</h3>
+                                        <p className="text-sm text-text-muted">@{tenant.slug}</p>
                                     </div>
                                 </div>
 
@@ -547,20 +547,20 @@ export const PlatformTenants: React.FC = () => {
                                 <div className="flex items-center gap-5 flex-shrink-0 ml-4">
                                     {/* Users */}
                                     <div className="text-center hidden sm:block">
-                                        <div className="flex items-center gap-1 text-gray-700 justify-center">
-                                            <Users className="w-4 h-4 text-gray-400" />
+                                        <div className="flex items-center gap-1 text-text-muted justify-center">
+                                            <Users className="w-4 h-4 opacity-70" />
                                             <span className="text-sm font-semibold">{tenant.users_count}</span>
                                         </div>
-                                        <p className="text-xs text-gray-400">Users</p>
+                                        <p className="text-xs text-text-muted opacity-50">Users</p>
                                     </div>
 
                                     {/* Documents */}
                                     <div className="text-center hidden sm:block">
-                                        <div className="flex items-center gap-1 text-gray-700 justify-center">
-                                            <FileText className="w-4 h-4 text-gray-400" />
+                                        <div className="flex items-center gap-1 text-text-muted justify-center">
+                                            <FileText className="w-4 h-4 opacity-70" />
                                             <span className="text-sm font-semibold">{tenant.documents_count}</span>
                                         </div>
-                                        <p className="text-xs text-gray-400">Docs</p>
+                                        <p className="text-xs text-text-muted opacity-50">Docs</p>
                                     </div>
 
                                     {/* Status badge */}
@@ -575,27 +575,27 @@ export const PlatformTenants: React.FC = () => {
                                                 e.stopPropagation();
                                                 setOpenMenuId(openMenuId === tenant.id ? null : tenant.id);
                                             }}
-                                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                            className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
                                             aria-label="Actions"
                                         >
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
 
                                         {openMenuId === tenant.id && (
-                                            <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1.5 animate-fade-in">
+                                            <div className="absolute right-0 mt-1 w-48 bg-surface rounded-xl shadow-lg border border-border z-50 py-1.5 animate-fade-in">
                                                 {/* View Details */}
                                                 <button
                                                     onClick={() => handleViewTenant(tenant)}
-                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-text-main hover:bg-surface-hover transition-colors"
                                                 >
-                                                    <Eye className="w-4 h-4 text-gray-400" />
+                                                    <Eye className="w-4 h-4 text-text-muted" />
                                                     View Details
                                                 </button>
 
                                                 {/* Activate / Deactivate */}
                                                 <button
                                                     onClick={() => handleToggleActive(tenant)}
-                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-text-main hover:bg-surface-hover transition-colors"
                                                 >
                                                     {tenant.is_active
                                                         ? <PowerOff className="w-4 h-4 text-amber-500" />
@@ -603,12 +603,12 @@ export const PlatformTenants: React.FC = () => {
                                                     {tenant.is_active ? 'Deactivate' : 'Activate'}
                                                 </button>
 
-                                                <hr className="my-1 border-gray-100" />
+                                                <hr className="my-1 border-border" />
 
                                                 {/* Delete */}
                                                 <button
                                                     onClick={() => handleDeleteTenant(tenant)}
-                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                     Delete Tenant
@@ -622,15 +622,15 @@ export const PlatformTenants: React.FC = () => {
                     ))}
 
                     {filteredTenants.length === 0 && (
-                        <Card>
+                        <Card variant="default">
                             <div className="text-center py-12">
-                                <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                <p className="text-gray-600 font-medium">No tenants found</p>
+                                <AlertCircle className="w-12 h-12 text-text-muted opacity-30 mx-auto mb-4" />
+                                <p className="text-text-main font-medium">No tenants found</p>
                                 {searchTerm && (
-                                    <p className="text-sm text-gray-400 mt-1">
+                                    <p className="text-sm text-text-muted mt-1">
                                         Try a different search term or <button
                                             onClick={() => setSearchTerm('')}
-                                            className="text-brand-600 underline"
+                                            className="text-accent-cyan underline"
                                         >clear the search</button>.
                                     </p>
                                 )}
