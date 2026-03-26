@@ -97,7 +97,11 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
     def rename_session(self, request, pk=None):
         """Rename a specific chat session."""
         session = self.get_object()
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(
+            instance=session,
+            data=request.data,
+            context={'request': request}
+        )
         serializer.is_valid(raise_exception=True)
         
         session.title = serializer.validated_data['title']

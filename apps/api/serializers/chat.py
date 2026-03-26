@@ -12,6 +12,29 @@ class ChatFolderSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def validate_name(self, value):
+        """Validate that folder name is not empty and not a duplicate."""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Folder name cannot be empty.")
+        
+        request = self.context.get('request')
+        if request and request.user:
+            # Check for duplicate folder names for this user
+            queryset = ChatFolder.objects.filter(
+                user=request.user,
+                tenant=request.user.tenant,
+                name__iexact=value.strip()
+            )
+            # Exclude the current folder if updating
+            if self.instance:
+                queryset = queryset.exclude(id=self.instance.id)
+            
+            if queryset.exists():
+                raise serializers.ValidationError("A folder with this name already exists.")
+        
+        return value.strip()
+
+
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     """Serializer for ChatMessage."""
@@ -50,6 +73,27 @@ class ChatSessionCreateSerializer(serializers.Serializer):
 class ChatSessionRenameSerializer(serializers.Serializer):
     """Serializer for renaming a ChatSession."""
     title = serializers.CharField(max_length=255, required=True)
+    def validate_title(self, value):
+        """Validate that session title is not empty and not a duplicate."""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Chat name cannot be empty.")
+        
+        request = self.context.get('request')
+        if request and request.user:
+            # Check for duplicate session titles for this user
+            queryset = ChatSession.objects.filter(
+                user=request.user,
+                tenant=request.user.tenant,
+                title__iexact=value.strip()
+            )
+            # Exclude the current session if updating
+            if self.instance:
+                queryset = queryset.exclude(id=self.instance.id)
+            
+            if queryset.exists():
+                raise serializers.ValidationError("A chat with this name already exists.")
+        
+        return value.strip()
 
 
 class ChatSessionUpdateFolderSerializer(serializers.Serializer):

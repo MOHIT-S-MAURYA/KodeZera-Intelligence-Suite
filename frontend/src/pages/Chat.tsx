@@ -633,24 +633,72 @@ export const Chat: React.FC = () => {
      * Commit the rename: close the input immediately (so the UI is snappy),
      * then call the API in the background.
      *
-     * If the trimmed name is empty, the API call is skipped and the item
-     * keeps whatever name it had before. This prevents creating nameless items.
+     * Validates:
+     * 1. Name is not empty
+     * 2. Name doesn't duplicate existing session/folder (Frontend check)
+     * 3. Session is not currently active (prevents confusion while viewing)
+     * 4. No message is being sent (prevents renaming while streaming)
      *
      * On success: updates the matching item in local state with the server
      *             response (ensures the updated_at timestamp is in sync).
-     * On error: shows an error toast. The local state already shows the new
-     *           name (optimistic), so the user sees what they typed — in a
-     *           real-world scenario you'd want to revert, but for this app
-     *           silently keeping the typed name is acceptable.
+     * On error: shows an error toast and reverts the optimistic UI update.
      */
     const commitRename = async () => {
         if (!editingId) return;
         const trimmed = editingValue.trim();
         const id = editingId;
         const type = editingType;
+        const originalName = type === 'session' 
+            ? sessions.find(s => s.id === id)?.title 
+            : folders.find(f => f.id === id)?.name;
+        
+        // Validate: empty name
+        if (!trimmed) {
+            addToast('error', 'Name cannot be empty.');
+            setEditingId(null);
+            return;
+        }
+
+        // Validate: duplicate name for sessions
+        if (type === 'session') {
+            const isDuplicate = sessions.some(s => 
+                s.id !== id && s.title.toLowerCase() === trimmed.toLowerCase()
+            );
+            if (isDuplicate) {
+                addToast('error', 'A chat with this name already exists.');
+                setEditingId(null);
+                return;
+            }
+
+            // Validate: cannot rename active session
+            if (id === activeSessionId) {
+                addToast('error', 'Cannot rename the chat you are currently viewing. Switch to another chat first.');
+                setEditingId(null);
+                return;
+            }
+
+            // Validate: cannot rename while sending message
+            if (sendingMessage) {
+                addToast('error', 'Cannot rename while a message is being sent. Please wait.');
+                setEditingId(null);
+                return;
+            }
+        }
+
+        // Validate: duplicate name for folders
+        if (type === 'folder') {
+            const isDuplicate = folders.some(f => 
+                f.id !== id && f.name.toLowerCase() === trimmed.toLowerCase()
+            );
+            if (isDuplicate) {
+                addToast('error', 'A folder with this name already exists.');
+                setEditingId(null);
+                return;
+            }
+        }
+
         // Close immediately so the UI responds without waiting for the network.
         setEditingId(null);
-        if (!trimmed) return;
 
         try {
             if (type === 'session') {
@@ -662,6 +710,12 @@ export const Chat: React.FC = () => {
             }
         } catch {
             addToast('error', 'Failed to rename. Please try again.');
+            // Revert optimistic update on error
+            if (type === 'session' && originalName) {
+                setSessions(prev => prev.map(s => s.id === id ? { ...s, title: originalName } : s));
+            } else if (type === 'folder' && originalName) {
+                setFolders(prev => prev.map(f => f.id === id ? { ...f, name: originalName } : f));
+            }
         }
     };
 
