@@ -230,7 +230,7 @@ export const PlatformTenants: React.FC = () => {
         try {
             const response = await platformOwnerService.getTenants();
             setTenants(response.tenants);
-        } catch (error) {
+        } catch (_error) {
             addToast('error', 'Failed to load tenants. Please refresh the page.');
         } finally {
             setLoading(false);
@@ -300,8 +300,9 @@ export const PlatformTenants: React.FC = () => {
                 temporary_password: result.admin_credentials!.temporary_password,
                 email_sent: result.email_sent ?? false,
             });
-        } catch (error: any) {
-            const data = error?.response?.data;
+        } catch (error) {
+            const err = error as { response?: { data?: { error?: string; errors?: Record<string, unknown> } } };
+            const data = err?.response?.data;
             let msg = 'Failed to create tenant. Please try again.';
             if (typeof data?.error === 'string') msg = data.error;
             else if (data?.errors && typeof data.errors === 'object') {
@@ -344,8 +345,9 @@ export const PlatformTenants: React.FC = () => {
                     setTenants(prev => prev.map(t =>
                         t.id === tenant.id ? { ...t, is_active: !tenant.is_active } : t
                     ));
-                } catch (e: any) {
-                    setActionError(e?.response?.data?.error || 'Failed to update tenant.');
+                } catch (e) {
+                    const err = e as { response?: { data?: { error?: string } } };
+                    setActionError(err?.response?.data?.error || 'Failed to update tenant.');
                 }
             },
         });
@@ -364,8 +366,9 @@ export const PlatformTenants: React.FC = () => {
                 try {
                     await platformOwnerService.deleteTenant(tenant.id);
                     setTenants(prev => prev.filter(t => t.id !== tenant.id));
-                } catch (e: any) {
-                    setActionError(e?.response?.data?.error || 'Failed to delete tenant.');
+                } catch (e) {
+                    const err = e as { response?: { data?: { error?: string } } };
+                    setActionError(err?.response?.data?.error || 'Failed to delete tenant.');
                 }
             },
         });

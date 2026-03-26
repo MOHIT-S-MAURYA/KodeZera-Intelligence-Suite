@@ -131,11 +131,10 @@ const DocumentDrawer: React.FC<{
     onReprocess: (doc: Document) => void;
 }> = ({ doc, onClose, onDownload, onReprocess }) => {
     const [versions, setVersions] = useState<DocumentVersion[]>([]);
-    const [loadingVersions, setLoadingVersions] = useState(false);
+    const [loadingVersions, setLoadingVersions] = useState(true);
 
     useEffect(() => {
         if (!doc) return;
-        setLoadingVersions(true);
         documentService.getVersions(doc.id)
             .then(setVersions)
             .catch(() => setVersions([]))
@@ -713,7 +712,7 @@ export const Documents: React.FC = () => {
             {drawerDoc && (
                 <>
                     <div className="fixed inset-0 bg-background/80 z-40 animate-fade-in" onClick={() => setDrawerDoc(null)} />
-                    <DocumentDrawer doc={drawerDoc} onClose={() => setDrawerDoc(null)}
+                    <DocumentDrawer key={drawerDoc.id} doc={drawerDoc} onClose={() => setDrawerDoc(null)}
                         onDownload={handleDownload} onReprocess={handleReprocess} />
                 </>
             )}

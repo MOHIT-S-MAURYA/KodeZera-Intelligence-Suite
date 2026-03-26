@@ -92,8 +92,7 @@ export const useUIStore = create<UIState>((set, get) => ({
                     notificationOffset: state.notificationOffset + data.results.length,
                 }));
             }
-        } catch {
-        } finally {
+        } catch { /* ignore */ } finally {
             set({ notificationsLoading: false });
         }
     },
@@ -102,7 +101,7 @@ export const useUIStore = create<UIState>((set, get) => ({
         try {
             const count = await notificationService.getUnreadCount();
             set({ unreadCount: count });
-        } catch {}
+        } catch { /* ignore */ }
     },
 
     setNotificationCategory: (category) => {
@@ -158,8 +157,7 @@ export const useUIStore = create<UIState>((set, get) => ({
         try {
             const prefs = await notificationService.getPreferences();
             set({ preferences: prefs });
-        } catch {
-        } finally {
+        } catch { /* ignore */ } finally {
             set({ preferencesLoading: false });
         }
     },

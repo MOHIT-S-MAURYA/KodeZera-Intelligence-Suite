@@ -87,7 +87,7 @@ export interface AuditLog {
     action: string;
     performed_by: string;
     tenant_affected: string | null;
-    details: Record<string, any>;
+    details: Record<string, unknown>;
     timestamp: string;
     ip_address: string | null;
 }
@@ -138,7 +138,7 @@ export interface TenantConfig {
     primary_color: string;
     custom_domain: string;
     // AI
-    ai_provider_override: Record<string, any>;
+    ai_provider_override: Record<string, unknown>;
     max_tokens_per_request: number;
     rag_top_k: number;
     // Data
@@ -175,7 +175,7 @@ export interface SubscriptionPlan {
     max_storage_gb: number;
     max_queries_per_month: number;
     max_tokens_per_month: number;
-    features: Record<string, any>;
+    features: Record<string, unknown>;
     is_active: boolean;
     subscriber_count: number;
     created_at: string;
@@ -225,7 +225,7 @@ export interface HealthHistoryEntry {
     component: string;
     status: string;
     latency_ms: number;
-    details: Record<string, any>;
+    details: Record<string, unknown>;
     checked_at: string;
 }
 
@@ -253,7 +253,7 @@ export interface BillingEvent {
     amount: string;
     currency: string;
     stripe_event_id: string;
-    details: Record<string, any>;
+    details: Record<string, unknown>;
     created_at: string;
 }
 
@@ -268,7 +268,7 @@ export interface Invoice {
     tax: string;
     total: string;
     status: string;
-    line_items: any[];
+    line_items: Record<string, unknown>[];
     pdf_url: string;
     paid_at: string | null;
     created_at: string;

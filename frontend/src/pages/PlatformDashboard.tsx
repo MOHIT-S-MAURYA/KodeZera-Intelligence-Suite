@@ -31,9 +31,10 @@ export const PlatformDashboard: React.FC = () => {
                 setTenants(tenantsData);
                 setSystemHealth(healthData);
                 setError(null);
-            } catch (err: any) {
+            } catch (err) {
+                const e = err as { response?: { data?: { detail?: string } } };
                 console.error('Failed to fetch platform data:', err);
-                setError(err.response?.data?.detail || 'Failed to load platform data');
+                setError(e.response?.data?.detail || 'Failed to load platform data');
             } finally {
                 setLoading(false);
             }

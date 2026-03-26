@@ -23,8 +23,9 @@ const FALLBACK_TIMEZONES = [
 
 function buildTimezoneOptions() {
     const now = new Date();
-    const zones: string[] = (Intl as any).supportedValuesOf
-        ? (Intl as any).supportedValuesOf('timeZone')
+    const intlWithExtensions = Intl as { supportedValuesOf?: (key: string) => string[] };
+    const zones: string[] = intlWithExtensions.supportedValuesOf
+        ? intlWithExtensions.supportedValuesOf('timeZone')
         : FALLBACK_TIMEZONES;
 
     // Use a Map keyed by "offset|longName" to collapse duplicates.
@@ -148,7 +149,7 @@ export const Profile: React.FC = () => {
                     bio: meta.bio || '',
                     timezone: meta.timezone || '',
                 });
-            } catch (error) {
+            } catch (_error) {
                 addToast('error', 'Failed to load profile. Please refresh the page.');
             } finally {
                 setLoading(false);
@@ -185,7 +186,7 @@ export const Profile: React.FC = () => {
             }
 
             setIsEditing(false);
-        } catch (error) {
+        } catch (_error) {
             addToast('error', 'Failed to save profile. Please try again.');
         } finally {
             setSaving(false);
@@ -222,8 +223,9 @@ export const Profile: React.FC = () => {
             addToast('success', 'Password changed successfully.');
             setPasswordData({ current: '', newPwd: '', confirm: '' });
             setShowPasswordForm(false);
-        } catch (error: any) {
-            const msg = error?.response?.data?.error || 'Failed to change password. Please try again.';
+        } catch (error) {
+            const err = error as { response?: { data?: { error?: string } } };
+            const msg = err?.response?.data?.error || 'Failed to change password. Please try again.';
             addToast('error', msg);
         } finally {
             setPasswordSaving(false);

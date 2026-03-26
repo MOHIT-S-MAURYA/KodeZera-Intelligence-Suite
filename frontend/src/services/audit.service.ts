@@ -134,7 +134,7 @@ export const auditEventService = {
     },
 
     /** POST /audit/events/export/ — export as CSV or JSON. */
-    exportEvents: async (format: 'csv' | 'json' = 'csv', dateFrom?: string, dateTo?: string): Promise<Blob | any[]> => {
+    exportEvents: async (format: 'csv' | 'json' = 'csv', dateFrom?: string, dateTo?: string): Promise<Blob | Record<string, unknown>[]> => {
         const data: Record<string, string> = { format };
         if (dateFrom) data.date_from = dateFrom;
         if (dateTo) data.date_to = dateTo;
@@ -175,7 +175,7 @@ export const auditEventService = {
     },
 
     /** GET /audit/compliance/ — compliance records. */
-    getComplianceRecords: async (): Promise<any[]> => {
+    getComplianceRecords: async (): Promise<Record<string, unknown>[]> => {
         const res = await api.get('/audit/compliance/');
         return res.data;
     },
@@ -220,7 +220,7 @@ export const platformAuditService = {
     },
 
     /** POST /platform/audit/events/export/ — platform-wide export. */
-    exportEvents: async (format: 'csv' | 'json' = 'csv', scope?: string, dateFrom?: string, dateTo?: string): Promise<Blob | any[]> => {
+    exportEvents: async (format: 'csv' | 'json' = 'csv', scope?: string, dateFrom?: string, dateTo?: string): Promise<Blob | Record<string, unknown>[]> => {
         const data: Record<string, string> = { format };
         if (scope) data.scope = scope;
         if (dateFrom) data.date_from = dateFrom;
@@ -254,25 +254,25 @@ export const platformAuditService = {
     },
 
     /** GET /platform/audit/retention-policies/ */
-    getRetentionPolicies: async (): Promise<any[]> => {
+    getRetentionPolicies: async (): Promise<Record<string, unknown>[]> => {
         const res = await api.get('/platform/audit/retention-policies/');
         return res.data;
     },
 
     /** POST /platform/audit/retention-policies/ */
-    createRetentionPolicy: async (data: Record<string, unknown>): Promise<any> => {
+    createRetentionPolicy: async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
         const res = await api.post('/platform/audit/retention-policies/', data);
         return res.data;
     },
 
     /** PATCH /platform/audit/retention-policies/:id/ */
-    updateRetentionPolicy: async (policyId: string, data: Record<string, unknown>): Promise<any> => {
+    updateRetentionPolicy: async (policyId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> => {
         const res = await api.patch(`/platform/audit/retention-policies/${policyId}/`, data);
         return res.data;
     },
 
     /** GET /platform/audit/data-deletion-requests/ */
-    getDataDeletionRequests: async (filters?: { tenant_id?: string; limit?: number; offset?: number }): Promise<PaginatedResponse<any>> => {
+    getDataDeletionRequests: async (filters?: { tenant_id?: string; limit?: number; offset?: number }): Promise<PaginatedResponse<Record<string, unknown>>> => {
         const params: Record<string, string> = {};
         if (filters?.tenant_id) params.tenant_id = filters.tenant_id;
         if (filters?.limit) params.limit = filters.limit.toString();
@@ -283,7 +283,7 @@ export const platformAuditService = {
     },
 
     /** PATCH /platform/audit/data-deletion-requests/:id/ */
-    updateDataDeletionRequest: async (requestId: string, status: string, deletionProof?: Record<string, unknown>): Promise<any> => {
+    updateDataDeletionRequest: async (requestId: string, status: string, deletionProof?: Record<string, unknown>): Promise<Record<string, unknown>> => {
         const data: Record<string, unknown> = { status };
         if (deletionProof) data.deletion_proof = deletionProof;
         const res = await api.patch(`/platform/audit/data-deletion-requests/${requestId}/`, data);

@@ -32,10 +32,12 @@ interface Ticket {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const PRIORITY_COLORS: Record<string, string> = {
+type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'brand';
+
+const PRIORITY_COLORS: Record<string, BadgeVariant> = {
     critical: 'error', high: 'warning', medium: 'info', low: 'default',
 };
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeVariant> = {
     open: 'error', in_progress: 'warning', resolved: 'success',
 };
 const STATUS_LABELS: Record<string, string> = {
@@ -92,10 +94,10 @@ const TicketDetail: React.FC<TicketDetailProps> = ({ ticket, isPlatformOwner, on
                             <span className="text-xs font-mono text-text-muted opacity-50 bg-surface-hover px-2 py-0.5 rounded">
                                 {ticket.id}
                             </span>
-                            <Badge variant={STATUS_COLORS[ticket.status] as any}>
+                            <Badge variant={STATUS_COLORS[ticket.status] ?? 'default'}>
                                 {STATUS_LABELS[ticket.status]}
                             </Badge>
-                            <Badge variant={PRIORITY_COLORS[ticket.priority] as any}>
+                            <Badge variant={PRIORITY_COLORS[ticket.priority] ?? 'default'}>
                                 {ticket.priority}
                             </Badge>
                         </div>
@@ -230,8 +232,9 @@ const CreateTicketPanel: React.FC<CreateTicketProps> = ({ onClose, onCreated }) 
             });
             onCreated(resp.data as Ticket);
             onClose();
-        } catch (e: any) {
-            setError(e?.response?.data?.error || 'Failed to create ticket. Please try again.');
+        } catch (e) {
+            const err = e as { response?: { data?: { error?: string } } };
+            setError(err?.response?.data?.error || 'Failed to create ticket. Please try again.');
         } finally {
             setCreating(false);
         }
@@ -344,8 +347,9 @@ export const PlatformSupport: React.FC = () => {
             // Backend returns an array
             const data = Array.isArray(resp.data) ? resp.data : resp.data?.results ?? [];
             setTickets(data);
-        } catch (e: any) {
-            setError(e?.response?.data?.detail || 'Failed to load support tickets.');
+        } catch (e) {
+            const err = e as { response?: { data?: { detail?: string } } };
+            setError(err?.response?.data?.detail || 'Failed to load support tickets.');
         } finally {
             setLoading(false);
         }
@@ -384,7 +388,7 @@ export const PlatformSupport: React.FC = () => {
             )}
             {showCreate && (
                 <CreateTicketPanel
-                    user={user as any}
+                    user={user}
                     onClose={() => setShowCreate(false)}
                     onCreated={handleTicketCreated}
                 />
@@ -515,8 +519,8 @@ export const PlatformSupport: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap mb-1">
                                             <span className="text-xs font-mono text-text-muted opacity-50">{ticket.id}</span>
-                                            <Badge variant={STATUS_COLORS[ticket.status] as any}>{STATUS_LABELS[ticket.status]}</Badge>
-                                            <Badge variant={PRIORITY_COLORS[ticket.priority] as any}>{ticket.priority}</Badge>
+                                            <Badge variant={STATUS_COLORS[ticket.status] ?? 'default'}>{STATUS_LABELS[ticket.status]}</Badge>
+                                            <Badge variant={PRIORITY_COLORS[ticket.priority] ?? 'default'}>{ticket.priority}</Badge>
                                             <span className="text-xs text-text-muted bg-surface-hover px-2 py-0.5 rounded-full">
                                                 {CATEGORY_LABELS[ticket.category] ?? ticket.category}
                                             </span>

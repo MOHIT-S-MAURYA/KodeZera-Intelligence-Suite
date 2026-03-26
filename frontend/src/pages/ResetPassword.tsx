@@ -34,8 +34,9 @@ export const ResetPassword: React.FC = () => {
             await authService.resetPassword(email, otp, newPassword);
             addToast('success', 'Password reset successfully. Please log in.');
             navigate('/login');
-        } catch (error: any) {
-            const errors = error.response?.data?.errors;
+        } catch (error) {
+            const err = error as { response?: { data?: { errors?: string[] } } };
+            const errors = err.response?.data?.errors;
             const message = errors?.length
                 ? errors.join(' ')
                 : 'Failed to reset password. Please check your code.';

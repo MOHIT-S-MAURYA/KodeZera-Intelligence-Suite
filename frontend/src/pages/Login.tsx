@@ -47,8 +47,9 @@ export const Login: React.FC = () => {
                     navigate('/dashboard');
                 }
             }
-        } catch (error: any) {
-            const data = error.response?.data;
+        } catch (error) {
+            const err = error as { response?: { data?: { error?: string; detail?: string } } };
+            const data = err.response?.data;
             const message = data?.error || data?.detail || 'Login failed. Please check your credentials.';
             addToast('error', message);
         } finally {
@@ -70,8 +71,9 @@ export const Login: React.FC = () => {
             } else {
                 navigate('/dashboard');
             }
-        } catch (error: any) {
-            const message = error.response?.data?.error || 'Invalid MFA code. Please try again.';
+        } catch (error) {
+            const err = error as { response?: { data?: { error?: string } } };
+            const message = err.response?.data?.error || 'Invalid MFA code. Please try again.';
             addToast('error', message);
         } finally {
             setLoading(false);

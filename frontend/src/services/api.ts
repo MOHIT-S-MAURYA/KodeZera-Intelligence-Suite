@@ -29,9 +29,15 @@ api.interceptors.request.use(
 
 // Response interceptor for error handling and token refresh
 let isRefreshing = false;
-let failedQueue: any[] = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+interface QueuedRequest {
+    resolve: (value: string | null) => void;
+    reject: (reason?: unknown) => void;
+}
+
+let failedQueue: QueuedRequest[] = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
     failedQueue.forEach(prom => {
         if (error) {
             prom.reject(error);
@@ -102,7 +108,7 @@ api.interceptors.response.use(
 
         // Global 403 handler — permission denied feedback
         if (error.response?.status === 403) {
-            const data = error.response?.data as any;
+            const data = error.response?.data as { code?: string; error?: string };
             const code = data?.code;
 
             if (code === 'tenant_deactivated' || code === 'account_deactivated') {
