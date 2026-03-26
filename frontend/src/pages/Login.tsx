@@ -7,6 +7,15 @@ import { useAuthStore } from '../store/auth.store';
 import { useUIStore } from '../store/ui.store';
 import authService from '../services/auth.service';
 import type { MFAChallengeResponse, LoginResponse } from '../services/auth.service';
+import { getApiError } from '../utils/errors';
+
+function getErrorData(error: unknown): { error?: string; detail?: string } {
+    if (error && typeof error === 'object' && 'response' in error) {
+        const response = (error as { response?: { data?: { error?: string; detail?: string } } }).response;
+        return response?.data ?? {};
+    }
+    return {};
+}
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -47,8 +56,8 @@ export const Login: React.FC = () => {
                     navigate('/dashboard');
                 }
             }
-        } catch (error: any) {
-            const data = error.response?.data;
+        } catch (error: unknown) {
+            const data = getErrorData(error);
             const message = data?.error || data?.detail || 'Login failed. Please check your credentials.';
             addToast('error', message);
         } finally {
@@ -70,8 +79,8 @@ export const Login: React.FC = () => {
             } else {
                 navigate('/dashboard');
             }
-        } catch (error: any) {
-            const message = error.response?.data?.error || 'Invalid MFA code. Please try again.';
+        } catch (error: unknown) {
+            const message = getErrorData(error).error || getApiError(error, 'Invalid MFA code. Please try again.');
             addToast('error', message);
         } finally {
             setLoading(false);

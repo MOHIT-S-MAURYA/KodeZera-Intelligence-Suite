@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { useAuthStore } from '../store/auth.store';
 import platformOwnerService from '../services/platformOwner.service';
 import type { PlatformOverview, TenantsListResponse, SystemHealth } from '../services/platformOwner.service';
+import { getApiError } from '../utils/errors';
 
 export const PlatformDashboard: React.FC = () => {
     const { user } = useAuthStore();
@@ -31,9 +32,9 @@ export const PlatformDashboard: React.FC = () => {
                 setTenants(tenantsData);
                 setSystemHealth(healthData);
                 setError(null);
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error('Failed to fetch platform data:', err);
-                setError(err.response?.data?.detail || 'Failed to load platform data');
+                setError(getApiError(err, 'Failed to load platform data'));
             } finally {
                 setLoading(false);
             }

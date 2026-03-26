@@ -62,13 +62,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     const inputRef = useRef<HTMLInputElement>(null);
 
     const selectedOption = options.find(opt => opt.value === value);
-
-    // When closed, always show the selected label (or empty)
-    useEffect(() => {
-        if (!isOpen) {
-            setSearchTerm(selectedOption?.label ?? '');
-        }
-    }, [isOpen, selectedOption]);
+    const inputValue = isOpen ? searchTerm : (selectedOption?.label ?? '');
 
     // Close on outside click
     useEffect(() => {
@@ -151,7 +145,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                             placeholder-text-muted/60 transition-all duration-200
                             ${disabled ? 'bg-background cursor-not-allowed text-text-muted opacity-60' : 'bg-surface text-text-main shadow-sm'}`}
                         placeholder={placeholder}
-                        value={searchTerm}
+                        value={inputValue}
                         onChange={handleChange}
                         onFocus={handleFocus}
                         autoComplete="off"

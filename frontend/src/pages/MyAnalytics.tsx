@@ -25,7 +25,7 @@ export const MyAnalytics: React.FC = () => {
             }
         };
         run();
-    }, [days]);
+    }, [days, addToast]);
 
     const summary = data?.summary;
 

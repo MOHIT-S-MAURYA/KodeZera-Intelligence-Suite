@@ -1015,11 +1015,18 @@ export const Chat: React.FC = () => {
             >
                 {/* Folder header row */}
                 <div
-                    onClick={() => !isEditing && setExpandedFolders(prev => {
-                        const next = new Set(prev);
-                        next.has(folder.id) ? next.delete(folder.id) : next.add(folder.id);
-                        return next;
-                    })}
+                    onClick={() => {
+                        if (isEditing) return;
+                        setExpandedFolders(prev => {
+                            const next = new Set(prev);
+                            if (next.has(folder.id)) {
+                                next.delete(folder.id);
+                            } else {
+                                next.add(folder.id);
+                            }
+                            return next;
+                        });
+                    }}
                     className={[
                         'group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all',
                         isDragOver

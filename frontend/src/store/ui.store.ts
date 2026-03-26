@@ -92,7 +92,8 @@ export const useUIStore = create<UIState>((set, get) => ({
                     notificationOffset: state.notificationOffset + data.results.length,
                 }));
             }
-        } catch {
+        } catch (error) {
+            console.error('Failed to fetch notifications', error);
         } finally {
             set({ notificationsLoading: false });
         }
@@ -102,7 +103,9 @@ export const useUIStore = create<UIState>((set, get) => ({
         try {
             const count = await notificationService.getUnreadCount();
             set({ unreadCount: count });
-        } catch {}
+        } catch (error) {
+            console.error('Failed to fetch unread count', error);
+        }
     },
 
     setNotificationCategory: (category) => {
@@ -158,7 +161,8 @@ export const useUIStore = create<UIState>((set, get) => ({
         try {
             const prefs = await notificationService.getPreferences();
             set({ preferences: prefs });
-        } catch {
+        } catch (error) {
+            console.error('Failed to fetch preferences', error);
         } finally {
             set({ preferencesLoading: false });
         }

@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/Badge';
 import { useAuthStore } from '../store/auth.store';
 import { dashboardService, type DashboardStats } from '../services/dashboard.service';
 import { analyticsService, type DailySeriesPoint } from '../services/analytics.service';
+import { getApiError } from '../utils/errors';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,8 +86,8 @@ export const Dashboard: React.FC = () => {
             ]);
             setStats(statsData);
             setTrendData(trendResp.series || []);
-        } catch (err: any) {
-            setError(err?.response?.data?.detail || 'Failed to load dashboard data.');
+        } catch (err: unknown) {
+            setError(getApiError(err, 'Failed to load dashboard data.'));
         } finally {
             setLoading(false);
             setRefreshing(false);

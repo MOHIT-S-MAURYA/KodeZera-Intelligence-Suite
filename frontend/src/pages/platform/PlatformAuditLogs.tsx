@@ -14,7 +14,9 @@ import clsx from 'clsx';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const ACTION_COLORS: Record<string, string> = {
+type BadgeVariant = React.ComponentProps<typeof Badge>['variant'];
+
+const ACTION_COLORS: Record<string, BadgeVariant> = {
     create: 'success', update: 'warning', delete: 'error',
     login: 'success', logout: 'default', read: 'default',
     upload: 'info', download: 'default', query: 'default',
@@ -112,7 +114,7 @@ const EventDetailModal: React.FC<{ event: AuditEventDetail; onClose: () => void 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-3 bg-surface border border-border rounded-lg">
                                     <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Action</div>
-                                    <Badge variant={(ACTION_COLORS[event.action] ?? 'default') as any} className="text-sm px-2 py-0.5">
+                                    <Badge variant={ACTION_COLORS[event.action] ?? 'default'} className="text-sm px-2 py-0.5">
                                         {ACTION_ICONS[event.action]}{event.action.replace(/_/g, ' ')}
                                     </Badge>
                                 </div>
@@ -530,7 +532,7 @@ export const PlatformAuditLogs: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-5 align-middle whitespace-nowrap">
-                                                    <Badge variant={(ACTION_COLORS[evt.action] ?? 'default') as any} className="font-medium shadow-sm">
+                                                    <Badge variant={ACTION_COLORS[evt.action] ?? 'default'} className="font-medium shadow-sm">
                                                         {ACTION_ICONS[evt.action]}{evt.action.replace(/_/g, ' ')}
                                                     </Badge>
                                                 </td>

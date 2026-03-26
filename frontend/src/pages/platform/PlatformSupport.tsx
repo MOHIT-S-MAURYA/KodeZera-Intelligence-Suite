@@ -32,10 +32,12 @@ interface Ticket {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const PRIORITY_COLORS: Record<string, string> = {
+type BadgeVariant = React.ComponentProps<typeof Badge>['variant'];
+
+const PRIORITY_COLORS: Record<Ticket['priority'], BadgeVariant> = {
     critical: 'error', high: 'warning', medium: 'info', low: 'default',
 };
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<Ticket['status'], BadgeVariant> = {
     open: 'error', in_progress: 'warning', resolved: 'success',
 };
 const STATUS_LABELS: Record<string, string> = {
@@ -92,10 +94,10 @@ const TicketDetail: React.FC<TicketDetailProps> = ({ ticket, isPlatformOwner, on
                             <span className="text-xs font-mono text-text-muted opacity-50 bg-surface-hover px-2 py-0.5 rounded">
                                 {ticket.id}
                             </span>
-                            <Badge variant={STATUS_COLORS[ticket.status] as any}>
+                            <Badge variant={STATUS_COLORS[ticket.status]}>
                                 {STATUS_LABELS[ticket.status]}
                             </Badge>
-                            <Badge variant={PRIORITY_COLORS[ticket.priority] as any}>
+                            <Badge variant={PRIORITY_COLORS[ticket.priority]}>
                                 {ticket.priority}
                             </Badge>
                         </div>
@@ -196,7 +198,6 @@ const TicketDetail: React.FC<TicketDetailProps> = ({ ticket, isPlatformOwner, on
 
 // ─── Create Ticket Panel ─────────────────────────────────────────────────────
 interface CreateTicketProps {
-    user: { email?: string; full_name?: string } | null;
     onClose: () => void;
     onCreated: (ticket: Ticket) => void;
 }
@@ -230,8 +231,12 @@ const CreateTicketPanel: React.FC<CreateTicketProps> = ({ onClose, onCreated }) 
             });
             onCreated(resp.data as Ticket);
             onClose();
-        } catch (e: any) {
-            setError(e?.response?.data?.error || 'Failed to create ticket. Please try again.');
+        } catch (e: unknown) {
+            const message =
+                e && typeof e === 'object' && 'response' in e
+                    ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+                    : undefined;
+            setError(message || 'Failed to create ticket. Please try again.');
         } finally {
             setCreating(false);
         }
@@ -327,7 +332,7 @@ const CreateTicketPanel: React.FC<CreateTicketProps> = ({ onClose, onCreated }) 
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export const PlatformSupport: React.FC = () => {
-    const { user, isPlatformOwner } = useAuthStore();
+    const { isPlatformOwner } = useAuthStore();
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -344,8 +349,12 @@ export const PlatformSupport: React.FC = () => {
             // Backend returns an array
             const data = Array.isArray(resp.data) ? resp.data : resp.data?.results ?? [];
             setTickets(data);
-        } catch (e: any) {
-            setError(e?.response?.data?.detail || 'Failed to load support tickets.');
+        } catch (e: unknown) {
+            const message =
+                e && typeof e === 'object' && 'response' in e
+                    ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                    : undefined;
+            setError(message || 'Failed to load support tickets.');
         } finally {
             setLoading(false);
         }
@@ -384,7 +393,6 @@ export const PlatformSupport: React.FC = () => {
             )}
             {showCreate && (
                 <CreateTicketPanel
-                    user={user as any}
                     onClose={() => setShowCreate(false)}
                     onCreated={handleTicketCreated}
                 />
@@ -515,8 +523,8 @@ export const PlatformSupport: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap mb-1">
                                             <span className="text-xs font-mono text-text-muted opacity-50">{ticket.id}</span>
-                                            <Badge variant={STATUS_COLORS[ticket.status] as any}>{STATUS_LABELS[ticket.status]}</Badge>
-                                            <Badge variant={PRIORITY_COLORS[ticket.priority] as any}>{ticket.priority}</Badge>
+                                            <Badge variant={STATUS_COLORS[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
+                                            <Badge variant={PRIORITY_COLORS[ticket.priority]}>{ticket.priority}</Badge>
                                             <span className="text-xs text-text-muted bg-surface-hover px-2 py-0.5 rounded-full">
                                                 {CATEGORY_LABELS[ticket.category] ?? ticket.category}
                                             </span>

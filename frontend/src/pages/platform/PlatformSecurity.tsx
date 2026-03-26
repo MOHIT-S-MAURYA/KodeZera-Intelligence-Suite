@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ShieldAlert, AlertTriangle, CheckCircle, Activity, Clock, Server } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -26,7 +26,7 @@ export const PlatformSecurity: React.FC = () => {
     const [hours, setHours] = useState(24);
     const [error, setError] = useState('');
 
-    const fetchHealth = async () => {
+    const fetchHealth = useCallback(async () => {
         setLoading(true);
         try {
             const data = await platformOwnerService.getHealthHistory({ hours });
@@ -36,9 +36,9 @@ export const PlatformSecurity: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [hours]);
 
-    useEffect(() => { fetchHealth(); }, [hours]);
+    useEffect(() => { fetchHealth(); }, [fetchHealth]);
 
     const allHealthy = Object.values(components).every(c => c.latest?.status === 'healthy');
     const warningCount = Object.values(components).filter(c => c.latest?.status === 'warning').length;

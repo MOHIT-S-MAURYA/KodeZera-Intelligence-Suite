@@ -11,12 +11,18 @@ import { useUIStore } from '../../store/ui.store';
 type RangeType = '7d' | '30d' | '90d' | 'custom';
 type ChartTab = 'queries' | 'latency' | 'users' | 'tokens' | 'quality' | 'forecast';
 
-const tooltip = ({ active, payload, label }: any) => {
+interface ChartTooltipEntry {
+    color?: string;
+    name?: string;
+    value?: number | string;
+}
+
+const tooltip = ({ active, payload, label }: { active?: boolean; payload?: ChartTooltipEntry[]; label?: string }) => {
     if (!active || !payload || payload.length === 0) return null;
     return (
         <div className="bg-surface border border-border rounded-lg shadow-xl p-3">
             <p className="text-sm font-semibold text-text-main mb-2">{label}</p>
-            {payload.map((entry: any, idx: number) => (
+            {payload.map((entry, idx: number) => (
                 <div key={idx} className="text-xs text-text-muted flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                     <span>{entry.name}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</span>
@@ -51,7 +57,7 @@ export const PlatformAnalytics: React.FC = () => {
             }
         };
         loadTenants();
-    }, []);
+    }, [addToast]);
 
     useEffect(() => {
         const load = async () => {
@@ -88,11 +94,10 @@ export const PlatformAnalytics: React.FC = () => {
 
         const t = setTimeout(load, 200);
         return () => clearTimeout(t);
-    }, [selectedTenant, range, startDate, endDate]);
-
-    const series = analytics?.series || [];
+    }, [selectedTenant, range, startDate, endDate, addToast]);
 
     const chartEl = useMemo(() => {
+        const series = analytics?.series ?? [];
         if (tab === 'queries') {
             return (
                 <Recharts.AreaChart data={series}>
@@ -173,7 +178,7 @@ export const PlatformAnalytics: React.FC = () => {
                 <Recharts.Line type="monotone" dataKey="queries" name="Projected Queries" stroke="#be123c" strokeWidth={2} dot={false} />
             </Recharts.LineChart>
         );
-    }, [tab, series, quality, forecast]);
+    }, [tab, analytics, quality, forecast]);
 
     const summary = analytics?.summary;
 

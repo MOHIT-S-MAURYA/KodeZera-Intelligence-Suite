@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosProgressEvent } from 'axios';
 import api from './api';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -71,6 +72,12 @@ export interface DocumentTag {
     created_at: string;
 }
 
+export interface DocumentTagLink {
+    id: string;
+    tag: string;
+    document: string;
+}
+
 export interface DocumentAccess {
     id: string;
     document: string;
@@ -131,7 +138,7 @@ export const documentService = {
         file: File,
         title: string,
         visibilityType: 'public' | 'private' | 'restricted',
-        onProgress?: (progressEvent: any) => void,
+        onProgress?: (progressEvent: AxiosProgressEvent) => void,
         extra?: { description?: string; folder?: string; classification_level?: number },
     ): Promise<Document> => {
         const formData = new FormData();
@@ -152,8 +159,8 @@ export const documentService = {
     bulkUpload: async (
         files: File[],
         visibilityType: string = 'restricted',
-        onProgress?: (progressEvent: any) => void,
-    ): Promise<any[]> => {
+        onProgress?: (progressEvent: AxiosProgressEvent) => void,
+    ): Promise<unknown[]> => {
         const formData = new FormData();
         files.forEach((f, i) => formData.append(`file_${i}`, f));
         formData.append('visibility_type', visibilityType);
@@ -212,7 +219,7 @@ export const documentService = {
 
     uploadVersion: async (
         id: string, file: File, changeNote: string = '',
-        onProgress?: (e: any) => void,
+        onProgress?: (e: AxiosProgressEvent) => void,
     ): Promise<DocumentVersion> => {
         const formData = new FormData();
         formData.append('file', file);
@@ -301,12 +308,12 @@ export const documentService = {
         await api.delete(`/document-tags/${id}/`);
     },
 
-    getDocumentTags: async (docId: string): Promise<any[]> => {
+    getDocumentTags: async (docId: string): Promise<DocumentTagLink[]> => {
         const response = await api.get(`/documents/${docId}/tags/`);
         return response.data;
     },
 
-    assignTag: async (docId: string, tagId: string): Promise<any> => {
+    assignTag: async (docId: string, tagId: string): Promise<DocumentTagLink> => {
         const response = await api.post(`/documents/${docId}/tags/`, { tag: tagId });
         return response.data;
     },

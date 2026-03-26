@@ -6,6 +6,14 @@ import { Input } from '../components/ui/Input';
 import { useUIStore } from '../store/ui.store';
 import authService from '../services/auth.service';
 
+function getErrorList(error: unknown): string[] {
+    if (error && typeof error === 'object' && 'response' in error) {
+        const response = (error as { response?: { data?: { errors?: string[] } } }).response;
+        return response?.data?.errors ?? [];
+    }
+    return [];
+}
+
 export const ResetPassword: React.FC = () => {
     const navigate = useNavigate();
     const { addToast } = useUIStore();
@@ -34,8 +42,8 @@ export const ResetPassword: React.FC = () => {
             await authService.resetPassword(email, otp, newPassword);
             addToast('success', 'Password reset successfully. Please log in.');
             navigate('/login');
-        } catch (error: any) {
-            const errors = error.response?.data?.errors;
+        } catch (error: unknown) {
+            const errors = getErrorList(error);
             const message = errors?.length
                 ? errors.join(' ')
                 : 'Failed to reset password. Please check your code.';

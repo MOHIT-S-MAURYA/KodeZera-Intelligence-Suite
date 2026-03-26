@@ -44,15 +44,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         // Monkey-patch pushState/replaceState so React-Router link clicks also reset
         const origPush = history.pushState.bind(history);
         const origReplace = history.replaceState.bind(history);
-        const self = this;
 
-        history.pushState = function (...args: Parameters<typeof origPush>) {
+        history.pushState = (...args: Parameters<typeof origPush>) => {
             origPush(...args);
-            self._onNavChange?.();
+            this._onNavChange?.();
         };
-        history.replaceState = function (...args: Parameters<typeof origReplace>) {
+        history.replaceState = (...args: Parameters<typeof origReplace>) => {
             origReplace(...args);
-            self._onNavChange?.();
+            this._onNavChange?.();
         };
 
         this._origPush = origPush;
