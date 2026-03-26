@@ -261,7 +261,7 @@ export const PlatformDashboard: React.FC = () => {
                                         <Badge variant={tenant.is_active ? 'success' : 'default'}>
                                             {tenant.is_active ? 'active' : 'inactive'}
                                         </Badge>
-                                        <Button variant="ghost" size="sm">Manage</Button>
+                                        <Button variant="ghost" size="sm" onClick={() => navigate('/platform/tenants')}>Manage</Button>
                                     </div>
                                 </div>
                             ))}
