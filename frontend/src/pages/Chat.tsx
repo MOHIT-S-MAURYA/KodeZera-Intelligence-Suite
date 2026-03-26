@@ -130,7 +130,7 @@ import ReactDOM from 'react-dom';
 import {
     Send, Plus, Search, Bot, MessageSquare, Trash2, Edit2, Folder,
     FolderPlus, MoreVertical, X, ChevronDown, ChevronRight,
-    CornerDownRight, Loader2,
+    CornerDownRight, Loader2, CheckSquare, Square, Info, Download, CheckCircle
 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { Card } from '../components/ui/Card';
@@ -248,6 +248,12 @@ export const Chat: React.FC = () => {
     const [input, setInput] = useState('');
 
     // ── UI state ──────────────────────────────────────────────────────────────
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+    const [detailsItem, setDetailsItem] = useState<{ id: string, type: 'session' | 'folder' } | null>(null);
+    const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
+    const [bulkMoveFolderId, setBulkMoveFolderId] = useState<string | null>(null);
+
     /** True during the initial parallel fetch of sessions + folders. Drives <SidebarSkeleton>. */
     const [loadingData, setLoadingData] = useState(true);
     /** True while fetching messages for a newly-selected session. */
@@ -303,6 +309,19 @@ export const Chat: React.FC = () => {
      */
     const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
+    // ── Gesture state (long-press and swipe) ──────────────────────────────────
+    /**
+     * Tracks the horizontal swipe translation (in pixels) for each item.
+     * Negative values = swiped left (revealing action buttons).
+     * Used to position reveal buttons via transform: translateX().
+     */
+    const [swipeTranslation, setSwipeTranslation] = useState<Map<string, number>>(new Map());
+    /**
+     * ID of the item currently being held down (long-press).
+     * When held for 500ms, triggers selection mode.
+     */
+    const [longPressId, setLongPressId] = useState<string | null>(null);
+
     // ── Refs ──────────────────────────────────────────────────────────────────
     /** Invisible div at the bottom of the message list, scrolled into view after each new message. */
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -319,6 +338,16 @@ export const Chat: React.FC = () => {
     const isCreatingRef = useRef(false);
     /** Ref to the text input — used to auto-focus after "New Chat" is clicked. */
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // ── Gesture tracking refs ─────────────────────────────────────────────────
+    /** Map of long-press timeout IDs, keyed by item ID. */
+    const longPressTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+    /** Tracks initial pointer X coordinate during swipe. */
+    const pointerStartXRef = useRef<number | null>(null);
+    /** ID of the item currently being swiped. */
+    const swipeItemRef = useRef<string | null>(null);
+    /** Tracks if this is a long-press (vs a regular click or swipe). */
+    const isLongPressRef = useRef(false);
 
     // ═════════════════════════════════════════════════════════════════════════
     // Effect: Initial data load
@@ -426,6 +455,83 @@ export const Chat: React.FC = () => {
         setMessages([]);
         setCtxMenu(null);
         inputRef.current?.focus();
+    };
+
+    const toggleSelection = (id: string) => {
+        setSelectedSessionIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleBulkDelete = () => {
+        if (selectedSessionIds.size === 0) return;
+        setConfirm({
+            isOpen: true,
+            title: 'Delete Selected Chats',
+            message: `Are you sure you want to delete ${selectedSessionIds.size} selected chats?`,
+            danger: true,
+            onConfirm: async () => {
+                const ids = Array.from(selectedSessionIds);
+                await ragService.bulkDeleteSessions(ids);
+                setSessions(prev => prev.filter(s => !selectedSessionIds.has(s.id)));
+                if (activeSessionId && selectedSessionIds.has(activeSessionId)) {
+                    setActiveSessionId(null);
+                    setMessages([]);
+                }
+                setSelectedSessionIds(new Set());
+                setIsSelecting(false);
+                addToast('success', `${ids.length} chats deleted.`);
+            },
+        });
+    };
+
+    const handleBulkMove = async () => {
+        if (selectedSessionIds.size === 0) return;
+        try {
+            const ids = Array.from(selectedSessionIds);
+            await ragService.bulkUpdateSessionFolder(ids, bulkMoveFolderId);
+            setSessions(prev => prev.map(s => selectedSessionIds.has(s.id) ? { ...s, folder: bulkMoveFolderId } : s));
+            if (bulkMoveFolderId) setExpandedFolders(prev => new Set(prev).add(bulkMoveFolderId));
+            setSelectedSessionIds(new Set());
+            setIsSelecting(false);
+            setShowBulkMoveModal(false);
+            addToast('success', `${ids.length} chats moved successfully.`);
+        } catch {
+            addToast('error', 'Failed to move selected chats.');
+        }
+    };
+
+    const exportChat = (sessionId: string) => {
+        setCtxMenu(null);
+        const session = sessions.find(s => s.id === sessionId);
+        if (!session) return;
+        
+        // Load messages for export if not active
+        const doExport = (msgs: ChatMessage[]) => {
+            let md = `# ${session.title}\n\n`;
+            msgs.forEach(m => {
+                md += `**${m.role === 'user' ? 'You' : 'Assistant'}**:\n${m.content}\n\n`;
+            });
+            const blob = new Blob([md], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${session.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        if (activeSessionId === sessionId) {
+            doExport(messages);
+        } else {
+            addToast('info', 'Preparing export...');
+            ragService.getMessages(sessionId).then(doExport).catch(() => addToast('error', 'Failed to load messages for export.'));
+        }
     };
 
     /**
@@ -817,6 +923,141 @@ export const Chat: React.FC = () => {
     };
 
     // ═════════════════════════════════════════════════════════════════════════
+    // Gesture Handlers: Long-press & Swipe-to-reveal
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Handle pointer down on a session/folder row.
+     * Starts a 500ms timer: if the pointer stays down for 500ms (without moving
+     * more than ~5px), trigger selection mode and select this item.
+     * If pointer moves significantly, the gesture is treated as a swipe instead.
+     *
+     * @param e - PointerEvent from the row
+     * @param id - UUID of the session or folder
+     */
+    const handleRowPointerDown = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+        // Don't start long-press during inline rename or if already selecting
+        if (editingId || isSelecting) return;
+
+        pointerStartXRef.current = e.clientX;
+        swipeItemRef.current = id;
+        isLongPressRef.current = false;
+
+        // Clear any existing timer for this ID
+        if (longPressTimersRef.current.has(id)) {
+            clearTimeout(longPressTimersRef.current.get(id)!);
+        }
+
+        // 500ms timer to trigger selection
+        const timer = setTimeout(() => {
+            isLongPressRef.current = true;
+            setLongPressId(id);
+            setIsSelecting(true);
+            toggleSelection(id);
+            addToast('info', 'Selection mode activated. Tap items to select.');
+        }, 500);
+
+        longPressTimersRef.current.set(id, timer);
+    };
+
+    /**
+     * Handle pointer move on a session/folder row.
+     * If the pointer has moved more than 5px horizontally, cancel long-press
+     * and start tracking swipe.
+     *
+     * @param e - PointerEvent from the row
+     * @param id - UUID of the item being swiped
+     */
+    const handleRowPointerMove = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+        if (!pointerStartXRef.current) return;
+
+        const deltaX = Math.abs(e.clientX - pointerStartXRef.current);
+
+        // If moved more than 5px, cancel long-press and treat as swipe
+        if (deltaX > 5 && !isLongPressRef.current && longPressTimersRef.current.has(id)) {
+            clearTimeout(longPressTimersRef.current.get(id)!);
+            longPressTimersRef.current.delete(id);
+        }
+
+        // If this is a horizontal drag (likely swipe), update translation
+        if (deltaX > 5 && pointerStartXRef.current !== undefined) {
+            const currentDelta = e.clientX - pointerStartXRef.current;
+            // Only allow negative translation (swipe left)
+            const translation = Math.min(0, currentDelta);
+            setSwipeTranslation(prev => new Map(prev).set(id, translation));
+        }
+    };
+
+    /**
+     * Handle pointer up/cancel.
+     * If swiped past threshold (-60px), lock the reveal buttons.
+     * Otherwise, snap back to closed position.
+     *
+     * @param e - PointerEvent
+     * @param id - UUID of the item
+     */
+    const handleRowPointerUp = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+        // Clean up long-press timer
+        if (longPressTimersRef.current.has(id)) {
+            clearTimeout(longPressTimersRef.current.get(id)!);
+            longPressTimersRef.current.delete(id);
+        }
+
+        const translation = swipeTranslation.get(id) ?? 0;
+        const REVEAL_THRESHOLD = -60;
+
+        // If swiped past threshold, keep it revealed; otherwise snap closed
+        if (translation < REVEAL_THRESHOLD) {
+            // Keep revealed
+            setSwipeTranslation(prev => new Map(prev).set(id, REVEAL_THRESHOLD));
+        } else {
+            // Snap closed
+            setSwipeTranslation(prev => {
+                const next = new Map(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+
+        pointerStartXRef.current = null;
+        swipeItemRef.current = null;
+        isLongPressRef.current = false;
+    };
+
+    /**
+     * Handle pointer leave.
+     * If the pointer leaves the row during a swipe, snap back.
+     * This prevents accidental reveals when dragging outside.
+     */
+    const handleRowPointerLeave = (id: string) => {
+        const translation = swipeTranslation.get(id) ?? 0;
+        const REVEAL_THRESHOLD = -60;
+
+        // Only snap back if we haven't crossed the threshold yet
+        if (translation > REVEAL_THRESHOLD) {
+            setSwipeTranslation(prev => {
+                const next = new Map(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+    };
+
+    /**
+     * Snap a swiped item back to closed position.
+     * Used when the action is performed or when the user wants to close manually.
+     *
+     * @param id - UUID of the item to close
+     */
+    const closeSwipe = (id: string) => {
+        setSwipeTranslation(prev => {
+            const next = new Map(prev);
+            next.delete(id);
+            return next;
+        });
+    };
+
+    // ═════════════════════════════════════════════════════════════════════════
     // Helpers: Context menu position
     // ═════════════════════════════════════════════════════════════════════════
 
@@ -904,10 +1145,14 @@ export const Chat: React.FC = () => {
      * Features:
      *  • draggable — enables drag-to-folder reordering (Fix #7)
      *  • Inline rename input when editingId === session.id (Fix #5)
+     *  • Long-press (500ms) → activate selection mode and select this item
+     *  • Swipe left → reveal Move/Delete action buttons
+     *  • Swipe threshold -60px → lock reveal; otherwise snap closed
      *  • ⋮ button visible only on row hover (Fix #2 — no bg bleed)
      *  • Dims (opacity-40) when being dragged
      *  • Shows latest_message preview snippet below title
      *  • indented=true adds a left-border indent for folder children
+     *  • Glassmorphism styling: backdrop-blur, subtle glow effects
      *
      * @param session  - The ChatSession to render
      * @param indented - True when the session is inside a folder (adds visual indent)
@@ -916,6 +1161,9 @@ export const Chat: React.FC = () => {
         const isActive = activeSessionId === session.id;
         const isEditing = editingId === session.id;
         const isDragging = dragSessionId === session.id;
+        const isSelected = selectedSessionIds.has(session.id);
+        const swipeX = swipeTranslation.get(session.id) ?? 0;
+        const isRevealed = swipeX < -60;
 
         return (
             <div
@@ -923,20 +1171,39 @@ export const Chat: React.FC = () => {
                 draggable
                 onDragStart={(e) => onDragStart(e, session.id)}
                 onDragEnd={onDragEnd}
-                onClick={() => { if (!isEditing) setActiveSessionId(session.id); }}
+                onPointerDown={(e) => handleRowPointerDown(e, session.id)}
+                onPointerMove={(e) => handleRowPointerMove(e, session.id)}
+                onPointerUp={(e) => handleRowPointerUp(e, session.id)}
+                onPointerLeave={() => handleRowPointerLeave(session.id)}
+                onClick={() => { 
+                    if (isSelecting) toggleSelection(session.id);
+                    else if (!isEditing && swipeX === 0) setActiveSessionId(session.id);
+                }}
                 className={[
-                    'group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all select-none',
-                    isActive ? 'bg-accent-cyan/10 text-accent-cyan font-semibold' : 'hover:bg-surface-hover text-text-main',
-                    // Visual indent for sessions inside folders — left border shows hierarchy
-                    indented ? 'ml-5 border-l-2 border-border pl-3 rounded-l-none' : '',
+                    'group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all select-none overflow-hidden',
+                    isActive && !isSelecting ? 
+                        'bg-[linear-gradient(135deg,rgba(6,182,212,0.15),rgba(6,182,212,0.05))] text-accent-cyan font-semibold shadow-sm border border-accent-cyan/20 backdrop-blur-sm' 
+                        : isSelected ?
+                        'bg-accent-blue/8 border border-accent-blue/30 backdrop-blur-xs'
+                        : 'hover:bg-surface-hover text-text-main border border-transparent hover:border-border/50 hover:shadow-sm',
+                    // Visual indent for sessions inside folders — no border, just spacing
+                    indented ? 'ml-5 pl-3' : '',
                     // Dim the source row while it is being dragged
                     isDragging ? 'opacity-40 scale-95' : '',
                 ].join(' ')}
+                style={{
+                    transform: `translateX(${swipeX}px)`,
+                    transition: swipeX === 0 ? 'transform 200ms cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+                }}
             >
-                {/* Icon: indent indicator OR chat bubble */}
-                {indented
-                    ? <CornerDownRight className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-brand-400' : 'text-gray-300'}`} />
-                    : <MessageSquare className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-brand-500' : 'text-gray-400'}`} />
+                {/* Icon: checkbox OR indent OR chat bubble */}
+                {isSelecting ? (
+                    isSelected 
+                        ? <CheckSquare className="w-4 h-4 flex-shrink-0 text-brand-500" />
+                        : <Square className="w-4 h-4 flex-shrink-0 text-gray-400" />
+                ) : indented
+                    ? <CornerDownRight className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-accent-cyan' : 'text-gray-400'}`} />
+                    : <MessageSquare className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-accent-cyan' : 'text-gray-500'}`} />
                 }
 
                 {/* Inline rename input OR title + preview */}
@@ -946,8 +1213,8 @@ export const Chat: React.FC = () => {
                         value={editingValue}
                         onChange={e => setEditingValue(e.target.value)}
                         onKeyDown={handleRenameKeyDown}
-                        onBlur={commitRename}   // clicking away saves the rename
-                        onClick={e => e.stopPropagation()}  // don't trigger row click
+                        onBlur={commitRename}
+                        onClick={e => e.stopPropagation()}
                         className="flex-1 text-sm bg-surface text-text-main border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan"
                     />
                 ) : (
@@ -955,24 +1222,55 @@ export const Chat: React.FC = () => {
                         <p className="text-sm font-medium truncate">{session.title}</p>
                         {/* Latest message preview — 100 char snippet from backend serializer */}
                         {session.latest_message && (
-                            <p className="text-xs text-gray-400 truncate mt-0.5">
+                            <p className="text-xs text-text-muted truncate mt-0.5 opacity-70">
                                 {session.latest_message.content}
                             </p>
                         )}
                     </div>
                 )}
 
-                {/* ⋮ button — only visible on hover (opacity-0 → group-hover:opacity-100).
-                    Fix #2: no hardcoded background class — button is fully transparent
-                    until hovered, eliminating the grey bg bleed from the original code. */}
-                {!isEditing && (
+                {/* ⋮ button — only visible on hover when not editing and not swiped */}
+                {!isEditing && swipeX === 0 && (
                     <button
                         onClick={(e) => openCtxMenu(e, session.id, 'session')}
-                        className="flex-shrink-0 p-1 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="flex-shrink-0 p-1 rounded text-text-muted hover:text-text-main hover:bg-surface/50 opacity-0 group-hover:opacity-100 transition-all"
                         title="More options"
                     >
                         <MoreVertical className="w-3.5 h-3.5" />
                     </button>
+                )}
+
+                {/* Swipe-reveal action buttons (Move / Delete) — shown when swiped left */}
+                {swipeX < 0 && (
+                    <div className="absolute right-0 top-0 h-full flex items-center gap-0.5 pr-1 bg-gradient-to-l from-slate-900 via-slate-900/95 to-transparent pl-6">
+                        {/* Move to folder button */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                closeSwipe(session.id);
+                                if (folders.length > 0) {
+                                    setShowBulkMoveModal(true);
+                                    setSelectedSessionIds(new Set([session.id]));
+                                }
+                            }}
+                            className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-colors flex-shrink-0 backdrop-blur-sm"
+                            title="Move chat"
+                        >
+                            <Folder className="w-4 h-4" />
+                        </button>
+                        {/* Delete button */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                closeSwipe(session.id);
+                                deleteSession(session.id);
+                            }}
+                            className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors flex-shrink-0 backdrop-blur-sm"
+                            title="Delete chat"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
                 )}
             </div>
         );
@@ -989,12 +1287,13 @@ export const Chat: React.FC = () => {
      *
      * Features:
      *  • Click header to expand/collapse
-     *  • Drag-over highlight ring (Fix #7 drop target)
+     *  • Drag-over highlight with glassmorphic glow (Fix #7 drop target)
      *  • Inline rename for folder name (Fix #5)
-     *  • Session count badge — e.g. "(3)" (Fix #8)
+     *  • Session count badge with updated styling
      *  • ⋮ button visible on hover only (Fix #2)
      *  • Auto-expands when a search query matches children (Fix #4)
      *  • "Empty — drag chats here" hint when folder is empty and no search
+     *  • Glassmorphism styling with subtle borders and backdrop blur
      *
      * @param folder - The ChatFolder to render
      */
@@ -1028,20 +1327,19 @@ export const Chat: React.FC = () => {
                         });
                     }}
                     className={[
-                        'group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all',
+                        'group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all select-none',
                         isDragOver
-                            // Blue ring when a session is dragged over this folder
-                            ? 'bg-accent-blue/10 ring-2 ring-accent-blue ring-inset'
-                            : 'hover:bg-surface-hover text-text-main',
+                            ? 'bg-accent-blue/12 ring-1.5 ring-accent-blue/40 shadow-[0_0_20px_rgba(59,130,246,0.15)] backdrop-blur-sm'
+                            : 'hover:bg-surface-hover/50 text-text-main border border-transparent hover:border-border/30',
                     ].join(' ')}
                 >
                     {/* Chevron expand/collapse indicator */}
                     {isExpanded
-                        ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        ? <ChevronDown className="w-3.5 h-3.5 text-text-muted flex-shrink-0 transition-transform" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-text-muted flex-shrink-0 transition-transform" />
                     }
-                    {/* Folder icon — fills blue tint when drag target is active */}
-                    <Folder className={`w-4 h-4 flex-shrink-0 ${isDragOver ? 'text-brand-500 fill-brand-100' : 'text-blue-500 fill-blue-50'}`} />
+                    {/* Folder icon — subtle glow when drag target is active */}
+                    <Folder className={`w-4 h-4 flex-shrink-0 transition-colors ${isDragOver ? 'text-accent-blue fill-accent-blue/20' : 'text-blue-400 fill-blue-400/10'}`} />
 
                     {/* Inline rename OR folder name */}
                     {isEditing ? (
@@ -1052,25 +1350,25 @@ export const Chat: React.FC = () => {
                             onKeyDown={handleRenameKeyDown}
                             onBlur={commitRename}
                             onClick={e => e.stopPropagation()}
-                            className="flex-1 text-sm font-semibold bg-white border border-brand-400 rounded px-2 py-0.5 outline-none ring-1 ring-brand-400"
+                            className="flex-1 text-sm font-semibold bg-surface border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan"
                         />
                     ) : (
-                        <span className="flex-1 text-sm font-semibold truncate select-none">
+                        <span className="flex-1 text-sm font-semibold truncate select-none text-text-main">
                             {folder.name}
                         </span>
                     )}
 
-                    {/* Session count badge (Fix #8) + hover ⋮ button (Fix #2) */}
+                    {/* Session count badge + hover ⋮ button */}
                     {!isEditing && (
                         <>
-                            {/* Count pill — shows how many sessions are inside without expanding */}
-                            <span className="text-xs text-gray-400 font-medium flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                            {/* Count pill with glassmorphic styling */}
+                            <span className="text-xs text-text-muted font-medium flex-shrink-0 bg-surface-hover/60 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-border/30 transition-colors">
                                 {fSessions.length}
                             </span>
-                            {/* ⋮ button — only visible on hover (opacity-0 → group-hover) */}
+                            {/* ⋮ button — only visible on hover */}
                             <button
                                 onClick={(e) => openCtxMenu(e, folder.id, 'folder')}
-                                className="flex-shrink-0 p-1 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="flex-shrink-0 p-1 rounded text-text-muted hover:text-text-main hover:bg-surface/50 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
                                 title="More options"
                             >
                                 <MoreVertical className="w-3.5 h-3.5" />
@@ -1086,7 +1384,7 @@ export const Chat: React.FC = () => {
                             ? fSessions.map(s => renderSession(s, true))
                             : !q && (
                                 // Empty folder hint — only shown when not searching
-                                <p className="ml-8 text-xs text-gray-400 italic py-1.5">
+                                <p className="ml-8 text-xs text-text-muted italic py-1.5 opacity-60">
                                     Empty — drag chats here
                                 </p>
                             )
@@ -1108,8 +1406,8 @@ export const Chat: React.FC = () => {
             <div className="w-72 hidden lg:flex flex-col">
                 <Card variant="default" className="flex-1 flex flex-col overflow-hidden">
 
-                    {/* Action buttons: New Chat + New Folder */}
-                    <div className="p-3 border-b border-border flex gap-2">
+                    {/* Action buttons: New Chat + New Folder + Select Toggle */}
+                    <div className="p-3 flex gap-2 border-b border-border/20 backdrop-blur-sm">
                         <Button
                             onClick={handleNewChat}
                             variant="primary"
@@ -1119,6 +1417,18 @@ export const Chat: React.FC = () => {
                         >
                             New Chat
                         </Button>
+                        <Button
+                            onClick={() => {
+                                setIsSelecting(!isSelecting);
+                                setSelectedSessionIds(new Set());
+                            }}
+                            variant={isSelecting ? "primary" : "secondary"}
+                            size="sm"
+                            className="px-2.5"
+                            title="Select Multiple"
+                        >
+                            <CheckCircle className="w-4 h-4" />
+                        </Button>
                         {/* New Folder button — icon-only to save space */}
                         <Button
                             onClick={handleNewFolder}
@@ -1127,7 +1437,7 @@ export const Chat: React.FC = () => {
                             className="px-2.5"
                             title="New Folder"
                         >
-                            <FolderPlus className="w-4 h-4 text-gray-600" />
+                            <FolderPlus className="w-4 h-4 text-text-muted" />
                         </Button>
                     </div>
 
@@ -1158,7 +1468,7 @@ export const Chat: React.FC = () => {
                                 {/* ── Folders section ──────────────────────────── */}
                                 {foldersToShow.length > 0 && (
                                     <div>
-                                        <p className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                        <p className="px-2 py-1 text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">
                                             Folders
                                         </p>
                                         <div className="space-y-0.5">
@@ -1172,8 +1482,8 @@ export const Chat: React.FC = () => {
                                  * This entire section is a drop target (Fix #7).
                                  * Dropping a session here sets its folder FK to null,
                                  * effectively "removing" it from any folder.
-                                 * The blue ring highlight only appears when a drag is
-                                 * hovering over this section.
+                                 * The highlight only appears when a drag is hovering
+                                 * over this section.
                                  */}
                                 {(ungroupedSessions.length > 0 || dragOverFolderId === '__ungrouped__') && (
                                     <div
@@ -1183,13 +1493,13 @@ export const Chat: React.FC = () => {
                                         className={[
                                             'rounded-lg transition-all',
                                             dragOverFolderId === '__ungrouped__'
-                                                ? 'ring-2 ring-brand-400 ring-inset bg-brand-50 p-1'
+                                                ? 'ring-1.5 ring-accent-blue/40 bg-accent-blue/8 backdrop-blur-sm shadow-[0_0_15px_rgba(59,130,246,0.1)] p-1'
                                                 : '',
                                         ].join(' ')}
                                     >
                                         {/* Only show the "Chats" section header when folders also exist */}
                                         {foldersToShow.length > 0 && (
-                                            <p className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                            <p className="px-2 py-1 text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">
                                                 Chats
                                             </p>
                                         )}
@@ -1201,10 +1511,10 @@ export const Chat: React.FC = () => {
 
                                 {/* ── Empty state (no sessions and no folders) ─── */}
                                 {sessions.length === 0 && folders.length === 0 && !q && (
-                                    <div className="flex flex-col items-center gap-2 py-12 text-gray-400">
-                                        <MessageSquare className="w-9 h-9 opacity-25" />
-                                        <p className="text-sm font-medium text-gray-500">No chats yet</p>
-                                        <p className="text-xs text-center leading-relaxed">
+                                    <div className="flex flex-col items-center gap-2 py-12 text-text-muted">
+                                        <MessageSquare className="w-9 h-9 opacity-30" />
+                                        <p className="text-sm font-medium text-text-main opacity-70">No chats yet</p>
+                                        <p className="text-xs text-center leading-relaxed text-text-muted opacity-60">
                                             Click <strong>New Chat</strong> or just<br />type a message to start!
                                         </p>
                                     </div>
@@ -1212,15 +1522,44 @@ export const Chat: React.FC = () => {
 
                                 {/* ── No search results state ───────────────────── */}
                                 {q && foldersToShow.length === 0 && filteredSessions.length === 0 && (
-                                    <div className="flex flex-col items-center gap-2 py-10 text-gray-400">
-                                        <Search className="w-7 h-7 opacity-25" />
-                                        <p className="text-sm">No matches for <strong>"{searchQuery}"</strong></p>
+                                    <div className="flex flex-col items-center gap-2 py-10 text-text-muted">
+                                        <Search className="w-7 h-7 opacity-30" />
+                                        <p className="text-sm opacity-70">No matches for <strong>"{searchQuery}"</strong></p>
                                     </div>
                                 )}
 
                             </div>
                         )}
                     </div>
+
+                    {/* Bulk Selection Bottom Action Bar */}
+                    {isSelecting && (
+                        <div className="p-3 border-t border-border/20 backdrop-blur-sm bg-surface-hover/40 flex flex-col gap-2">
+                            <span className="text-xs font-semibold text-text-muted self-center">
+                                {selectedSessionIds.size} Selected
+                            </span>
+                            <div className="flex gap-2">
+                                <Button 
+                                    size="sm" 
+                                    variant="secondary" 
+                                    disabled={selectedSessionIds.size === 0} 
+                                    className="flex-1 text-xs"
+                                    onClick={() => setShowBulkMoveModal(true)}
+                                >
+                                    Move
+                                </Button>
+                                <Button 
+                                    size="sm" 
+                                    variant="danger" 
+                                    disabled={selectedSessionIds.size === 0} 
+                                    className="flex-1 text-xs"
+                                    onClick={handleBulkDelete}
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </Card>
             </div>
 
@@ -1234,12 +1573,13 @@ export const Chat: React.FC = () => {
                  *   • Pencil icon → inline rename (same startRename flow as sidebar)
                  *   • Trash icon → delete session confirm modal
                  * Hides itself when no session is selected (blank "new chat" state).
+                 * Updated styling with glassmorphism.
                  */}
                 {activeSessionId && (() => {
                     const s = sessions.find(x => x.id === activeSessionId);
                     if (!s) return null;
                     return (
-                        <div className="px-5 py-3 border-b border-border flex items-center gap-2 min-w-0 bg-surface sticky top-0 z-10">
+                        <div className="px-5 py-3 border-b border-border/20 flex items-center gap-2 min-w-0 bg-surface/80 backdrop-blur-sm sticky top-0 z-10">
                             <MessageSquare className="w-4 h-4 text-accent-cyan flex-shrink-0" />
                             {editingId === activeSessionId ? (
                                 // Inline rename in the header — same behaviour as sidebar rename
@@ -1249,23 +1589,23 @@ export const Chat: React.FC = () => {
                                     onChange={e => setEditingValue(e.target.value)}
                                     onKeyDown={handleRenameKeyDown}
                                     onBlur={commitRename}
-                                    className="flex-1 text-sm font-semibold bg-white border border-brand-400 rounded px-2 py-0.5 outline-none ring-1 ring-brand-400 min-w-0"
+                                    className="flex-1 text-sm font-semibold bg-surface border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan min-w-0"
                                 />
                             ) : (
-                                <span className="text-sm font-semibold text-gray-800 truncate flex-1">
+                                <span className="text-sm font-semibold text-text-main truncate flex-1">
                                     {s.title}
                                 </span>
                             )}
                             <button
                                 onClick={() => startRename(s.id, 'session', s.title)}
-                                className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+                                className="p-1.5 rounded text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors flex-shrink-0"
                                 title="Rename chat"
                             >
                                 <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={() => deleteSession(activeSessionId)}
-                                className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                                className="p-1.5 rounded text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
                                 title="Delete chat"
                             >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1371,7 +1711,7 @@ export const Chat: React.FC = () => {
                 </div>
 
                 {/* ── Input bar ────────────────────────────────────────────── */}
-                <div className="p-4 border-t border-border bg-surface-hover">
+                <div className="p-4 border-t border-border/20 bg-surface/80 backdrop-blur-sm">
                     <div className="flex items-center gap-2 max-w-4xl mx-auto">
                         <input
                             ref={inputRef}
@@ -1384,7 +1724,7 @@ export const Chat: React.FC = () => {
                             }}
                             placeholder="Message AI Assistant\u2026"
                             disabled={sendingMessage}
-                            className="flex-1 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent transition-shadow text-sm disabled:opacity-60 bg-surface text-text-main placeholder-text-muted"
+                            className="flex-1 px-4 py-3 rounded-xl border border-border/50 focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent transition-all text-sm disabled:opacity-60 bg-surface text-text-main placeholder-text-muted"
                         />
                         <Button
                             onClick={handleSend}
@@ -1401,7 +1741,7 @@ export const Chat: React.FC = () => {
                         </Button>
                     </div>
                     {/* Disclaimer — hidden on small screens */}
-                    <p className="text-center text-[11px] text-gray-400 mt-2 hidden md:block">
+                    <p className="text-center text-[11px] text-text-muted mt-2 hidden md:block opacity-60">
                         AI can make mistakes — verify critical info using the source citations above.
                     </p>
                 </div>
@@ -1486,6 +1826,22 @@ export const Chat: React.FC = () => {
 
                                 <div className="border-t border-gray-100 my-1" />
                                 <button
+                                    onClick={() => exportChat(ctxMenu.id)}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                    <Download className="w-4 h-4 text-gray-400" /> Export to Markdown
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setDetailsItem({ id: ctxMenu.id, type: 'session' });
+                                        setCtxMenu(null);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                    <Info className="w-4 h-4 text-gray-400" /> View Details
+                                </button>
+                                <div className="border-t border-gray-100 my-1" />
+                                <button
                                     onClick={() => deleteSession(ctxMenu.id)}
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
                                 >
@@ -1505,6 +1861,16 @@ export const Chat: React.FC = () => {
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                                 >
                                     <Edit2 className="w-4 h-4 text-gray-400" /> Rename Folder
+                                </button>
+                                <div className="border-t border-gray-100 my-1" />
+                                <button
+                                    onClick={() => {
+                                        setDetailsItem({ id: ctxMenu.id, type: 'folder' });
+                                        setCtxMenu(null);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                    <Info className="w-4 h-4 text-gray-400" /> View Details
                                 </button>
                                 <div className="border-t border-gray-100 my-1" />
                                 <button
@@ -1552,6 +1918,86 @@ export const Chat: React.FC = () => {
                         </Button>
                     </div>
                 </div>
+            </Modal>
+
+            {/* Folder Select Modal for Bulk Move */}
+            <Modal
+                isOpen={showBulkMoveModal}
+                onClose={() => setShowBulkMoveModal(false)}
+                title="Move Selected Chats"
+                size="sm"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-600 text-sm">Select a destination folder for {selectedSessionIds.size} chats.</p>
+                    <div className="flex flex-col gap-2 max-h-60 overflow-y-auto mt-2">
+                        <button
+                            onClick={() => setBulkMoveFolderId(null)}
+                            className={`flex justify-between w-full items-center gap-2 px-3 py-2 text-sm rounded ${bulkMoveFolderId === null ? 'bg-brand-50 border-brand-200 border' : 'bg-gray-50 border border-gray-100'}`}
+                        >
+                            <span className="flex gap-2 items-center text-gray-600"><Folder className="w-4 h-4 text-gray-400" /> (Remove from Folder)</span>
+                            {bulkMoveFolderId === null && <CheckCircle className="w-4 h-4 text-brand-500" />}
+                        </button>
+                        {folders.map(f => (
+                            <button
+                                key={f.id}
+                                onClick={() => setBulkMoveFolderId(f.id)}
+                                className={`flex justify-between w-full items-center gap-2 px-3 py-2 text-sm rounded ${bulkMoveFolderId === f.id ? 'bg-brand-50 border-brand-200 border' : 'bg-gray-50 border border-gray-100'}`}
+                            >
+                                <span className="flex gap-2 items-center text-gray-600"><Folder className="w-4 h-4 text-blue-400" /> {f.name}</span>
+                                {bulkMoveFolderId === f.id && <CheckCircle className="w-4 h-4 text-brand-500" />}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                        <Button variant="secondary" onClick={() => setShowBulkMoveModal(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleBulkMove}>Move</Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Details Modal */}
+            <Modal
+                isOpen={!!detailsItem}
+                onClose={() => setDetailsItem(null)}
+                title={detailsItem?.type === 'session' ? 'Chat Details' : 'Folder Details'}
+                size="sm"
+            >
+                {detailsItem && (() => {
+                    const item = detailsItem.type === 'session' 
+                        ? sessions.find(s => s.id === detailsItem.id) 
+                        : folders.find(f => f.id === detailsItem.id);
+                    if (!item) return <p>Item not found</p>;
+                    
+                    return (
+                        <div className="space-y-4 text-sm text-gray-700">
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="font-semibold text-gray-500">Name</span>
+                                <span className="text-right ml-4 max-w-[200px] truncate">{detailsItem.type === 'session' ? (item as ChatSession).title : (item as ChatFolder).name}</span>
+                            </div>
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="font-semibold text-gray-500">Created At</span>
+                                <span className="text-right">{new Date(item.created_at).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="font-semibold text-gray-500">Last Modified</span>
+                                <span className="text-right">{new Date(item.updated_at).toLocaleString()}</span>
+                            </div>
+                            {detailsItem.type === 'session' && (
+                                <div className="flex justify-between pb-2">
+                                    <span className="font-semibold text-gray-500">Folder</span>
+                                    <span className="text-right">
+                                        {(item as ChatSession).folder 
+                                            ? folders.find(f => f.id === (item as ChatSession).folder)?.name ?? 'Unknown Folder'
+                                            : 'None'}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                                <Button variant="primary" onClick={() => setDetailsItem(null)}>Close</Button>
+                            </div>
+                        </div>
+                    );
+                })()}
             </Modal>
         </div>
     );
