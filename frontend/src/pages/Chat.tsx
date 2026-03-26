@@ -1215,6 +1215,9 @@ export const Chat: React.FC = () => {
                         onKeyDown={handleRenameKeyDown}
                         onBlur={commitRename}
                         onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                        onPointerMove={e => e.stopPropagation()}
+                        onPointerUp={e => e.stopPropagation()}
                         className="flex-1 text-sm bg-surface text-text-main border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan"
                     />
                 ) : (
@@ -1350,6 +1353,9 @@ export const Chat: React.FC = () => {
                             onKeyDown={handleRenameKeyDown}
                             onBlur={commitRename}
                             onClick={e => e.stopPropagation()}
+                            onPointerDown={e => e.stopPropagation()}
+                            onPointerMove={e => e.stopPropagation()}
+                            onPointerUp={e => e.stopPropagation()}
                             className="flex-1 text-sm font-semibold bg-surface border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan"
                         />
                     ) : (
@@ -1589,6 +1595,10 @@ export const Chat: React.FC = () => {
                                     onChange={e => setEditingValue(e.target.value)}
                                     onKeyDown={handleRenameKeyDown}
                                     onBlur={commitRename}
+                                    onClick={e => e.stopPropagation()}
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onPointerMove={e => e.stopPropagation()}
+                                    onPointerUp={e => e.stopPropagation()}
                                     className="flex-1 text-sm font-semibold bg-surface border border-accent-cyan rounded px-2 py-0.5 outline-none ring-1 ring-accent-cyan min-w-0"
                                 />
                             ) : (
