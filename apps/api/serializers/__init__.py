@@ -432,6 +432,27 @@ class UserRoleSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'role', 'role_name', 'created_at']
         read_only_fields = ['id', 'created_at']
 
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if not request or not request.user:
+            return attrs
+        tenant = request.user.tenant
+
+        user = attrs.get('user')
+        role = attrs.get('role')
+
+        if user and user.tenant != tenant:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User does not belong to your tenant.")
+        if role and role.tenant != tenant:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Role does not belong to your tenant.")
+        if role and role.is_system_role:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Cannot manually assign system roles.")
+
+        return attrs
+
 
 class RolePermissionSerializer(serializers.ModelSerializer):
     """Serializer for RolePermission."""

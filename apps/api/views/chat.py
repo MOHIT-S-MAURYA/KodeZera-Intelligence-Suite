@@ -12,7 +12,9 @@ from apps.api.serializers.chat import (
     ChatSessionCreateSerializer,
     ChatSessionRenameSerializer,
     ChatFolderSerializer,
-    ChatSessionUpdateFolderSerializer
+    ChatSessionUpdateFolderSerializer,
+    BulkSessionDeleteSerializer,
+    BulkSessionFolderSerializer
 )
 import logging
 
@@ -69,6 +71,10 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
             return ChatSessionRenameSerializer
         elif self.action == 'update_folder':
             return ChatSessionUpdateFolderSerializer
+        elif self.action == 'bulk_delete':
+            return BulkSessionDeleteSerializer
+        elif self.action == 'bulk_folder':
+            return BulkSessionFolderSerializer
         return ChatSessionSerializer
 
     def create(self, request, *args, **kwargs):
@@ -125,6 +131,53 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
             
         session.save()
         return Response(ChatSessionSerializer(session).data)
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        """Delete multiple chat sessions."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        session_ids = serializer.validated_data['session_ids']
+        
+        deleted_count, _ = ChatSession.objects.filter(
+            id__in=session_ids,
+            user=request.user,
+            tenant=request.user.tenant
+        ).delete()
+        
+        return Response({'deleted': deleted_count}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='bulk-folder')
+    def bulk_folder(self, request):
+        """Move multiple chat sessions to a folder."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        session_ids = serializer.validated_data['session_ids']
+        folder_id = serializer.validated_data.get('folder_id')
+        
+        sessions = ChatSession.objects.filter(
+            id__in=session_ids,
+            user=request.user,
+            tenant=request.user.tenant
+        )
+
+        if folder_id:
+            try:
+                folder = ChatFolder.objects.get(
+                    id=folder_id,
+                    user=request.user,
+                    tenant=request.user.tenant
+                )
+                sessions.update(folder=folder)
+            except ChatFolder.DoesNotExist:
+                return Response(
+                    {"error": "Folder not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            sessions.update(folder=None)
+            
+        return Response({'updated': sessions.count()}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):

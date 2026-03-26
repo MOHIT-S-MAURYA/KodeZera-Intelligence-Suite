@@ -55,3 +55,20 @@ class ChatSessionRenameSerializer(serializers.Serializer):
 class ChatSessionUpdateFolderSerializer(serializers.Serializer):
     """Serializer for moving a ChatSession to a different folder."""
     folder_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class BulkSessionDeleteSerializer(serializers.Serializer):
+    """Serializer for bulk deleting chat sessions."""
+    session_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False
+    )
+
+
+class BulkSessionFolderSerializer(serializers.Serializer):
+    """Serializer for bulk moving chat sessions to a folder."""
+    session_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False
+    )
+    folder_id = serializers.UUIDField(required=False, allow_null=True)

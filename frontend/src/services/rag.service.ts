@@ -75,6 +75,16 @@ export const ragService = {
         return response.data;
     },
 
+    bulkDeleteSessions: async (ids: string[]): Promise<{ deleted: number }> => {
+        const response = await api.post('/rag/sessions/bulk-delete/', { session_ids: ids });
+        return response.data;
+    },
+
+    bulkUpdateSessionFolder: async (ids: string[], folderId: string | null): Promise<{ updated: number }> => {
+        const response = await api.post('/rag/sessions/bulk-folder/', { session_ids: ids, folder_id: folderId });
+        return response.data;
+    },
+
     // --- Folder Management ---
     getFolders: async (): Promise<ChatFolder[]> => {
         const response = await api.get('/rag/folders/');

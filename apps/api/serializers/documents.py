@@ -140,6 +140,33 @@ class DocumentAccessSerializer(serializers.ModelSerializer):
             return obj.org_unit.name
         return str(obj.access_id) if obj.access_id else ''
 
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if not request or not request.user:
+            return attrs
+        tenant = request.user.tenant
+
+        document = attrs.get('document')
+        role = attrs.get('role')
+        org_unit = attrs.get('org_unit')
+        user = attrs.get('user')
+
+        from rest_framework.exceptions import PermissionDenied
+
+        # 1. Ensure the document belongs to the requesting user's tenant
+        if document and document.tenant != tenant:
+            raise PermissionDenied("You cannot manage access for documents outside your tenant.")
+
+        # 2. Ensure grantees belong to the same tenant
+        if role and role.tenant != tenant:
+            raise PermissionDenied("The specified role does not belong to your tenant.")
+        if org_unit and org_unit.tenant != tenant:
+            raise PermissionDenied("The specified department does not belong to your tenant.")
+        if user and user.tenant != tenant:
+            raise PermissionDenied("The specified user does not belong to your tenant.")
+
+        return attrs
+
 
 # ── DocumentFolder ───────────────────────────────────────────────────────
 

@@ -99,7 +99,7 @@ const ProviderButtons: React.FC<{
                     onClick={() => onSelect(id)}
                     type="button"
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-150 ${isActive
-                        ? 'bg-brand border-brand text-white shadow-sm'
+                        ? 'bg-accent-cyan border-accent-cyan text-white shadow-sm'
                         : info.available
                             ? 'bg-surface border-border text-text-main hover:border-accent-cyan hover:text-accent-cyan'
                             : 'bg-surface-hover border-border text-text-muted cursor-default'
@@ -551,7 +551,7 @@ export const PlatformAIConfig: React.FC = () => {
                     type="button"
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-brand hover:bg-brand/90 disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm transition-all duration-150"
+                    className="flex items-center gap-2 bg-accent-cyan hover:bg-accent-cyan/90 disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm transition-all duration-150"
                 >
                     {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     {saving ? 'Saving…' : 'Save Configuration'}
