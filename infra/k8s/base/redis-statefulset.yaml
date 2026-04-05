@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kodezera-redis
+  namespace: kodezera
+  labels:
+    app: kodezera
+    component: redis
+spec:
+  serviceName: kodezera-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: redis
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["redis-server", "--appendonly", "yes", "--save", "", "--maxmemory-policy", "allkeys-lru"]
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

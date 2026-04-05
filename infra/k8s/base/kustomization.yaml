@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kodezera
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - celery-default-deployment.yaml
+  - celery-embedding-deployment.yaml
+  - celery-beat-deployment.yaml
+  - postgres-service.yaml
+  - postgres-statefulset.yaml
+  - redis-service.yaml
+  - redis-statefulset.yaml
+  - qdrant-service.yaml
+  - qdrant-statefulset.yaml
+  - ingress.yaml
+  - hpa-backend.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kodezera

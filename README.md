@@ -239,13 +239,12 @@ Dataset row format:
   - `docker-compose.dev.yml`
   - `docker-compose.prod.yml`
   - `nginx/nginx.conf`
-- Kubernetes starter manifests:
-  - `infra/k8s/configmap.yaml`
-  - `infra/k8s/deployment.yaml`
-  - `infra/k8s/service.yaml`
-  - `infra/k8s/ingress.yaml`
-  - `infra/k8s/hpa.yaml`
+- Kubernetes manifests (kustomize-based):
+  - `infra/k8s/base/` (backend, celery, postgres, redis, qdrant, service, ingress, hpa)
+  - `infra/k8s/overlays/dev/`
+  - `infra/k8s/overlays/prod/`
   - `infra/k8s/sealed-secret.example.yaml`
+  - `infra/k8s/README.md`
 - CI workflow:
   - `.github/workflows/ci.yml`
 

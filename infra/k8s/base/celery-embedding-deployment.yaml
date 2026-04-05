@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-celery-embedding
+  namespace: kodezera
+  labels:
+    app: kodezera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: celery-embedding
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: celery-embedding
+    spec:
+      containers:
+        - name: celery-embedding
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "worker", "--queues=embedding", "--concurrency=2", "-l", "info"]
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2048Mi"

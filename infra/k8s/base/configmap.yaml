@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kodezera-config
+  namespace: kodezera
+  labels:
+    app.kubernetes.io/name: kodezera
+data:
+  APP_ENV: "production"
+  DJANGO_SETTINGS_MODULE: "config.settings"
+  ALLOWED_HOSTS: "kodezera.example.com"
+  CORS_ALLOWED_ORIGINS: "https://kodezera.example.com"
+  REDIS_URL: "redis://kodezera-redis:6379/0"
+  CELERY_BROKER_URL: "redis://kodezera-redis:6379/1"
+  CELERY_RESULT_BACKEND: "redis://kodezera-redis:6379/2"
+  QDRANT_URL: "http://kodezera-qdrant:6333"
+  LOG_FORMAT: "json"

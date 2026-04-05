@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-celery-default
+  namespace: kodezera
+  labels:
+    app: kodezera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: celery-default
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: celery-default
+    spec:
+      containers:
+        - name: celery-default
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "worker", "--queues=default", "--concurrency=4", "-l", "info"]
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1024Mi"

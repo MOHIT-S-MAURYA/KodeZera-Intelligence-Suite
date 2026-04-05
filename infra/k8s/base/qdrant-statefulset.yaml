@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kodezera-qdrant
+  namespace: kodezera
+  labels:
+    app: kodezera
+    component: qdrant
+spec:
+  serviceName: kodezera-qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: qdrant
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v1.7.4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6333
+          volumeMounts:
+            - name: qdrant-storage
+              mountPath: /qdrant/storage
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1536Mi"
+  volumeClaimTemplates:
+    - metadata:
+        name: qdrant-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodezera-celery-beat
+  namespace: kodezera
+  labels:
+    app: kodezera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodezera
+      component: celery-beat
+  template:
+    metadata:
+      labels:
+        app: kodezera
+        component: celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: kodezera:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "beat", "-l", "info"]
+          envFrom:
+            - configMapRef:
+                name: kodezera-config
+            - secretRef:
+                name: kodezera-secrets

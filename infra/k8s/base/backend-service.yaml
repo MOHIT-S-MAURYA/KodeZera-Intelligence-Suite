@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kodezera-backend
+  namespace: kodezera
+  labels:
+    app.kubernetes.io/name: kodezera
+spec:
+  selector:
+    app: kodezera
+    component: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
