@@ -21,7 +21,17 @@ spec:
         - name: celery-embedding
           image: kodezera:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "config", "worker", "--queues=embedding", "--concurrency=2", "-l", "info"]
+          command:
+            [
+              "celery",
+              "-A",
+              "config",
+              "worker",
+              "--queues=embedding",
+              "--concurrency=2",
+              "-l",
+              "info",
+            ]
           envFrom:
             - configMapRef:
                 name: kodezera-config

@@ -218,7 +218,7 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 # Route CPU-heavy embedding tasks to a dedicated queue so they don't
 # block real-time chat-query tasks on the default queue.
 CELERY_TASK_ROUTES = {
-    'apps.documents.tasks.process_document': {'queue': 'embedding'},
+    'apps.documents.tasks.process_document_task': {'queue': 'embedding'},
     'apps.rag.tasks.*':                       {'queue': 'embedding'},
 }
 CELERY_TASK_DEFAULT_QUEUE = 'default'

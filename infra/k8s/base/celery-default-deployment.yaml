@@ -21,7 +21,17 @@ spec:
         - name: celery-default
           image: kodezera:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "config", "worker", "--queues=default", "--concurrency=4", "-l", "info"]
+          command:
+            [
+              "celery",
+              "-A",
+              "config",
+              "worker",
+              "--queues=default",
+              "--concurrency=4",
+              "-l",
+              "info",
+            ]
           envFrom:
             - configMapRef:
                 name: kodezera-config

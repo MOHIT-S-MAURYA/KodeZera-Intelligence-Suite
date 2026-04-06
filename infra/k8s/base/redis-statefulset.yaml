@@ -23,7 +23,16 @@ spec:
         - name: redis
           image: redis:7-alpine
           imagePullPolicy: IfNotPresent
-          command: ["redis-server", "--appendonly", "yes", "--save", "", "--maxmemory-policy", "allkeys-lru"]
+          command:
+            [
+              "redis-server",
+              "--appendonly",
+              "yes",
+              "--save",
+              "",
+              "--maxmemory-policy",
+              "allkeys-lru",
+            ]
           ports:
             - containerPort: 6379
           volumeMounts:

@@ -309,32 +309,58 @@ class LLMRunner:
             prompt = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in messages) + "\nASSISTANT:"
             headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
             
-            # Note: We must check status before iterating to fallback properly.
+            # Try SSE endpoint first (available on dedicated TGI endpoints).
             resp = req.post(
                 base + "/generate_stream",
                 headers=headers,
                 json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
-                stream=True, timeout=60
+                stream=True,
+                timeout=60,
             )
-            if resp.status_code in (401, 403) or (resp.status_code == 404 and "Model" not in resp.text):
-                # Fallbck to local streaming
+
+            # Standard HF Inference API often doesn't expose /generate_stream.
+            # In that case, call the non-stream endpoint and pseudo-stream words.
+            if resp.status_code == 404:
+                non_stream = req.post(
+                    base,
+                    headers=headers,
+                    json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
+                    timeout=60,
+                )
+                if non_stream.status_code in (401, 403):
+                    yield from self._stream_local_hf(query, context, messages)
+                    return
+                non_stream.raise_for_status()
+                data = non_stream.json()
+                if isinstance(data, list) and data:
+                    generated = data[0].get('generated_text', '')
+                else:
+                    generated = str(data)
+                for word in generated.split(' '):
+                    if word:
+                        yield word + ' '
+                return
+
+            if resp.status_code in (401, 403):
                 yield from self._stream_local_hf(query, context, messages)
                 return
-                
+
             resp.raise_for_status()
             for line in resp.iter_lines():
-                if line:
-                    decoded = line.decode('utf-8')
-                    if decoded.startswith('data:'):
-                        try:
-                            payload = json.loads(decoded[5:])
-                            token = payload.get('token', {}).get('text', '')
-                            if token:
-                                yield token
-                            if payload.get('generated_text') is not None:
-                                break
-                        except Exception:
-                            pass
+                if not line:
+                    continue
+                decoded = line.decode('utf-8')
+                if not decoded.startswith('data:'):
+                    continue
+                try:
+                    payload = json.loads(decoded[5:])
+                    token = payload.get('token', {}).get('text', '')
+                    if token:
+                        yield token
+                    if payload.get('generated_text') is not None:
+                        break
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"HuggingFace stream error: {e}")
             yield from self._stream_local_hf(query, context, messages)

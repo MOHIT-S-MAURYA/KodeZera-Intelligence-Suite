@@ -140,7 +140,7 @@ class EmbeddingService:
         """
         try:
             from sentence_transformers import SentenceTransformer
-            # Use a module-level cache to avoid reloading the model on every call
+            # Use a module-level cache to avoid reloading the model on every call.
             cache_attr = f'_st_model_{model.replace("/", "_").replace("-", "_")}'
             if not hasattr(EmbeddingService, cache_attr):
                 logger.info(f"EmbeddingService: loading SentenceTransformer model '{model}'...")
@@ -159,7 +159,22 @@ class EmbeddingService:
             return [_dev_embedding(t, dim) for t in texts]
         except Exception as e:
             logger.error(f"SentenceTransformers error: {e}")
-            raise
+            # Apple Metal / accelerator initialization can fail intermittently.
+            # Retry once with an explicit CPU model before giving up.
+            try:
+                from sentence_transformers import SentenceTransformer
+                cpu_cache_attr = f'_st_model_cpu_{model.replace("/", "_").replace("-", "_")}'
+                if not hasattr(EmbeddingService, cpu_cache_attr):
+                    logger.warning(f"EmbeddingService: retrying model '{model}' on CPU fallback.")
+                    setattr(EmbeddingService, cpu_cache_attr, SentenceTransformer(model, device='cpu'))
+                cpu_model = getattr(EmbeddingService, cpu_cache_attr)
+                embeddings = cpu_model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+                return [emb.tolist() for emb in embeddings]
+            except Exception as cpu_err:
+                logger.error(f"SentenceTransformers CPU fallback failed: {cpu_err}")
+                from django.conf import settings
+                dim = getattr(settings, 'VECTOR_DIMENSION', _DEFAULT_DIM)
+                return [_dev_embedding(t, dim) for t in texts]
 
     # ─── OpenAI ──────────────────────────────────────────────────────────────
 
@@ -208,4 +223,7 @@ class EmbeddingService:
             return [_dev_embedding(t, dim) for t in texts]
         except Exception as e:
             logger.error(f"HuggingFace embedding error: {e}")
-            raise
+            logger.warning("Falling back to local SentenceTransformers embeddings.")
+            return EmbeddingService._embed_sentence_transformers(
+                texts, _DEFAULT_ST_MODEL, '', ''
+            )

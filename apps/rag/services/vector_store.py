@@ -2,9 +2,9 @@
 Qdrant vector database service.
 
 Connection priority:
-  1. Local persistent path  (QDRANT_LOCAL_PATH in settings) — no server, data persists
-  2. Remote Qdrant server   (QDRANT_URL / QDRANT_API_KEY in settings)
-  3. In-memory              — last resort dev fallback (data lost on restart)
+    1. Remote Qdrant server   (QDRANT_URL / QDRANT_API_KEY in settings)
+    2. Local persistent path  (QDRANT_LOCAL_PATH in settings) — no server, data persists
+    3. In-memory              — last resort dev fallback (data lost on restart)
 
 A module-level singleton (_QDRANT_CLIENT) is used so the entire Python process
 shares one QdrantClient. This is critical for local-path mode: qdrant-client
@@ -44,13 +44,14 @@ def _create_client() -> QdrantClient:
     """
     Return the process-wide singleton QdrantClient.
 
-    Priority:
-      1. Local persistent path  (QDRANT_LOCAL_PATH set and non-empty)
-      2. Remote Qdrant server   (QDRANT_URL set)
-      3. In-memory              (fallback — warns the user)
+        Priority:
+            1. Remote Qdrant server   (QDRANT_URL set)
+            2. Local persistent path  (QDRANT_LOCAL_PATH set and non-empty)
+            3. In-memory              (fallback — warns the user)
 
-    If local-path mode fails (e.g. another process has the file lock),
-    the function silently falls through to remote or in-memory mode.
+        Why remote-first: in multi-process dev (Django + Celery), local-path mode
+        uses an exclusive lock and can split processes across different backends
+        (one local, one in-memory). Remote-first keeps all processes consistent.
     """
     global _QDRANT_CLIENT
 
@@ -66,7 +67,20 @@ def _create_client() -> QdrantClient:
         qdrant_url: str = getattr(settings, 'QDRANT_URL', 'http://localhost:6333')
         qdrant_key = (getattr(settings, 'QDRANT_API_KEY', '') or '').strip() or None
 
-        # ── 1. Local persistent path ──────────────────────────────────────────
+        # ── 1. Remote Qdrant server ───────────────────────────────────────────
+        try:
+            client = QdrantClient(url=qdrant_url, api_key=qdrant_key, timeout=5)
+            client.get_collections()          # quick health-check
+            logger.info(f"Qdrant: connected to remote server at {qdrant_url}")
+            _QDRANT_CLIENT = client
+            return client
+        except Exception as e:
+            logger.warning(
+                f"Qdrant server at {qdrant_url} is unreachable ({type(e).__name__}: {e}). "
+                "Trying local-path mode next."
+            )
+
+        # ── 2. Local persistent path ──────────────────────────────────────────
         if local_path:
             try:
                 os.makedirs(local_path, exist_ok=True)
@@ -79,22 +93,8 @@ def _create_client() -> QdrantClient:
                 # already holds the exclusive file lock on qdrant_data/.
                 logger.warning(
                     f"Qdrant: local path '{local_path}' is locked by another process "
-                    f"({type(e).__name__}). Falling back to remote server or in-memory."
+                    f"({type(e).__name__}). Falling back to in-memory."
                 )
-
-        # ── 2. Remote Qdrant server ───────────────────────────────────────────
-        try:
-            client = QdrantClient(url=qdrant_url, api_key=qdrant_key, timeout=5)
-            client.get_collections()          # quick health-check
-            logger.info(f"Qdrant: connected to remote server at {qdrant_url}")
-            _QDRANT_CLIENT = client
-            return client
-        except Exception as e:
-            logger.warning(
-                f"Qdrant server at {qdrant_url} is unreachable ({type(e).__name__}: {e}). "
-                "Falling back to in-memory Qdrant — data will NOT persist across restarts. "
-                "Set QDRANT_LOCAL_PATH=qdrant_data in .env to enable persistence."
-            )
 
         # ── 3. In-memory fallback ─────────────────────────────────────────────
         client = QdrantClient(location=":memory:")

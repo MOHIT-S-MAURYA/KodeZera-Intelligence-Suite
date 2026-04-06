@@ -46,6 +46,31 @@ const statusBadge = (s: string) => {
     return <Badge variant={map[s] ?? 'default'}>{s}</Badge>;
 };
 
+const statusCell = (doc: Document) => {
+    const progress = Math.max(0, Math.min(100, doc.processing_progress ?? 0));
+    const isInProgress = doc.status === 'processing' || (doc.status === 'pending' && progress > 0);
+
+    if (isInProgress) {
+        return (
+            <div className="min-w-[140px]">
+                <div className="w-full bg-background-secondary rounded-full h-2 overflow-hidden border border-border shadow-inner">
+                    <div
+                        className="bg-accent-cyan h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+                <p className="text-[11px] text-text-muted font-medium mt-1">{progress}%</p>
+            </div>
+        );
+    }
+
+    if (doc.status === 'pending') {
+        return <Badge variant="default">queued</Badge>;
+    }
+
+    return statusBadge(doc.status);
+};
+
 const visBadge = (v: string) => {
     const map: Record<string, 'success' | 'warning' | 'error'> = {
         public: 'success', restricted: 'warning', private: 'error',
@@ -285,8 +310,8 @@ export const Documents: React.FC = () => {
 
     // ── Data loading ──────────────────────────────────────────────────
 
-    const loadDocuments = useCallback(async () => {
-        setLoading(true);
+    const loadDocuments = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         setError(null);
         setIsForbidden(false);
         try {
@@ -305,10 +330,10 @@ export const Documents: React.FC = () => {
                 setIsForbidden(true);
             } else {
                 setError('Failed to load documents.');
-                addToast('error', 'Failed to load documents.');
+                if (!silent) addToast('error', 'Failed to load documents.');
             }
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [addToast, selectedFolder, showTrash]);
 
@@ -322,6 +347,18 @@ export const Documents: React.FC = () => {
 
     useEffect(() => { loadDocuments(); }, [loadDocuments]);
     useEffect(() => { loadFoldersAndTags(); }, [loadFoldersAndTags]);
+
+    useEffect(() => {
+        if (showTrash || isForbidden) return;
+        const hasActiveProcessing = documents.some(d => d.status === 'processing' || d.status === 'pending');
+        if (!hasActiveProcessing) return;
+
+        const intervalId = window.setInterval(() => {
+            void loadDocuments(true);
+        }, 2500);
+
+        return () => window.clearInterval(intervalId);
+    }, [documents, isForbidden, loadDocuments, showTrash]);
 
     // ── File validation ───────────────────────────────────────────────
 
@@ -539,7 +576,7 @@ export const Documents: React.FC = () => {
                 {error && !isForbidden && (
                     <div className="rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red px-5 py-4 text-sm flex items-center justify-between shadow-inner">
                         <span className="font-medium">{error}</span>
-                        <Button variant="ghost" size="sm" onClick={loadDocuments}>Retry</Button>
+                        <Button variant="ghost" size="sm" onClick={() => { void loadDocuments(); }}>Retry</Button>
                     </div>
                 )}
 
@@ -623,7 +660,7 @@ export const Documents: React.FC = () => {
                                                 <td className="py-4 px-5 text-text-muted text-sm font-medium">{fmtSize(doc.file_size)}</td>
                                                 <td className="py-4 px-5 text-text-main text-sm font-medium">{doc.uploaded_by_name}</td>
                                                 <td className="py-4 px-5 text-text-muted text-sm font-medium">{new Date(doc.created_at).toLocaleDateString()}</td>
-                                                <td className="py-4 px-5">{statusBadge(doc.status)}</td>
+                                                <td className="py-4 px-5">{statusCell(doc)}</td>
                                                 <td className="py-4 px-5">{visBadge(doc.visibility_type)}</td>
                                                 <td className="py-4 px-5 text-right" onClick={e => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -679,7 +716,7 @@ export const Documents: React.FC = () => {
                                         <div className="w-12 h-12 rounded-xl bg-accent-cyan/10 border border-accent-cyan/20 flex flex-shrink-0 items-center justify-center shadow-sm group-hover:bg-accent-cyan transition-colors">
                                             <FileText className="w-6 h-6 text-accent-cyan group-hover:text-white transition-colors" />
                                         </div>
-                                        <div className="scale-90 origin-top-right">{statusBadge(doc.status)}</div>
+                                        <div className="scale-90 origin-top-right">{statusCell(doc)}</div>
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="font-bold text-text-main leading-tight mb-2 group-hover:text-accent-cyan transition-colors line-clamp-2">{doc.title}</h3>
@@ -694,7 +731,7 @@ export const Documents: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
-                                    {doc.status === 'processing' && (
+                                    {(doc.status === 'processing' || (doc.status === 'pending' && doc.processing_progress > 0)) && (
                                         <div className="mt-4 w-full bg-background-secondary rounded-full h-1.5 overflow-hidden shadow-inner border border-border">
                                             <div className="bg-accent-cyan h-1.5 rounded-full relative" style={{ width: `${doc.processing_progress}%` }}>
                                                  <div className="absolute inset-0 bg-white/30 animate-pulse" />

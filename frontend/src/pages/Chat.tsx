@@ -348,6 +348,8 @@ export const Chat: React.FC = () => {
     const swipeItemRef = useRef<string | null>(null);
     /** Tracks if this is a long-press (vs a regular click or swipe). */
     const isLongPressRef = useRef(false);
+    /** Suppresses the click that fires immediately after a long-press release. */
+    const suppressNextRowClickRef = useRef(false);
 
     // ═════════════════════════════════════════════════════════════════════════
     // Effect: Initial data load
@@ -441,6 +443,26 @@ export const Chat: React.FC = () => {
         document.addEventListener('mousedown', close);
         return () => document.removeEventListener('mousedown', close);
     }, [ctxMenu]);
+
+    useEffect(() => {
+        // If selection mode is open but nothing is selected, clicking anywhere
+        // outside a chat row should close selection mode.
+        if (!isSelecting || selectedSessionIds.size > 0) return;
+
+        const closeEmptySelectionOnOutsideClick = (event: MouseEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (!target) return;
+
+            const clickedChatRow = target.closest('[data-chat-row="true"]');
+            if (clickedChatRow) return;
+
+            setIsSelecting(false);
+            setSelectedSessionIds(new Set());
+        };
+
+        document.addEventListener('mousedown', closeEmptySelectionOnOutsideClick);
+        return () => document.removeEventListener('mousedown', closeEmptySelectionOnOutsideClick);
+    }, [isSelecting, selectedSessionIds.size]);
 
     // ═════════════════════════════════════════════════════════════════════════
     // Actions: Sessions
@@ -1008,6 +1030,8 @@ export const Chat: React.FC = () => {
             setLongPressId(id);
             setIsSelecting(true);
             toggleSelection(id);
+            // Prevent the synthetic click after release from toggling back off.
+            suppressNextRowClickRef.current = true;
             addToast('info', 'Selection mode activated. Tap items to select.');
         }, 500);
 
@@ -1222,6 +1246,7 @@ export const Chat: React.FC = () => {
         return (
             <div
                 key={session.id}
+                data-chat-row="true"
                 draggable
                 onDragStart={(e) => onDragStart(e, session.id)}
                 onDragEnd={onDragEnd}
@@ -1230,6 +1255,10 @@ export const Chat: React.FC = () => {
                 onPointerUp={(e) => handleRowPointerUp(e, session.id)}
                 onPointerLeave={() => handleRowPointerLeave(session.id)}
                 onClick={() => { 
+                    if (suppressNextRowClickRef.current) {
+                        suppressNextRowClickRef.current = false;
+                        return;
+                    }
                     if (isSelecting) toggleSelection(session.id);
                     else if (!isEditing && swipeX === 0) setActiveSessionId(session.id);
                 }}

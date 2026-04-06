@@ -61,6 +61,11 @@ def _validate_file(file) -> str | None:
     return None
 
 
+def _enqueue_document_processing(document_id: str):
+    """Dispatch document processing to the embedding queue."""
+    process_document_task.apply_async(args=[document_id], queue='embedding')
+
+
 # ── DocumentViewSet ──────────────────────────────────────────────────────
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -189,7 +194,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.current_version = version
         document.save(update_fields=['current_version'])
 
-        process_document_task.delay(str(document.id))
+        _enqueue_document_processing(str(document.id))
         invalidate_dashboard_cache(request.user.id)
 
         # Notifications
@@ -264,7 +269,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             doc.current_version = ver
             doc.save(update_fields=['current_version'])
 
-            process_document_task.delay(str(doc.id))
+            _enqueue_document_processing(str(doc.id))
             results.append(DocumentSerializer(doc).data)
             idx += 1
 
@@ -357,7 +362,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.processing_progress = 0
         document.processing_error = ''
         document.save(update_fields=['status', 'processing_progress', 'processing_error'])
-        process_document_task.delay(str(document.id))
+        _enqueue_document_processing(str(document.id))
         return Response(DocumentSerializer(document).data)
 
     # ── Processing progress ──────────────────────────────────────────
@@ -428,7 +433,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.processing_progress = 0
         document.save()
 
-        process_document_task.delay(str(document.id))
+        _enqueue_document_processing(str(document.id))
         return Response(DocumentVersionSerializer(version).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'], url_path=r'versions/(?P<version_number>\d+)/download')
@@ -471,7 +476,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.processing_progress = 0
         document.save()
 
-        process_document_task.delay(str(document.id))
+        _enqueue_document_processing(str(document.id))
         return Response(DocumentSerializer(document).data)
 
     # ── Access grants (nested under document) ────────────────────────
