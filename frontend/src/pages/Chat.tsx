@@ -316,11 +316,6 @@ export const Chat: React.FC = () => {
      * Used to position reveal buttons via transform: translateX().
      */
     const [swipeTranslation, setSwipeTranslation] = useState<Map<string, number>>(new Map());
-    /**
-     * ID of the item currently being held down (long-press).
-     * When held for 500ms, triggers selection mode.
-     */
-    const [longPressId, setLongPressId] = useState<string | null>(null);
 
     // ── Refs ──────────────────────────────────────────────────────────────────
     /** Invisible div at the bottom of the message list, scrolled into view after each new message. */
@@ -1027,7 +1022,6 @@ export const Chat: React.FC = () => {
         // 500ms timer to trigger selection
         const timer = setTimeout(() => {
             isLongPressRef.current = true;
-            setLongPressId(id);
             setIsSelecting(true);
             toggleSelection(id);
             // Prevent the synthetic click after release from toggling back off.
@@ -1241,7 +1235,6 @@ export const Chat: React.FC = () => {
         const isDragging = dragSessionId === session.id;
         const isSelected = selectedSessionIds.has(session.id);
         const swipeX = swipeTranslation.get(session.id) ?? 0;
-        const isRevealed = swipeX < -60;
 
         return (
             <div
