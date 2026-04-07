@@ -336,7 +336,7 @@ export const Chat: React.FC = () => {
 
     // ── Gesture tracking refs ─────────────────────────────────────────────────
     /** Map of long-press timeout IDs, keyed by item ID. */
-    const longPressTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+    const longPressTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     /** Tracks initial pointer X coordinate during swipe. */
     const pointerStartXRef = useRef<number | null>(null);
     /** ID of the item currently being swiped. */
@@ -1068,7 +1068,7 @@ export const Chat: React.FC = () => {
      * @param e - PointerEvent
      * @param id - UUID of the item
      */
-    const handleRowPointerUp = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+    const handleRowPointerUp = (_e: React.PointerEvent<HTMLDivElement>, id: string) => {
         // Clean up long-press timer
         if (longPressTimersRef.current.has(id)) {
             clearTimeout(longPressTimersRef.current.get(id)!);
