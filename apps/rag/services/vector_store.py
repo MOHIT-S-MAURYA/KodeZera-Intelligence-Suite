@@ -20,6 +20,7 @@ import uuid
 import threading
 from typing import List, Dict, Any
 
+import requests
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct,
@@ -259,27 +260,112 @@ class VectorStoreService:
             ]
         )
 
+        document_ids_str = [str(d) for d in document_ids]
+
         try:
-            results = self.client.search(
-                collection_name=self.collection_name,
-                query_vector=query_embedding,
-                query_filter=search_filter,
-                limit=top_k,
-                with_payload=True,
-            )
-            return [
-                {
-                    'text': hit.payload.get('text', ''),
-                    'document_id': hit.payload.get('document_id'),
-                    'chunk_index': hit.payload.get('chunk_index'),
-                    'score': hit.score,
-                }
-                for hit in results
-            ]
+            # qdrant-client API changed across versions:
+            # - older clients expose `search(...)`
+            # - newer clients expose `query_points(...)`
+            if hasattr(self.client, "search"):
+                results = self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_embedding,
+                    query_filter=search_filter,
+                    limit=top_k,
+                    with_payload=True,
+                )
+            elif hasattr(self.client, "query_points"):
+                try:
+                    query_result = self.client.query_points(
+                        collection_name=self.collection_name,
+                        query=query_embedding,
+                        query_filter=search_filter,
+                        limit=top_k,
+                        with_payload=True,
+                    )
+                    results = getattr(query_result, "points", None) or getattr(query_result, "result", [])
+                except Exception as query_exc:
+                    # Older Qdrant servers (e.g. 1.7.x) may not expose /points/query.
+                    # Fall back to legacy REST /points/search endpoint.
+                    logger.warning(
+                        "Qdrant query_points failed (%s). Falling back to legacy HTTP /points/search.",
+                        query_exc,
+                    )
+                    results = self._legacy_http_search(
+                        query_embedding=query_embedding,
+                        tenant_id=tenant_id,
+                        document_ids=document_ids_str,
+                        top_k=top_k,
+                    )
+            else:
+                results = self._legacy_http_search(
+                    query_embedding=query_embedding,
+                    tenant_id=tenant_id,
+                    document_ids=document_ids_str,
+                    top_k=top_k,
+                )
+
+            def _hit_payload(hit: Any) -> Dict[str, Any]:
+                payload = getattr(hit, 'payload', None)
+                if payload is None and isinstance(hit, dict):
+                    payload = hit.get('payload', {})
+                return payload or {}
+
+            def _hit_score(hit: Any) -> float:
+                score = getattr(hit, 'score', None)
+                if score is None and isinstance(hit, dict):
+                    score = hit.get('score', 0)
+                return float(score or 0)
+
+            normalized_results: List[Dict[str, Any]] = []
+            for hit in results:
+                payload = _hit_payload(hit)
+                normalized_results.append(
+                    {
+                        'text': payload.get('text', ''),
+                        'document_id': payload.get('document_id'),
+                        'chunk_index': payload.get('chunk_index'),
+                        'score': _hit_score(hit),
+                    }
+                )
+            return normalized_results
         except Exception as e:
             logger.error(f"Qdrant: vector search error: {e}")
             from apps.core.exceptions import VectorSearchError
             raise VectorSearchError(f"Vector search failed: {e}")
+
+    def _legacy_http_search(
+        self,
+        query_embedding: List[float],
+        tenant_id: uuid.UUID,
+        document_ids: List[str],
+        top_k: int,
+    ) -> List[Dict[str, Any]]:
+        """Fallback search for older Qdrant servers via /points/search REST API."""
+        qdrant_url: str = getattr(settings, 'QDRANT_URL', 'http://localhost:6333')
+        qdrant_key = (getattr(settings, 'QDRANT_API_KEY', '') or '').strip()
+
+        url = f"{qdrant_url.rstrip('/')}/collections/{self.collection_name}/points/search"
+        headers = {'Content-Type': 'application/json'}
+        if qdrant_key:
+            headers['api-key'] = qdrant_key
+
+        payload = {
+            'vector': query_embedding,
+            'filter': {
+                'must': [
+                    {'key': 'tenant_id', 'match': {'value': str(tenant_id)}},
+                    {'key': 'document_id', 'match': {'any': document_ids}},
+                ]
+            },
+            'limit': top_k,
+            'with_payload': True,
+        }
+
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get('result', []) if isinstance(data, dict) else []
 
     def get_chunks_by_index(
         self,

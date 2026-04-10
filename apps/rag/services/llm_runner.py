@@ -152,7 +152,7 @@ class LLMRunner:
         )
 
     # ─── Dev-mode mock ────────────────────────────────────────
-    def _mock_response(self, context: List[Dict[str, Any]], query: str) -> str:
+    def _mock_response(self, context: List[Dict[str, Any]], query: str, reason: str = 'no API key configured') -> str:
         if not context:
             return (
                 "⚠️ **Dev Mode** – No relevant documents found in your accessible document set. "
@@ -166,7 +166,7 @@ class LLMRunner:
         preview = context[0].get('full_text', context[0].get('text', ''))[:300]
         provider_note = f"provider=**{self.provider}**, model=**{self.model}**"
         return (
-            f"⚠️ **Dev Mode Response** ({provider_note} — no API key configured)\n\n"
+            f"⚠️ **Dev Mode Response** ({provider_note} — {reason})\n\n"
             f"Your question: *{query}*\n\n"
             f"Based on {len(context)} retrieved chunk(s) from: {', '.join(repr(s) for s in sources)}\n\n"
             f"**Excerpt from top result:**\n> {preview}...\n\n"
@@ -185,7 +185,7 @@ class LLMRunner:
                 # OpenAI SDK version mismatch (e.g., unexpected 'proxies' kwarg).
                 # Fall back to mock response so the pipeline still returns a result.
                 logger.warning("OpenAI client init failed (SDK version mismatch). Using dev mock.")
-                return self._mock_response(context or [], query)
+                return self._mock_response(context or [], query, reason='OpenAI SDK compatibility issue')
             resp = client.chat.completions.create(
                 model=self.model, messages=messages,
                 temperature=0.7, max_tokens=self.max_tokens
@@ -205,7 +205,7 @@ class LLMRunner:
                 client = openai.OpenAI(api_key=self.api_key, base_url=self.api_base or None)
             except TypeError:
                 logger.warning("OpenAI client init failed (SDK version mismatch). Using dev mock.")
-                yield from (w + ' ' for w in self._mock_response(context or [], query).split())
+                yield from (w + ' ' for w in self._mock_response(context or [], query, reason='OpenAI SDK compatibility issue').split())
                 return
             for chunk in client.chat.completions.create(
                 model=self.model, messages=messages,
@@ -223,23 +223,40 @@ class LLMRunner:
     def _generate_huggingface(self, messages, context=None, query='') -> str:
         try:
             import requests as req
-            base = self.api_base or f"https://api-inference.huggingface.co/models/{self.model}"
-            prompt = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in messages) + "\nASSISTANT:"
-            headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-            resp = req.post(base, headers=headers,
-                            json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
-                            timeout=60)
+            # Use the OpenAI-compatible chat completions endpoint (works with chat/instruct models)
+            base = self.api_base or 'https://router.huggingface.co'
+            url = f"{base.rstrip('/')}/v1/chat/completions"
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json',
+            } if self.api_key else {'Content-Type': 'application/json'}
+            payload = {
+                'model': self.model,
+                'messages': messages,
+                'max_tokens': self.max_tokens,
+                'temperature': 0.7,
+                'stream': False,
+            }
+            resp = req.post(url, headers=headers, json=payload, timeout=45)
             if resp.status_code in (401, 403):
-                # If unauthenticated, fallback to a local transformers pipeline to fulfill the promise of free AI.
-                return self._generate_local_hf(prompt, context, query)
+                logger.warning(
+                    f'HF API auth failed ({resp.status_code}) for model={self.model}. '
+                    'Falling back to dev-mode response.'
+                )
+                return self._mock_response(context or [], query, reason='API key rejected by provider')
             resp.raise_for_status()
             data = resp.json()
+            # OpenAI-compatible response format
+            choices = data.get('choices', [])
+            if choices:
+                return choices[0].get('message', {}).get('content', str(data))
+            # Legacy fallback for raw text-generation API
             if isinstance(data, list) and data:
                 return data[0].get('generated_text', str(data[0]))
             return str(data)
         except Exception as e:
-            logger.error(f"HuggingFace inference API error: {e}")
-            return self._generate_local_hf(prompt if 'prompt' in locals() else query, context, query)
+            logger.error(f'HuggingFace inference API error: {e}')
+            return self._mock_response(context or [], query)
 
     @staticmethod
     def _best_device() -> str:
@@ -302,68 +319,72 @@ class LLMRunner:
             return self._mock_response(context or [], query)
 
     def _stream_huggingface(self, messages, context=None, query='') -> Generator[str, None, None]:
-        """HuggingFace streaming via text-generation-inference SSE."""
+        """HuggingFace streaming via OpenAI-compatible chat completions SSE."""
         try:
             import requests as req
-            base = self.api_base or f"https://api-inference.huggingface.co/models/{self.model}"
-            prompt = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in messages) + "\nASSISTANT:"
-            headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-            
-            # Try SSE endpoint first (available on dedicated TGI endpoints).
-            resp = req.post(
-                base + "/generate_stream",
-                headers=headers,
-                json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
-                stream=True,
-                timeout=60,
-            )
+            # Use the OpenAI-compatible chat completions endpoint with streaming
+            base = self.api_base or 'https://router.huggingface.co'
+            url = f"{base.rstrip('/')}/v1/chat/completions"
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json',
+            } if self.api_key else {'Content-Type': 'application/json'}
+            payload = {
+                'model': self.model,
+                'messages': messages,
+                'max_tokens': self.max_tokens,
+                'temperature': 0.7,
+                'stream': True,
+            }
+            resp = req.post(url, headers=headers, json=payload, stream=True, timeout=60)
 
-            # Standard HF Inference API often doesn't expose /generate_stream.
-            # In that case, call the non-stream endpoint and pseudo-stream words.
-            if resp.status_code == 404:
-                non_stream = req.post(
-                    base,
-                    headers=headers,
-                    json={"inputs": prompt, "parameters": {"max_new_tokens": self.max_tokens}},
-                    timeout=60,
+            if resp.status_code in (401, 403):
+                logger.warning(
+                    f'HF streaming auth failed ({resp.status_code}) for model={self.model}. '
+                    'Falling back to dev-mode response.'
                 )
-                if non_stream.status_code in (401, 403):
-                    yield from self._stream_local_hf(query, context, messages)
-                    return
-                non_stream.raise_for_status()
-                data = non_stream.json()
-                if isinstance(data, list) and data:
-                    generated = data[0].get('generated_text', '')
-                else:
-                    generated = str(data)
-                for word in generated.split(' '):
+                yield from (w + ' ' for w in self._mock_response(context or [], query, reason='API key rejected by provider').split())
+                return
+
+            if resp.status_code in (404, 410):
+                # Endpoint not available on this backend; fall back to non-streaming.
+                logger.info(
+                    f'HF chat completions stream returned {resp.status_code}; '
+                    'falling back to non-stream response.'
+                )
+                full_text = self._generate_huggingface(messages, context=context, query=query)
+                for word in full_text.split(' '):
                     if word:
                         yield word + ' '
                 return
 
-            if resp.status_code in (401, 403):
-                yield from self._stream_local_hf(query, context, messages)
-                return
-
             resp.raise_for_status()
+
             for line in resp.iter_lines():
                 if not line:
                     continue
                 decoded = line.decode('utf-8')
                 if not decoded.startswith('data:'):
                     continue
+                data_str = decoded[5:].strip()
+                if data_str == '[DONE]':
+                    break
                 try:
-                    payload = json.loads(decoded[5:])
-                    token = payload.get('token', {}).get('text', '')
-                    if token:
-                        yield token
-                    if payload.get('generated_text') is not None:
-                        break
-                except Exception:
-                    pass
+                    payload = json.loads(data_str)
+                    choices = payload.get('choices', [])
+                    if choices:
+                        delta = choices[0].get('delta', {})
+                        token = delta.get('content', '')
+                        if token:
+                            yield token
+                except json.JSONDecodeError:
+                    continue
         except Exception as e:
-            logger.error(f"HuggingFace stream error: {e}")
-            yield from self._stream_local_hf(query, context, messages)
+            logger.error(f'HuggingFace stream error: {e}')
+            full_text = self._generate_huggingface(messages, context=context, query=query)
+            for word in full_text.split(' '):
+                if word:
+                    yield word + ' '
 
     def _stream_local_hf(self, query: str, context: List[Dict[str, Any]], messages: List[Dict[str, str]]) -> Generator[str, None, None]:
         """Streaming fallback using local transformers. Runs synchronously; yields word-by-word."""

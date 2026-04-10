@@ -131,6 +131,25 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         return qs.select_related('uploaded_by', 'department', 'folder', 'current_version')
 
+    def perform_update(self, serializer):
+        """Update document and invalidate access caches when visibility/security semantics change."""
+        document = self.get_object()
+        before = {
+            'visibility_type': document.visibility_type,
+            'classification_level': document.classification_level,
+            'status': document.status,
+        }
+
+        updated = serializer.save()
+        DocumentAccessService.invalidate_document_cache(updated.id)
+
+        if (
+            before['visibility_type'] != updated.visibility_type
+            or before['classification_level'] != updated.classification_level
+            or before['status'] != updated.status
+        ):
+            DocumentAccessService.invalidate_tenant_cache(updated.tenant_id)
+
     # ── Create (upload) ──────────────────────────────────────────────
 
     @method_decorator(ratelimit(key='user', rate=settings.DOCUMENT_UPLOAD_RATE_LIMIT, method='POST'))
@@ -195,6 +214,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.save(update_fields=['current_version'])
 
         _enqueue_document_processing(str(document.id))
+        DocumentAccessService.invalidate_cache(request.user.id)
         invalidate_dashboard_cache(request.user.id)
 
         # Notifications
@@ -274,6 +294,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             idx += 1
 
         invalidate_dashboard_cache(request.user.id)
+        DocumentAccessService.invalidate_cache(request.user.id)
         return Response(results, status=status.HTTP_201_CREATED)
 
     # ── Download ─────────────────────────────────────────────────────
@@ -312,6 +333,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.is_deleted = True
         document.deleted_at = timezone.now()
         document.save(update_fields=['is_deleted', 'deleted_at'])
+        DocumentAccessService.invalidate_document_cache(document.id)
         invalidate_dashboard_cache(request.user.id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -330,6 +352,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.is_deleted = False
         document.deleted_at = None
         document.save(update_fields=['is_deleted', 'deleted_at'])
+        DocumentAccessService.invalidate_document_cache(document.id)
         return Response(DocumentSerializer(document).data)
 
     @action(detail=True, methods=['delete'], url_path='permanent-delete')
@@ -347,6 +370,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         for ver in document.versions.all():
             StorageService.delete(ver.file_key)
 
+        DocumentAccessService.invalidate_document_cache(document.id)
         delete_document_embeddings_task.delay(str(document.id))
         invalidate_dashboard_cache(request.user.id)
         document.delete()
@@ -362,6 +386,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.processing_progress = 0
         document.processing_error = ''
         document.save(update_fields=['status', 'processing_progress', 'processing_error'])
+        DocumentAccessService.invalidate_document_cache(document.id)
         _enqueue_document_processing(str(document.id))
         return Response(DocumentSerializer(document).data)
 
@@ -433,6 +458,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.processing_progress = 0
         document.save()
 
+        DocumentAccessService.invalidate_document_cache(document.id)
         _enqueue_document_processing(str(document.id))
         return Response(DocumentVersionSerializer(version).data, status=status.HTTP_201_CREATED)
 
@@ -476,6 +502,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         document.processing_progress = 0
         document.save()
 
+        DocumentAccessService.invalidate_document_cache(document.id)
         _enqueue_document_processing(str(document.id))
         return Response(DocumentSerializer(document).data)
 

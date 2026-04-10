@@ -33,9 +33,12 @@ def cleanup_expired_assignments():
             expired_roles.update(is_active=False)
 
         # Bust caches for affected users
-        from apps.rbac.services.authorization import RoleResolutionService
+        from apps.rbac.services.authorization import RoleResolutionService, PermissionService
+        from apps.documents.services.access import DocumentAccessService
         for user_id in affected_user_ids:
             RoleResolutionService.invalidate_cache(user_id)
+            PermissionService.invalidate_cache(user_id)
+            DocumentAccessService.invalidate_cache(user_id)
 
         logger.info("Deactivated %d expired role assignments", expired_role_count)
 
@@ -65,8 +68,16 @@ def cleanup_expired_assignments():
     )
     expired_membership_count = expired_memberships.count()
     if expired_membership_count:
+        affected_membership_user_ids = set(
+            expired_memberships.values_list('user_id', flat=True)
+        )
         with transaction.atomic():
             expired_memberships.update(is_active=False)
+
+        from apps.documents.services.access import DocumentAccessService
+        for user_id in affected_membership_user_ids:
+            DocumentAccessService.invalidate_cache(user_id)
+
         logger.info("Deactivated %d expired org unit memberships", expired_membership_count)
 
     total = expired_role_count + expired_grant_count + expired_membership_count

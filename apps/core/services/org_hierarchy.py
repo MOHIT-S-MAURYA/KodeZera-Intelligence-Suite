@@ -301,6 +301,8 @@ class OrgHierarchyService:
                    membership_type: str = 'primary',
                    expires_at=None) -> UserOrgUnit:
         """Add a user to an org unit."""
+        from apps.documents.services.access import DocumentAccessService
+
         if membership_type == 'primary':
             # Demote any existing primary to secondary
             UserOrgUnit.objects.filter(
@@ -322,14 +324,19 @@ class OrgHierarchyService:
             membership.save(update_fields=[
                 'membership_type', 'expires_at', 'is_active',
             ])
+
+        DocumentAccessService.invalidate_cache(user.id)
         return membership
 
     @classmethod
     def remove_member(cls, user, org_unit: OrgUnit):
         """Remove a user from an org unit (soft-deactivate)."""
+        from apps.documents.services.access import DocumentAccessService
+
         UserOrgUnit.objects.filter(
             user=user, org_unit=org_unit,
         ).update(is_active=False)
+        DocumentAccessService.invalidate_cache(user.id)
 
     @classmethod
     def get_user_org_units(cls, user, active_only: bool = True) -> List[OrgUnit]:

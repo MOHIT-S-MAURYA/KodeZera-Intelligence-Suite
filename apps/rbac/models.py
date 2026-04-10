@@ -272,16 +272,13 @@ def invalidate_user_rbac_cache(sender, instance, **kwargs):
     returns fresh data and never serves stale permissions.
     """
     try:
-        from django.core.cache import cache
+        from apps.rbac.services.authorization import RoleResolutionService, PermissionService
+        from apps.documents.services.access import DocumentAccessService
+
         user_id = instance.user_id
-        # Role resolution cache
-        cache.delete(f"user:{user_id}:roles")
-        # Broad permission cache (delete all known permission patterns)
-        resource_types = ['document', 'role', 'user', 'department', 'audit_log', 'tenant']
-        actions = ['create', 'read', 'update', 'delete', 'manage', 'upload', 'download', 'share', 'query']
-        for rt in resource_types:
-            for ac in actions:
-                cache.delete(f"user:{user_id}:perm:{rt}:{ac}")
+        RoleResolutionService.invalidate_cache(user_id)
+        PermissionService.invalidate_cache(user_id)
+        DocumentAccessService.invalidate_cache(user_id)
     except Exception:
         pass  # Never let a cache error break a DB write
 

@@ -246,10 +246,28 @@ class DocumentAccessService:
         cache.delete(cls.get_cache_key(user_id))
 
     @classmethod
+    def invalidate_tenant_cache(cls, tenant_id: UUID):
+        """Invalidate accessible-doc caches for every user in a tenant."""
+        user_ids = User.objects.filter(tenant_id=tenant_id).values_list('id', flat=True)
+        for user_id in user_ids:
+            cls.invalidate_cache(user_id)
+
+    @classmethod
     def invalidate_document_cache(cls, document_id: UUID):
         """Invalidate cache for all users who might access a document."""
         access_grants = DocumentAccess.objects.filter(document_id=document_id)
         user_ids = set()
+
+        document = Document.objects.filter(id=document_id).only(
+            'tenant_id', 'uploaded_by_id', 'visibility_type',
+        ).first()
+        if document and document.uploaded_by_id:
+            user_ids.add(document.uploaded_by_id)
+
+        # Public documents are visible tenant-wide, so a change can affect every user.
+        if document and document.visibility_type == 'public':
+            cls.invalidate_tenant_cache(document.tenant_id)
+            return
 
         for grant in access_grants:
             if grant.user_id:

@@ -73,8 +73,15 @@ class RoleResolutionService:
         user_ids = User.objects.filter(
             tenant_id=tenant_id,
         ).values_list('id', flat=True)
+        try:
+            from apps.documents.services.access import DocumentAccessService
+        except Exception:
+            DocumentAccessService = None
+
         for user_id in user_ids:
             cls.invalidate_cache(user_id)
+            if DocumentAccessService is not None:
+                DocumentAccessService.invalidate_cache(user_id)
 
     @classmethod
     def is_tenant_administrator(cls, user) -> bool:

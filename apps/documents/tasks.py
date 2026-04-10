@@ -91,6 +91,12 @@ def process_document_task(self, document_id: str):
             classification_level=document.classification_level,
             chunks=chunks,
         )
+
+        if len(vector_ids) != len(chunks):
+            raise DocumentProcessingError(
+                f"Vector indexing incomplete: stored {len(vector_ids)} of {len(chunks)} chunks"
+            )
+
         _set_progress(document, 90)
 
         # Create VectorChunk tracking records
@@ -113,13 +119,16 @@ def process_document_task(self, document_id: str):
 
         # Step 6: Finalise
         document.status = 'completed'
-        document.chunk_count = len(chunks)
+        document.chunk_count = len(vector_ids)
         document.processing_error = ''
         document.processing_progress = 100
         document.save()
         cache.set(f"doc:{document.pk}:progress", 100, timeout=60)
 
-        logger.info(f"Successfully processed document {document_id} with {len(chunks)} chunks")
+        from apps.documents.services.access import DocumentAccessService
+        DocumentAccessService.invalidate_document_cache(document.id)
+
+        logger.info(f"Successfully processed document {document_id} with {len(vector_ids)} chunks")
 
     except Exception as e:
         logger.error(f"Error processing document {document_id}: {e}")
@@ -128,6 +137,8 @@ def process_document_task(self, document_id: str):
             document.status = 'failed'
             document.processing_error = str(e)[:500]
             document.save(update_fields=['status', 'processing_error'])
+            from apps.documents.services.access import DocumentAccessService
+            DocumentAccessService.invalidate_document_cache(document.id)
         except Exception:
             pass
         raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))

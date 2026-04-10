@@ -628,7 +628,11 @@ def ai_config_get(request):
     """
     config = AIProviderConfig.get_config()
     serializer = AIProviderConfigSerializer(config)
-    return Response(serializer.data)
+    reindex_state = cache.get('rag:reindex_required')
+    payload = serializer.data
+    payload['reindex_required'] = bool(reindex_state and reindex_state.get('required'))
+    payload['reindex_state'] = reindex_state or None
+    return Response(payload)
 
 
 @api_view(['PUT', 'PATCH'])
@@ -640,6 +644,9 @@ def ai_config_update(request):
     If the API key field contains the masked value, the existing key is preserved.
     """
     config = AIProviderConfig.get_config()
+    previous_embedding_provider = config.embedding_provider
+    previous_embedding_model = config.embedding_model
+
     serializer = AIProviderConfigSerializer(config, data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
     config = serializer.save()
@@ -647,6 +654,34 @@ def ai_config_update(request):
     # Tag who updated it
     config.updated_by = request.user
     config.save(update_fields=['updated_by'])
+
+    embedding_changed = (
+        previous_embedding_provider != config.embedding_provider
+        or previous_embedding_model != config.embedding_model
+    )
+
+    # Provider/model probes are cached. Clear after any config update so the UI
+    # reflects the new state immediately.
+    cache.delete('platform_ai_available_models')
+
+    if embedding_changed:
+        cache.set(
+            'rag:reindex_required',
+            {
+                'required': True,
+                'changed_at': timezone.now().isoformat(),
+                'changed_by': str(request.user.id),
+                'previous': {
+                    'embedding_provider': previous_embedding_provider,
+                    'embedding_model': previous_embedding_model,
+                },
+                'current': {
+                    'embedding_provider': config.embedding_provider,
+                    'embedding_model': config.embedding_model,
+                },
+            },
+            timeout=None,
+        )
 
     # Audit log
     SystemAuditLog.objects.create(
@@ -662,7 +697,9 @@ def ai_config_update(request):
         user_agent=request.META.get('HTTP_USER_AGENT', '')
     )
 
-    return Response(AIProviderConfigSerializer(config).data)
+    response_data = AIProviderConfigSerializer(config).data
+    response_data['reindex_required'] = embedding_changed
+    return Response(response_data)
 
 
 # ─── Helpers for available-models detection ────────────────────────────────────
@@ -890,14 +927,16 @@ def available_models(request):
         {'id': 'gpt-4',               'label': 'GPT-4'},
         {'id': 'gpt-3.5-turbo',       'label': 'GPT-3.5 Turbo'},
     ]
+    OPENAI_EMBED_MODELS = [
+        {'id': 'text-embedding-3-small', 'label': 'text-embedding-3-small (recommended)', 'dim': 1536},
+        {'id': 'text-embedding-3-large', 'label': 'text-embedding-3-large', 'dim': 3072},
+        {'id': 'text-embedding-ada-002', 'label': 'text-embedding-ada-002', 'dim': 1536},
+    ]
     ANTHROPIC_MODELS = [
         {'id': 'claude-3-5-sonnet-20241022', 'label': 'Claude 3.5 Sonnet'},
         {'id': 'claude-3-opus-20240229',     'label': 'Claude 3 Opus'},
         {'id': 'claude-3-haiku-20240307',    'label': 'Claude 3 Haiku'},
     ]
-
-    # ── Local transformers (no API key) ───────────────────────────────────
-    local_models = _detect_local_transformers_models()
 
     response_data = {
         'embedding': {
@@ -943,7 +982,7 @@ def available_models(request):
                 'note': 'Requires HuggingFace API key. Enter any model ID manually.',
             },
         },
-        'current_vector_dim': getattr(settings, 'QDRANT_VECTOR_DIM', 384),
+        'current_vector_dim': getattr(settings, 'VECTOR_DIMENSION', 384),
         'current_embedding_provider': cfg.embedding_provider,
         'current_embedding_model': cfg.embedding_model,
     }

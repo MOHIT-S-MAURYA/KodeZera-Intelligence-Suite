@@ -1,19 +1,15 @@
-/**
- * PlatformAIConfig — light-theme consistent version.
- *
- * Follows the app's design tokens exactly:
- *   - bg-white cards, border-gray-200 borders
- *   - text-gray-900 headings, text-gray-600 body, text-gray-500 hints
- *   - focus:ring-brand-500 / focus:border-brand-500  (indigo-500 = #6366F1)
- *   - brand-600 for active state buttons
- *   - No dark-mode overrides anywhere
- */
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, RefreshCw, Save, CheckCircle, AlertTriangle, Key, Server } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    CircleHelp,
+    KeyRound,
+    RefreshCw,
+    Save,
+    Server,
+    Settings,
+} from 'lucide-react';
 import apiService from '../../services/api';
-
-// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface ModelOption { id: string; label?: string; dim?: number }
 interface ProviderInfo {
@@ -42,21 +38,26 @@ interface AIConfig {
     updated_at?: string;
 }
 
-// ── Provider display labels ────────────────────────────────────────────────────
+type EmbedMeta = { label: string; needsKey: boolean; needsBase: boolean };
+type LlmMeta = { label: string; needsKey: boolean; needsBase: boolean };
 
-const EMBED_META: Record<string, { label: string; needsKey: boolean }> = {
-    sentence_transformers: { label: 'SentenceTransformers (Local)', needsKey: false },
-    openai: { label: 'OpenAI Embeddings', needsKey: true },
-    huggingface: { label: 'HuggingFace Inference', needsKey: true },
+const EMBED_META: Record<string, EmbedMeta> = {
+    sentence_transformers: { label: 'SentenceTransformers (Local)', needsKey: false, needsBase: false },
+    openai: { label: 'OpenAI Embeddings', needsKey: true, needsBase: false },
+    huggingface: { label: 'HuggingFace Embeddings', needsKey: true, needsBase: false },
 };
-const LLM_META: Record<string, { label: string; needsKey: boolean; needsBase: boolean }> = {
+
+const LLM_META: Record<string, LlmMeta> = {
     openai: { label: 'OpenAI', needsKey: true, needsBase: false },
-    ollama: { label: 'Ollama', needsKey: false, needsBase: true },
+    ollama: { label: 'Ollama (Local)', needsKey: false, needsBase: true },
     anthropic: { label: 'Anthropic', needsKey: true, needsBase: false },
     huggingface: { label: 'HuggingFace', needsKey: true, needsBase: false },
+    local: { label: 'Local Transformers', needsKey: false, needsBase: false },
 };
 
-// ── Shared input className — matches the app's Input component exactly ─────────
+const LOCAL_LLM_PROVIDERS = new Set(['ollama', 'local']);
+const LOCAL_EMBEDDING_PROVIDERS = new Set(['sentence_transformers']);
+
 const inputCls =
     'w-full h-11 px-3 rounded-lg border border-border text-text-main text-sm ' +
     'placeholder-text-muted bg-surface ' +
@@ -68,122 +69,144 @@ const selectCls =
     'bg-surface focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent ' +
     'transition-all duration-150';
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-/** Available = green, unavailable = light gray */
-const StatusPill: React.FC<{ available: boolean; label: string }> = ({ available, label }) => (
+const StatusPill: React.FC<{ ok: boolean; okLabel: string; badLabel: string; subtle?: boolean }> = ({
+    ok,
+    okLabel,
+    badLabel,
+    subtle = false,
+}) => (
     <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${available
-            ? 'bg-green-500/10 text-green-500 ring-1 ring-green-500/20'
-            : 'bg-surface-hover text-text-muted'
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${ok
+            ? subtle ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'
+            : subtle ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'
             }`}
     >
-        <span className={`w-1.5 h-1.5 rounded-full ${available ? 'bg-green-500' : 'bg-text-muted/50'}`} />
-        {label}
+        <span className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-green-500' : subtle ? 'bg-amber-500' : 'bg-red-500'}`} />
+        {ok ? okLabel : badLabel}
     </span>
 );
 
-/** Provider selector buttons — indigo when active, light when inactive, muted when unavailable */
+const HelpTooltip: React.FC<{ title: string; steps: string[] }> = ({ title, steps }) => (
+    <div className="group relative inline-flex items-center">
+        <button
+            type="button"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-text-muted transition hover:text-text-main"
+            aria-label={`Help for ${title}`}
+        >
+            <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+        <div className="pointer-events-none absolute left-0 top-8 z-[120] w-72 max-w-[calc(100vw-2rem)] translate-y-1 rounded-xl border border-border bg-surface p-3 text-left opacity-0 shadow-lg transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
+            <p className="text-xs font-semibold text-text-main">{title}</p>
+            <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-xs text-text-muted">
+                {steps.map((step) => (
+                    <li key={step}>{step}</li>
+                ))}
+            </ol>
+        </div>
+    </div>
+);
+
+const FieldLabel: React.FC<{ children: React.ReactNode; helpTitle?: string; helpSteps?: string[] }> = ({
+    children,
+    helpTitle,
+    helpSteps,
+}) => (
+    <div className="mb-1.5 flex items-center gap-2">
+        <label className="text-sm font-medium text-text-main">{children}</label>
+        {helpTitle && helpSteps && helpSteps.length > 0 && (
+            <HelpTooltip title={helpTitle} steps={helpSteps} />
+        )}
+    </div>
+);
+
 const ProviderButtons: React.FC<{
     providers: [string, ProviderInfo][];
     selected: string;
-    onSelect: (p: string) => void;
+    onSelect: (provider: string) => void;
     meta: Record<string, { label: string }>;
-}> = ({ providers, selected, onSelect, meta }) => (
-    <div className="flex flex-wrap gap-2">
-        {providers.map(([id, info]) => {
-            const isActive = id === selected;
+    disabledProviders?: Set<string>;
+}> = ({ providers, selected, onSelect, meta, disabledProviders }) => (
+    <div className="grid gap-2 sm:grid-cols-2">
+        {providers.map(([provider, info]) => {
+            const isSelected = provider === selected;
+            const isDisabled = Boolean(disabledProviders?.has(provider));
             return (
                 <button
-                    key={id}
-                    onClick={() => onSelect(id)}
+                    key={provider}
                     type="button"
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-150 ${isActive
-                        ? 'bg-accent-cyan border-accent-cyan text-white shadow-sm'
-                        : info.available
-                            ? 'bg-surface border-border text-text-main hover:border-accent-cyan hover:text-accent-cyan'
-                            : 'bg-surface-hover border-border text-text-muted cursor-default'
+                    disabled={isDisabled}
+                    onClick={() => onSelect(provider)}
+                    className={`rounded-xl border p-3 text-left transition-all duration-150 ${isSelected
+                        ? 'border-accent-cyan bg-accent-cyan/10'
+                        : isDisabled
+                            ? 'border-border bg-surface opacity-60 cursor-not-allowed'
+                            : 'border-border bg-surface hover:border-accent-cyan/60'
                         }`}
                 >
-                    {meta[id]?.label ?? id}
-                    {!info.available && !isActive && (
-                        <span className="ml-1.5 opacity-50 text-xs font-normal">— unavailable</span>
-                    )}
+                    <p className="text-sm font-semibold text-text-main">{meta[provider]?.label ?? provider}</p>
+                    <div className="mt-1.5">
+                        {isDisabled ? (
+                            <StatusPill ok={false} okLabel="" badLabel="Locked" subtle />
+                        ) : (
+                            <StatusPill ok={info.available} okLabel="Detected" badLabel="Not detected" subtle />
+                        )}
+                    </div>
                 </button>
             );
         })}
     </div>
 );
 
-/** Select dropdown or plain text input based on available models */
 const ModelField: React.FC<{
     models: ModelOption[];
     value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
+    onChange: (value: string) => void;
+    placeholder: string;
     hint?: string;
-    warning?: string;
-}> = ({ models, value, onChange, placeholder, hint, warning }) => (
+}> = ({ models, value, onChange, placeholder, hint }) => (
     <div className="space-y-1.5">
         {models.length > 0 ? (
-            <select value={value} onChange={e => onChange(e.target.value)} className={selectCls}>
-                {models.map(m => (
-                    <option key={m.id} value={m.id}>
-                        {m.label || m.id}{m.dim ? ` (${m.dim}d)` : ''}
+            <select className={selectCls} value={value} onChange={(event) => onChange(event.target.value)}>
+                {models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                        {model.label || model.id}
+                        {model.dim ? ` (${model.dim}d)` : ''}
                     </option>
                 ))}
             </select>
         ) : (
             <input
+                className={inputCls}
                 type="text"
                 value={value}
-                onChange={e => onChange(e.target.value)}
-                placeholder={placeholder || 'Model ID'}
-                className={inputCls}
+                placeholder={placeholder}
+                onChange={(event) => onChange(event.target.value)}
             />
         )}
-        {hint && <p className="text-xs text-text-muted opacity-80">{hint}</p>}
-        {warning && (
-            <p className="text-xs text-amber-500 flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />{warning}
-            </p>
-        )}
+        {hint && <p className="text-xs text-text-muted">{hint}</p>}
     </div>
 );
 
-/** API key field with lock icon and saved confirmation */
 const ApiKeyField: React.FC<{
     value: string;
-    onChange: (v: string) => void;
-    isSaved: boolean;
-    placeholder?: string;
-}> = ({ value, onChange, isSaved, placeholder }) => (
+    onChange: (value: string) => void;
+    hasSavedKey: boolean;
+    providerLabel: string;
+}> = ({ value, onChange, hasSavedKey, providerLabel }) => (
     <div className="space-y-1.5">
         <div className="relative">
-            <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted opacity-50" />
+            <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted/70" />
             <input
+                className={`${inputCls} pl-9 font-mono text-xs`}
                 type="password"
                 value={value}
-                onChange={e => onChange(e.target.value)}
-                placeholder={isSaved ? 'Leave blank to keep the saved key' : placeholder || 'Enter API key'}
-                className={inputCls + ' pl-9 font-mono'}
+                onChange={(event) => onChange(event.target.value)}
+                placeholder={hasSavedKey ? 'Keep empty to use saved key, or type a new one' : `Enter ${providerLabel} key`}
             />
         </div>
-        {isSaved && (
-            <p className="text-xs text-green-500 flex items-center gap-1">
-                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                API key is configured. Type a new one to replace it.
-            </p>
-        )}
+        {hasSavedKey && !value && <p className="text-xs text-green-600">Saved key is already available.</p>}
     </div>
 );
-
-/** Consistent field label matching the rest of the app */
-const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <label className="block text-sm font-medium text-text-main mb-1.5">{children}</label>
-);
-
-// ── Main page ──────────────────────────────────────────────────────────────────
 
 export const PlatformAIConfig: React.FC = () => {
     const [config, setConfig] = useState<AIConfig>({
@@ -199,46 +222,155 @@ export const PlatformAIConfig: React.FC = () => {
         requests_per_minute: 60,
     });
 
+    const [savedConfig, setSavedConfig] = useState<AIConfig | null>(null);
+    const [savedKeyState, setSavedKeyState] = useState({ llm: false, embedding: false });
+
     const [system, setSystem] = useState<SystemModels | null>(null);
     const [llmKeyInput, setLlmKeyInput] = useState('');
     const [embedKeyInput, setEmbedKeyInput] = useState('');
+
     const [loading, setLoading] = useState(true);
     const [probing, setProbing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [errorMsg, setErrorMsg] = useState('');
+    const [showEmbeddingChangeConfirm, setShowEmbeddingChangeConfirm] = useState(false);
 
-    // ── Fetch ─────────────────────────────────────────────────────────────────────
+    const applyFetchedConfig = useCallback((data: AIConfig) => {
+        setConfig(data);
+        setSavedConfig(data);
+        setSavedKeyState({
+            llm: (data.llm_api_key || '').includes('***'),
+            embedding: (data.embedding_api_key || '').includes('***'),
+        });
+        setLlmKeyInput('');
+        setEmbedKeyInput('');
+    }, []);
 
     const fetchConfig = useCallback(async () => {
-        try {
-            const res = await apiService.get('/platform/ai-config/');
-            setConfig(res.data);
-            setLlmKeyInput(res.data.llm_api_key || '');
-            setEmbedKeyInput(res.data.embedding_api_key || '');
-        } catch {
-            setErrorMsg('Failed to load configuration.');
-        }
-    }, []);
+        const response = await apiService.get('/platform/ai-config/');
+        applyFetchedConfig(response.data as AIConfig);
+    }, [applyFetchedConfig]);
 
     const fetchSystem = useCallback(async () => {
         setProbing(true);
         try {
-            const res = await apiService.get('/platform/ai-config/available-models/');
-            setSystem(res.data);
-        } catch { /* non-fatal */ } finally { setProbing(false); }
+            const response = await apiService.get('/platform/ai-config/available-models/');
+            setSystem(response.data as SystemModels);
+        } finally {
+            setProbing(false);
+        }
     }, []);
 
     useEffect(() => {
-        Promise.all([fetchConfig(), fetchSystem()]).finally(() => setLoading(false));
+        let active = true;
+        const load = async () => {
+            try {
+                await Promise.all([fetchConfig(), fetchSystem()]);
+            } catch {
+                if (active) setErrorMsg('Failed to load AI configuration.');
+            } finally {
+                if (active) setLoading(false);
+            }
+        };
+        load();
+        return () => {
+            active = false;
+        };
     }, [fetchConfig, fetchSystem]);
 
-    // ── Save ──────────────────────────────────────────────────────────────────────
+    const embedProviders = useMemo(
+        () => (system ? (Object.entries(system.embedding) as [string, ProviderInfo][]) : []),
+        [system]
+    );
+    const llmProviders = useMemo(
+        () => (system ? (Object.entries(system.llm) as [string, ProviderInfo][]) : []),
+        [system]
+    );
 
-    const handleSave = async () => {
+    const isLocalLlmMode = LOCAL_LLM_PROVIDERS.has(config.llm_provider);
+
+    const disabledEmbeddingProviders = useMemo(() => {
+        const disabled = new Set<string>();
+        if (!isLocalLlmMode) return disabled;
+        for (const [provider] of embedProviders) {
+            if (!LOCAL_EMBEDDING_PROVIDERS.has(provider)) {
+                disabled.add(provider);
+            }
+        }
+        return disabled;
+    }, [embedProviders, isLocalLlmMode]);
+
+    useEffect(() => {
+        if (!isLocalLlmMode) return;
+        if (LOCAL_EMBEDDING_PROVIDERS.has(config.embedding_provider)) return;
+
+        const fallbackProvider = 'sentence_transformers';
+        const fallbackModel = system?.embedding?.[fallbackProvider]?.models?.[0]?.id || '';
+        setConfig((prev) => ({
+            ...prev,
+            embedding_provider: fallbackProvider,
+            embedding_model: fallbackModel,
+            embedding_api_base: '',
+        }));
+        setEmbedKeyInput('');
+    }, [config.embedding_provider, isLocalLlmMode, system]);
+
+    const embedMeta = EMBED_META[config.embedding_provider] || {
+        label: config.embedding_provider,
+        needsKey: true,
+        needsBase: false,
+    };
+
+    const llmMeta = LLM_META[config.llm_provider] || {
+        label: config.llm_provider,
+        needsKey: true,
+        needsBase: false,
+    };
+
+    const currentEmbedInfo = system?.embedding?.[config.embedding_provider];
+    const currentLlmInfo = system?.llm?.[config.llm_provider];
+
+    const fieldsToCompare: Array<keyof AIConfig> = [
+        'llm_provider',
+        'llm_model',
+        'llm_api_base',
+        'embedding_provider',
+        'embedding_model',
+        'embedding_api_base',
+        'max_tokens_per_request',
+        'requests_per_minute',
+    ];
+
+    const hasUnsavedFieldChanges =
+        Boolean(savedConfig) && fieldsToCompare.some((field) => config[field] !== savedConfig?.[field]);
+
+    const hasUnsavedKeyDraft = llmKeyInput.trim().length > 0 || embedKeyInput.trim().length > 0;
+    const hasUnsavedDraft = hasUnsavedFieldChanges || hasUnsavedKeyDraft;
+
+    const embeddingConfigChanged = Boolean(savedConfig) && (
+        config.embedding_provider !== savedConfig?.embedding_provider ||
+        config.embedding_model !== savedConfig?.embedding_model
+    );
+
+    const embeddingImpactItems = [
+        'Existing vectors may no longer match the new embedding space until documents are reprocessed.',
+        'Search quality can drop temporarily because old and new embeddings are mixed.',
+        'If vector dimensions differ, chunks can be skipped during indexing/search paths.',
+        'Document processing jobs may increase while full re-indexing is running.',
+    ];
+
+    const embeddingActionItems = [
+        'Reprocess all completed documents after saving.',
+        'Monitor document processing queue/progress until all finish.',
+        'Validate a few critical chatbot queries after re-indexing.',
+    ];
+
+    const performSave = async () => {
         setSaving(true);
         setStatus('idle');
         setErrorMsg('');
+
         try {
             const payload: Record<string, unknown> = {
                 llm_provider: config.llm_provider,
@@ -250,314 +382,446 @@ export const PlatformAIConfig: React.FC = () => {
                 max_tokens_per_request: config.max_tokens_per_request,
                 requests_per_minute: config.requests_per_minute,
             };
-            if (llmKeyInput && !llmKeyInput.includes('***')) payload.llm_api_key_input = llmKeyInput;
-            if (embedKeyInput && !embedKeyInput.includes('***')) payload.embedding_api_key_input = embedKeyInput;
 
-            const res = await apiService.put('/platform/ai-config/update/', payload);
-            setConfig(res.data);
+            if (llmKeyInput.trim().length > 0) payload.llm_api_key_input = llmKeyInput.trim();
+            if (embedKeyInput.trim().length > 0) payload.embedding_api_key_input = embedKeyInput.trim();
+
+            const response = await apiService.put('/platform/ai-config/update/', payload);
+            applyFetchedConfig(response.data as AIConfig);
             setStatus('success');
-            setTimeout(() => setStatus('idle'), 3000);
-            fetchSystem();
-        } catch (e: unknown) {
+            await fetchSystem();
+            window.setTimeout(() => setStatus('idle'), 3000);
+        } catch (error: unknown) {
             setStatus('error');
-            const axiosErr = e as { response?: { data?: { detail?: string } } };
-            setErrorMsg(axiosErr?.response?.data?.detail || 'Failed to save configuration.');
+            const axiosError = error as { response?: { data?: { detail?: string } } };
+            setErrorMsg(axiosError?.response?.data?.detail || 'Failed to save configuration.');
         } finally {
             setSaving(false);
         }
     };
 
-    // ── Derived ───────────────────────────────────────────────────────────────────
-
-    const embedProviders = system ? Object.entries(system.embedding) as [string, ProviderInfo][] : [];
-    const llmProviders = system ? Object.entries(system.llm) as [string, ProviderInfo][] : [];
-
-    const curEmbedInfo = system?.embedding[config.embedding_provider];
-    const curLlmInfo = system?.llm[config.llm_provider];
-
-    const embedMeta = EMBED_META[config.embedding_provider] ?? { label: config.embedding_provider, needsKey: false };
-    const llmMeta = LLM_META[config.llm_provider] ?? { label: config.llm_provider, needsKey: true, needsBase: false };
-
-    const hasLlmKey = !!config.llm_api_key?.includes('***');
-    const hasEmbedKey = !!config.embedding_api_key?.includes('***');
-
-    const handleEmbedProviderChange = (p: string) => {
-        const first = system?.embedding[p]?.models?.[0]?.id ?? '';
-        setConfig(c => ({ ...c, embedding_provider: p, embedding_model: first }));
-        setEmbedKeyInput('');
+    const handleSave = async () => {
+        if (embeddingConfigChanged) {
+            setShowEmbeddingChangeConfirm(true);
+            return;
+        }
+        await performSave();
     };
-    const handleLlmProviderChange = (p: string) => {
-        const first = system?.llm[p]?.models?.[0]?.id ?? '';
-        setConfig(c => ({ ...c, llm_provider: p, llm_model: first }));
-        setLlmKeyInput('');
-    };
-
-    // ── Loading ───────────────────────────────────────────────────────────────────
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64 gap-2 text-text-muted">
-                <RefreshCw className="animate-spin w-4 h-4" />
-                Loading AI configuration…
+            <div className="flex h-64 items-center justify-center gap-2 text-text-muted">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Loading AI configuration...
             </div>
         );
     }
 
-    // ── Render ────────────────────────────────────────────────────────────────────
-
     return (
-        <div className="p-6 max-w-2xl mx-auto space-y-5">
-
-            {/* Header */}
-            <div className="flex items-start justify-between">
+        <div className="mx-auto max-w-5xl space-y-5 p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-text-main flex items-center gap-2">
-                        <Settings className="w-5 h-5 text-accent-cyan" />
+                    <h1 className="flex items-center gap-2 text-2xl font-semibold text-text-main">
+                        <Settings className="h-6 w-6 text-accent-cyan" />
                         AI Configuration
                     </h1>
-                    <p className="text-sm text-text-muted mt-0.5">
-                        Configure the LLM and embedding model that power the RAG pipeline.
-                        Only models available on this system are shown.
-                    </p>
+                    <p className="mt-1 text-sm text-text-muted">Simple flow: choose provider, choose model, save.</p>
                 </div>
                 <button
-                    onClick={() => { fetchConfig(); fetchSystem(); }}
-                    disabled={probing}
                     type="button"
-                    className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-main border border-border rounded-lg px-3 py-1.5 bg-surface hover:bg-surface-hover transition-all disabled:opacity-50"
+                    onClick={async () => {
+                        setErrorMsg('');
+                        try {
+                            await Promise.all([fetchConfig(), fetchSystem()]);
+                        } catch {
+                            setErrorMsg('Failed to refresh provider status.');
+                        }
+                    }}
+                    disabled={probing}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-muted transition-all hover:bg-surface-hover hover:text-text-main disabled:opacity-60"
                 >
-                    <RefreshCw className={`w-3.5 h-3.5 ${probing ? 'animate-spin' : ''}`} />
-                    {probing ? 'Probing…' : 'Re-probe'}
+                    <RefreshCw className={`h-3.5 w-3.5 ${probing ? 'animate-spin' : ''}`} />
+                    {probing ? 'Refreshing' : 'Refresh Status'}
                 </button>
             </div>
 
-            {/* Banners */}
             {status === 'success' && (
-                <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3 text-green-500 text-sm">
-                    <CheckCircle className="w-4 h-4 shrink-0" /> Configuration saved successfully.
+                <div className="flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-600">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    Configuration saved successfully.
                 </div>
             )}
+
             {(status === 'error' || errorMsg) && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-red-500 text-sm">
-                    <AlertTriangle className="w-4 h-4 shrink-0" /> {errorMsg}
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {errorMsg || 'Failed to save configuration.'}
                 </div>
             )}
 
-            {/* ── Main form card — bg-white like every other card in the app ── */}
-            <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
-
-                {/* ══ Embedding section ══ */}
-                <div className="p-6 space-y-5">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-text-main">Embedding</h2>
-                        <StatusPill
-                            available={!!curEmbedInfo?.available}
-                            label={curEmbedInfo?.available ? 'Available' : embedMeta.needsKey ? 'API key required' : 'Not detected'}
-                        />
-                    </div>
-
-                    <div>
-                        <FieldLabel>Provider</FieldLabel>
-                        <ProviderButtons
-                            providers={embedProviders}
-                            selected={config.embedding_provider}
-                            onSelect={handleEmbedProviderChange}
-                            meta={EMBED_META}
-                        />
-                        {curEmbedInfo?.note && (
-                            <p className="mt-2 text-xs text-text-muted opacity-80">{curEmbedInfo.note}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <FieldLabel>
-                            Model
-                            {system?.current_vector_dim && (
-                                <span className="ml-2 font-normal text-text-muted opacity-50 text-xs">
-                                    active Qdrant dimension: {system.current_vector_dim}d
-                                </span>
-                            )}
-                        </FieldLabel>
-                        <ModelField
-                            models={curEmbedInfo?.models ?? []}
-                            value={config.embedding_model}
-                            onChange={v => setConfig(c => ({ ...c, embedding_model: v }))}
-                            placeholder={
-                                config.embedding_provider === 'sentence_transformers'
-                                    ? 'e.g. all-MiniLM-L6-v2'
-                                    : config.embedding_provider === 'huggingface'
-                                        ? 'e.g. BAAI/bge-small-en-v1.5'
-                                        : 'Model ID'
-                            }
-                            hint={
-                                config.embedding_provider === 'sentence_transformers' && !curEmbedInfo?.models.length
-                                    ? 'No cached models found — model will be downloaded on first use.'
-                                    : undefined
-                            }
-                            warning={
-                                system?.current_embedding_model && config.embedding_model !== system.current_embedding_model
-                                    ? 'Changing the model changes the vector dimension — all documents must be re-indexed after saving.'
-                                    : undefined
-                            }
-                        />
-                    </div>
-
-                    {embedMeta.needsKey && (
-                        <div>
-                            <FieldLabel>API Key</FieldLabel>
-                            <ApiKeyField
-                                value={embedKeyInput}
-                                onChange={setEmbedKeyInput}
-                                isSaved={hasEmbedKey}
-                                placeholder={`Enter ${embedMeta.label} API key`}
-                            />
-                        </div>
-                    )}
-
-                    {config.embedding_provider === 'huggingface' && (
-                        <div>
-                            <FieldLabel>Custom Base URL <span className="font-normal text-text-muted opacity-50">(optional)</span></FieldLabel>
-                            <div className="relative">
-                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted opacity-50" />
-                                <input
-                                    type="text"
-                                    value={config.embedding_api_base}
-                                    onChange={e => setConfig(c => ({ ...c, embedding_api_base: e.target.value }))}
-                                    placeholder="https://api-inference.huggingface.co/..."
-                                    className={inputCls + ' pl-9 font-mono text-xs'}
-                                />
-                            </div>
-                        </div>
-                    )}
+            {hasUnsavedDraft && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    You have unsaved changes.
                 </div>
+            )}
 
-                {/* ══ LLM section ══ */}
-                <div className="p-6 space-y-5">
+            {isLocalLlmMode && (
+                <div className="flex items-start gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-600">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    Local LLM selected. Only local embedding providers are enabled.
+                </div>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-text-main">Language Model (LLM)</h2>
-                        <StatusPill
-                            available={!!curLlmInfo?.available}
-                            label={curLlmInfo?.available ? 'Available' : llmMeta.needsKey ? 'API key required' : 'Not running'}
-                        />
-                    </div>
-
-                    <div>
-                        <FieldLabel>Provider</FieldLabel>
-                        <ProviderButtons
-                            providers={llmProviders}
-                            selected={config.llm_provider}
-                            onSelect={handleLlmProviderChange}
-                            meta={LLM_META}
-                        />
-                        {curLlmInfo?.note && (
-                            <p className="mt-2 text-xs text-text-muted opacity-80">{curLlmInfo.note}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <FieldLabel>Model</FieldLabel>
-                        <ModelField
-                            models={curLlmInfo?.models ?? []}
-                            value={config.llm_model}
-                            onChange={v => setConfig(c => ({ ...c, llm_model: v }))}
-                            placeholder={
-                                config.llm_provider === 'ollama'
-                                    ? 'e.g. llama3  (run: ollama pull llama3)'
-                                    : config.llm_provider === 'huggingface'
-                                        ? 'e.g. mistralai/Mistral-7B-Instruct-v0.2'
-                                        : 'Model ID'
-                            }
-                            warning={
-                                config.llm_provider === 'ollama' && !curLlmInfo?.available
-                                    ? 'Ollama is not running. Start it with: ollama serve'
-                                    : undefined
-                            }
-                        />
-                    </div>
-
-                    {llmMeta.needsKey && (
-                        <div>
-                            <FieldLabel>API Key</FieldLabel>
-                            <ApiKeyField
-                                value={llmKeyInput}
-                                onChange={setLlmKeyInput}
-                                isSaved={hasLlmKey}
-                                placeholder={`Enter ${llmMeta.label} API key`}
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-base font-semibold text-text-main">Embedding</h2>
+                            <HelpTooltip
+                                title="Embedding tab"
+                                steps={[
+                                    'Select embedding provider.',
+                                    'Select embedding model.',
+                                    'Add embedding key only if provider needs it.',
+                                    'Save to apply changes.',
+                                ]}
                             />
-                            <p className="mt-1.5 text-xs text-text-muted opacity-50">
-                                After saving, click Re-probe to unlock models for this provider.
-                            </p>
                         </div>
-                    )}
+                        <StatusPill
+                            ok={Boolean(currentEmbedInfo?.available) || config.embedding_provider === 'sentence_transformers'}
+                            okLabel="Connected"
+                            badLabel="Check provider"
+                            subtle
+                        />
+                    </div>
 
-                    {(llmMeta.needsBase || config.llm_provider === 'huggingface') && (
+                    <div className="mt-4 space-y-4">
                         <div>
-                            <FieldLabel>
-                                {config.llm_provider === 'ollama' ? 'Ollama Base URL' : 'Custom API Base URL'}
-                                {config.llm_provider !== 'ollama' && (
-                                    <span className="font-normal text-text-muted opacity-50"> (optional)</span>
-                                )}
+                            <FieldLabel>Provider</FieldLabel>
+                            <ProviderButtons
+                                providers={embedProviders}
+                                selected={config.embedding_provider}
+                                disabledProviders={disabledEmbeddingProviders}
+                                onSelect={(provider) => {
+                                    if (disabledEmbeddingProviders.has(provider)) return;
+                                    const firstModel = system?.embedding?.[provider]?.models?.[0]?.id || '';
+                                    setConfig((prev) => ({
+                                        ...prev,
+                                        embedding_provider: provider,
+                                        embedding_model: firstModel,
+                                    }));
+                                    setEmbedKeyInput('');
+                                }}
+                                meta={EMBED_META}
+                            />
+                            {currentEmbedInfo?.note && <p className="mt-1.5 text-xs text-text-muted">{currentEmbedInfo.note}</p>}
+                        </div>
+
+                        <div>
+                            <FieldLabel
+                                helpTitle="Embedding model"
+                                helpSteps={[
+                                    'Pick one model from list.',
+                                    'If list is empty, type model id manually.',
+                                    'Changing model can require re-indexing documents.',
+                                ]}
+                            >
+                                Model
                             </FieldLabel>
-                            <div className="relative">
-                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted opacity-50" />
-                                <input
-                                    type="text"
-                                    value={config.llm_api_base}
-                                    onChange={e => setConfig(c => ({ ...c, llm_api_base: e.target.value }))}
-                                    placeholder={config.llm_provider === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com/v1'}
-                                    className={inputCls + ' pl-9 font-mono text-xs'}
+                            <ModelField
+                                models={currentEmbedInfo?.models || []}
+                                value={config.embedding_model}
+                                onChange={(value) => setConfig((prev) => ({ ...prev, embedding_model: value }))}
+                                placeholder={config.embedding_provider === 'sentence_transformers' ? 'Example: all-MiniLM-L6-v2' : 'Embedding model id'}
+                                hint={
+                                    system?.current_vector_dim
+                                        ? `Current vector size: ${system.current_vector_dim}d`
+                                        : undefined
+                                }
+                            />
+                        </div>
+
+                        {embedMeta.needsKey && (
+                            <div>
+                                <FieldLabel
+                                    helpTitle="Embedding API key"
+                                    helpSteps={[
+                                        'Only needed for cloud embedding providers.',
+                                        'Leave empty to keep existing saved key.',
+                                        'Type a new key to replace current one.',
+                                    ]}
+                                >
+                                    API Key
+                                </FieldLabel>
+                                <ApiKeyField
+                                    value={embedKeyInput}
+                                    onChange={setEmbedKeyInput}
+                                    hasSavedKey={savedKeyState.embedding}
+                                    providerLabel={embedMeta.label}
                                 />
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
 
-                {/* ══ Rate limits ══ */}
-                <div className="p-6 space-y-4">
-                    <h2 className="text-base font-semibold text-text-main">Rate Limits</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <FieldLabel>Requests / minute</FieldLabel>
-                            <input
-                                type="number" min={1} max={1000}
-                                value={config.requests_per_minute}
-                                onChange={e => setConfig(c => ({ ...c, requests_per_minute: Number(e.target.value) }))}
-                                className={inputCls}
-                            />
-                        </div>
-                        <div>
-                            <FieldLabel>Max tokens / response</FieldLabel>
-                            <input
-                                type="number" min={100} max={8096}
-                                value={config.max_tokens_per_request}
-                                onChange={e => setConfig(c => ({ ...c, max_tokens_per_request: Number(e.target.value) }))}
-                                className={inputCls}
-                            />
-                        </div>
+                        {config.embedding_provider === 'huggingface' && (
+                            <div>
+                                <FieldLabel>Base URL (optional)</FieldLabel>
+                                <div className="relative">
+                                    <Server className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted/70" />
+                                    <input
+                                        className={`${inputCls} pl-9 font-mono text-xs`}
+                                        type="text"
+                                        value={config.embedding_api_base}
+                                        onChange={(event) => setConfig((prev) => ({ ...prev, embedding_api_base: event.target.value }))}
+                                        placeholder="https://api-inference.huggingface.co/..."
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
+                <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-base font-semibold text-text-main">LLM</h2>
+                            <HelpTooltip
+                                title="LLM tab"
+                                steps={[
+                                    'Select LLM provider.',
+                                    'Select model.',
+                                    'Add API key if needed.',
+                                    'Save to make this LLM active.',
+                                ]}
+                            />
+                        </div>
+                        <StatusPill
+                            ok={Boolean(currentLlmInfo?.available)}
+                            okLabel="Connected"
+                            badLabel="Check provider"
+                            subtle
+                        />
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                        <div>
+                            <FieldLabel>Provider</FieldLabel>
+                            <ProviderButtons
+                                providers={llmProviders}
+                                selected={config.llm_provider}
+                                onSelect={(provider) => {
+                                    const firstModel = system?.llm?.[provider]?.models?.[0]?.id || '';
+                                    const nextIsLocalMode = LOCAL_LLM_PROVIDERS.has(provider);
+                                    const fallbackEmbeddingProvider = 'sentence_transformers';
+                                    const fallbackEmbeddingModel = system?.embedding?.[fallbackEmbeddingProvider]?.models?.[0]?.id || '';
+
+                                    setConfig((prev) => {
+                                        const next = {
+                                            ...prev,
+                                            llm_provider: provider,
+                                            llm_model: firstModel,
+                                        };
+                                        if (nextIsLocalMode && !LOCAL_EMBEDDING_PROVIDERS.has(prev.embedding_provider)) {
+                                            return {
+                                                ...next,
+                                                embedding_provider: fallbackEmbeddingProvider,
+                                                embedding_model: fallbackEmbeddingModel,
+                                                embedding_api_base: '',
+                                            };
+                                        }
+                                        return next;
+                                    });
+
+                                    if (nextIsLocalMode) {
+                                        setEmbedKeyInput('');
+                                    }
+                                    setLlmKeyInput('');
+                                }}
+                                meta={LLM_META}
+                            />
+                            {currentLlmInfo?.note && <p className="mt-1.5 text-xs text-text-muted">{currentLlmInfo.note}</p>}
+                        </div>
+
+                        <div>
+                            <FieldLabel
+                                helpTitle="LLM model"
+                                helpSteps={[
+                                    'Pick one model from list.',
+                                    'If list is empty, type model id manually.',
+                                    'Use Refresh Status after changing provider/key.',
+                                ]}
+                            >
+                                Model
+                            </FieldLabel>
+                            <ModelField
+                                models={currentLlmInfo?.models || []}
+                                value={config.llm_model}
+                                onChange={(value) => setConfig((prev) => ({ ...prev, llm_model: value }))}
+                                placeholder={config.llm_provider === 'ollama' ? 'Example: llama3' : 'LLM model id'}
+                            />
+                        </div>
+
+                        {llmMeta.needsKey && (
+                            <div>
+                                <FieldLabel
+                                    helpTitle="LLM API key"
+                                    helpSteps={[
+                                        'Needed for cloud LLM providers.',
+                                        'Leave empty to keep existing key.',
+                                        'Type new key only when replacing.',
+                                    ]}
+                                >
+                                    API Key
+                                </FieldLabel>
+                                <ApiKeyField
+                                    value={llmKeyInput}
+                                    onChange={setLlmKeyInput}
+                                    hasSavedKey={savedKeyState.llm}
+                                    providerLabel={llmMeta.label}
+                                />
+                            </div>
+                        )}
+
+                        {(llmMeta.needsBase || config.llm_provider === 'huggingface') && (
+                            <div>
+                                <FieldLabel>Base URL {config.llm_provider === 'ollama' ? '' : '(optional)'}</FieldLabel>
+                                <div className="relative">
+                                    <Server className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted/70" />
+                                    <input
+                                        className={`${inputCls} pl-9 font-mono text-xs`}
+                                        type="text"
+                                        value={config.llm_api_base}
+                                        onChange={(event) => setConfig((prev) => ({ ...prev, llm_api_base: event.target.value }))}
+                                        placeholder={config.llm_provider === 'ollama' ? 'http://localhost:11434' : 'https://router.huggingface.co'}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between">
-                {config.updated_at ? (
-                    <span className="text-xs text-text-muted opacity-50">
-                        Last saved: {new Date(config.updated_at).toLocaleString()}
-                    </span>
-                ) : <span />}
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-text-main">Rate Limits</h2>
+                    <HelpTooltip
+                        title="Rate limits tab"
+                        steps={[
+                            'Set requests per minute limit.',
+                            'Set max tokens per response.',
+                            'Save to apply limits for new requests.',
+                        ]}
+                    />
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <FieldLabel>Requests per minute</FieldLabel>
+                        <input
+                            className={inputCls}
+                            type="number"
+                            min={1}
+                            max={1000}
+                            value={config.requests_per_minute}
+                            onChange={(event) => setConfig((prev) => ({ ...prev, requests_per_minute: Number(event.target.value) }))}
+                        />
+                    </div>
+                    <div>
+                        <FieldLabel>Max tokens per response</FieldLabel>
+                        <input
+                            className={inputCls}
+                            type="number"
+                            min={100}
+                            max={8096}
+                            value={config.max_tokens_per_request}
+                            onChange={(event) => setConfig((prev) => ({ ...prev, max_tokens_per_request: Number(event.target.value) }))}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p className="text-sm font-semibold text-text-main">Current active runtime</p>
+                    <p className="mt-1 text-xs text-text-muted">
+                        LLM: {LLM_META[savedConfig?.llm_provider || '']?.label || savedConfig?.llm_provider || '-'}
+                        {' | '}
+                        Embedding: {EMBED_META[savedConfig?.embedding_provider || '']?.label || savedConfig?.embedding_provider || '-'}
+                    </p>
+                    {config.updated_at && (
+                        <p className="mt-1 text-xs text-text-muted">Last saved: {new Date(config.updated_at).toLocaleString()}</p>
+                    )}
+                </div>
 
                 <button
                     type="button"
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-accent-cyan hover:bg-accent-cyan/90 disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm transition-all duration-150"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-cyan px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-accent-cyan/90 disabled:opacity-60"
                 >
-                    {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {saving ? 'Saving…' : 'Save Configuration'}
+                    {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {saving ? 'Saving configuration' : 'Save Configuration'}
                 </button>
             </div>
 
+            {showEmbeddingChangeConfirm && (
+                <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/45 p-4">
+                    <div className="w-full max-w-2xl rounded-2xl border border-border bg-surface shadow-xl">
+                        <div className="border-b border-border px-5 py-4">
+                            <div className="flex items-start gap-2">
+                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                                <div>
+                                    <h3 className="text-base font-semibold text-text-main">Embedding change requires full reprocessing</h3>
+                                    <p className="mt-1 text-sm text-text-muted">
+                                        You changed the embedding provider/model. This can affect vector compatibility and search until documents are reprocessed.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 px-5 py-4">
+                            <div>
+                                <p className="text-sm font-semibold text-text-main">Possible impact</p>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-text-muted">
+                                    {embeddingImpactItems.map((item) => (
+                                        <li key={item}>{item}</li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            <div>
+                                <p className="text-sm font-semibold text-text-main">Recommended after save</p>
+                                <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-sm text-text-muted">
+                                    {embeddingActionItems.map((item) => (
+                                        <li key={item}>{item}</li>
+                                    ))}
+                                </ol>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowEmbeddingChangeConfirm(false)}
+                                disabled={saving}
+                                className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-text-main transition hover:bg-surface-hover disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setShowEmbeddingChangeConfirm(false);
+                                    await performSave();
+                                }}
+                                disabled={saving}
+                                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-60"
+                            >
+                                Confirm and Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

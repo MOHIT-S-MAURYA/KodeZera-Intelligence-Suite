@@ -17,6 +17,17 @@ def _hash_query(text: str) -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
+def _split_model_used(model_used: str) -> tuple[str, str]:
+    """Split 'provider/model' into provider and model, with safe fallbacks."""
+    raw = (model_used or '').strip()
+    if not raw:
+        return 'unknown', ''
+    if '/' not in raw:
+        return 'unknown', raw
+    provider, model = raw.split('/', 1)
+    return provider.lower().strip() or 'unknown', model.strip()
+
+
 def record_query_analytics(
     *,
     tenant,
@@ -40,9 +51,11 @@ def record_query_analytics(
         from apps.analytics.models import QueryAnalytics
         from apps.analytics.services.cost_service import estimate_cost
 
+        provider_name, model_name = _split_model_used(model_used)
+
         cost = estimate_cost(
-            provider=getattr(model_used, 'provider', 'unknown'),
-            model=model_used,
+            provider=provider_name,
+            model=model_name,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
         )

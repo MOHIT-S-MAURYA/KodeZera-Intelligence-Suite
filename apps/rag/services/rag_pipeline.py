@@ -77,6 +77,9 @@ class RAGPipeline:
         if not accessible_doc_ids:
             answer = 'You do not have access to any documents. Please contact your administrator.'
             ChatMessage.objects.create(session=session, role='assistant', content=answer)
+            latency_ms = int((time.monotonic() - _start) * 1000)
+            self._record_query_metering(user, is_failed=False)
+            self._record_metrics(user, session, query_text, answer, latency_ms, [], is_failed=False)
             return {
                 'answer': answer,
                 'sources': [],
@@ -99,6 +102,9 @@ class RAGPipeline:
             )
         except Exception as e:
             logger.error(f"Error during retrieval phase: {e}")
+            latency_ms = int((time.monotonic() - _start) * 1000)
+            self._record_query_metering(user, is_failed=True)
+            self._record_metrics(user, session, query_text, '', latency_ms, [], is_failed=True)
             raise LLMServiceError("Failed to retrieve relevant context.")
             
         # 3. Generate response using LLM
@@ -119,6 +125,9 @@ class RAGPipeline:
             except Exception as e:
                 logger.error(f"Error generating LLM response: {e}")
                 is_failed = True
+                latency_ms = int((time.monotonic() - _start) * 1000)
+                self._record_query_metering(user, is_failed=True)
+                self._record_metrics(user, session, query_text, '', latency_ms, retrieved_chunks, is_failed=True)
                 raise LLMServiceError("Failed to generate answer from context.")
             
             # Format sources for frontend
@@ -143,7 +152,8 @@ class RAGPipeline:
 
         # 5. Record analytics metrics (non-blocking)
         _latency_ms = int((time.monotonic() - _start) * 1000)
-        self._record_metrics(user, session, query_text, _latency_ms, retrieved_chunks, is_failed)
+        self._record_query_metering(user, is_failed=is_failed)
+        self._record_metrics(user, session, query_text, answer, _latency_ms, retrieved_chunks, is_failed)
         
         return {
             'answer': answer,
@@ -164,6 +174,7 @@ class RAGPipeline:
         Yields Server-Sent Events (SSE) data chunks.
         """
         logger.info(f"Stream RAG pipeline for user {user.id}")
+        _start = time.monotonic()
         
         # 0. Handle Chat Session
         session = self._get_or_create_session(user, session_id)
@@ -190,6 +201,9 @@ class RAGPipeline:
         if not accessible_doc_ids:
             answer = 'You do not have access to any documents. Please contact your administrator.'
             ChatMessage.objects.create(session=session, role='assistant', content=answer)
+            latency_ms = int((time.monotonic() - _start) * 1000)
+            self._record_query_metering(user, is_failed=False)
+            self._record_metrics(user, session, query_text, answer, latency_ms, [], is_failed=False)
             yield f"data: {json.dumps({'answer': answer, 'sources': [], 'metadata': {'session_id': str(session.id)}, 'done': True})}\n\n"
             return
             
@@ -207,6 +221,9 @@ class RAGPipeline:
             )
         except Exception as e:
             logger.error(f"Error during retrieval stream phase: {e}")
+            latency_ms = int((time.monotonic() - _start) * 1000)
+            self._record_query_metering(user, is_failed=True)
+            self._record_metrics(user, session, query_text, '', latency_ms, [], is_failed=True)
             yield f"data: {json.dumps({'error': 'Failed to retrieve context.'})}\n\n"
             return
 
@@ -226,6 +243,9 @@ class RAGPipeline:
             answer = 'I could not find relevant information in your accessible documents to answer this question.'
             ChatMessage.objects.create(session=session, role='assistant', content=answer)
             yield f"data: {json.dumps({'chunk': answer})}\n\n"
+            latency_ms = int((time.monotonic() - _start) * 1000)
+            self._record_query_metering(user, is_failed=False)
+            self._record_metrics(user, session, query_text, answer, latency_ms, [], is_failed=False)
             yield f"data: {json.dumps({'done': True})}\n\n"
             return
 
@@ -242,6 +262,9 @@ class RAGPipeline:
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
         except Exception as e:
             logger.error(f"Error streaming LLM response: {e}")
+            latency_ms = int((time.monotonic() - _start) * 1000)
+            self._record_query_metering(user, is_failed=True)
+            self._record_metrics(user, session, query_text, full_answer, latency_ms, retrieved_chunks, is_failed=True)
             yield f"data: {json.dumps({'error': 'Stream generation failed.'})}\n\n"
             return
 
@@ -261,6 +284,9 @@ class RAGPipeline:
             retrieved_chunks=retrieved_chunks,
         )
         self._log_query_audit(user, query_text, len(sources))
+        latency_ms = int((time.monotonic() - _start) * 1000)
+        self._record_query_metering(user, is_failed=False)
+        self._record_metrics(user, session, query_text, full_answer, latency_ms, retrieved_chunks, is_failed=False)
         
         # End of stream
         yield f"data: {json.dumps({'done': True, 'metadata': metadata})}\n\n"
@@ -354,7 +380,16 @@ class RAGPipeline:
 
         threading.Thread(target=_write, daemon=True).start()
 
-    def _record_metrics(self, user: User, session, query_text: str, latency_ms: int, chunks: list, is_failed: bool) -> None:
+    def _record_metrics(
+        self,
+        user: User,
+        session,
+        query_text: str,
+        answer_text: str,
+        latency_ms: int,
+        chunks: list,
+        is_failed: bool,
+    ) -> None:
         """Fire-and-forget analytics metric collection."""
         def _write():
             try:
@@ -364,8 +399,8 @@ class RAGPipeline:
 
                 config = AIProviderConfig.get_config()
                 model_used = f"{config.llm_provider}/{config.llm_model}" if config else ''
-                tokens_in  = 0
-                tokens_out = 0
+                tokens_in = self._estimate_tokens(query_text)
+                tokens_out = self._estimate_tokens(answer_text)
 
                 record_query(
                     tenant_id=str(user.tenant.id),
@@ -399,3 +434,24 @@ class RAGPipeline:
                 logger.debug("_record_metrics failed (non-critical): %s", exc)
 
         threading.Thread(target=_write, daemon=True).start()
+
+    def _record_query_metering(self, user: User, is_failed: bool) -> None:
+        """Update per-tenant quota counters for each query request."""
+        tenant_id = getattr(user, 'tenant_id', None)
+        if not tenant_id:
+            return
+
+        try:
+            from apps.core.services.metering import MeteringService
+            MeteringService.record_query(str(tenant_id))
+            if is_failed:
+                MeteringService.record_failed_query(str(tenant_id))
+        except Exception as exc:
+            logger.debug("_record_query_metering failed (non-critical): %s", exc)
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count for analytics when providers don't return usage."""
+        if not text:
+            return 0
+        words = len(text.split())
+        return max(1, int(words * 1.3))
