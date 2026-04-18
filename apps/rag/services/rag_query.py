@@ -11,20 +11,20 @@ logger = logging.getLogger(__name__)
 
 class RAGQueryService:
     """Wrapper service for backward compatibility."""
-    
+
     def __init__(self):
         """Initialize the modular RAG pipeline."""
         self.pipeline = RAGPipeline()
-    
+
     def query(self, user: User, question: str, session_id: str = None) -> Dict[str, Any]:
         """
         Execute RAG query using the modular pipeline.
-        
+
         Args:
             user: Authenticated user
             question: User's question
             session_id: Optional UUID of the chat session
-            
+
         Returns:
             Dict with 'answer', 'sources', and 'metadata'
         """
@@ -35,6 +35,26 @@ class RAGQueryService:
         """
         Execute RAG query using the modular pipeline, returning a token generator.
         """
-        logger.info(f"RAGQueryService stream invoking RAGPipeline for user {user.id}")
+        logger.info(
+            f"RAGQueryService stream invoking RAGPipeline for user {user.id}")
         return self.pipeline.execute_query_stream(user, question, session_id)
 
+    def action_decision(
+        self,
+        *,
+        user: User,
+        action_id: str,
+        decision: str,
+        approval_token: str,
+        reason: str = '',
+        session_id: str = None,
+    ) -> Dict[str, Any]:
+        """Resolve pending HITL action requests after explicit user decision."""
+        return self.pipeline.handle_action_decision(
+            user=user,
+            action_id=action_id,
+            decision=decision,
+            approval_token=approval_token,
+            reason=reason,
+            session_id=session_id,
+        )

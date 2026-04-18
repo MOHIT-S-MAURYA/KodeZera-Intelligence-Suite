@@ -37,17 +37,18 @@ The Kodezera Intelligence Suite is an **enterprise multi-tenant SaaS platform** 
 
 ## Module Index
 
-| #   | Module                                                                 | Document                                                                           | Scope                                                                |
-| --- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 01  | [RAG & Chatbot](#01-rag--chatbot)                                      | [01_rag_and_chatbot.md](01_rag_and_chatbot.md)                                     | Vector search, LLM integration, chat sessions, embedding pipeline    |
-| 02  | [Organisation & RBAC](#02-organisation--rbac)                          | [02_organisation_and_rbac.md](02_organisation_and_rbac.md)                         | Tenant hierarchy, departments, roles, permissions, access control    |
-| 03  | [Authentication & Identity](#03-authentication--identity)              | [03_authentication_and_identity.md](03_authentication_and_identity.md)             | Login, JWT, MFA, SSO, session management, password policy            |
-| 04  | [Document Management](#04-document-management)                         | [04_document_management.md](04_document_management.md)                             | Upload, processing, storage, classification, versioning, lifecycle   |
-| 05  | [Platform Administration & SaaS](#05-platform-administration--saas)    | [05_platform_and_saas.md](05_platform_and_saas.md)                                 | Multi-tenancy, subscriptions, billing, feature flags, AI config      |
-| 06  | [Notifications & Alerts](#06-notifications--alerts)                    | [06_notifications_and_alerts.md](06_notifications_and_alerts.md)                   | In-app, email, push notifications, templates, preferences, real-time |
-| 07  | [Audit, Logging & Compliance](#07-audit-logging--compliance)           | [07_audit_logging_and_compliance.md](07_audit_logging_and_compliance.md)           | Audit trail, change tracking, integrity, security detection, GDPR    |
-| 08  | [Dashboard, Analytics & Reporting](#08-dashboard-analytics--reporting) | [08_dashboard_analytics_and_reporting.md](08_dashboard_analytics_and_reporting.md) | Metrics collection, dashboards, charts, cost analytics, alerting     |
-| 09  | [Infrastructure & Core Services](#09-infrastructure--core-services)    | [09_infrastructure_and_core_services.md](09_infrastructure_and_core_services.md)   | Middleware, caching, throttling, Celery, deployment, CI/CD           |
+| #   | Module                                                                   | Document                                                                           | Scope                                                                   |
+| --- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 01  | [RAG & Chatbot](#01-rag--chatbot)                                        | [01_rag_and_chatbot.md](01_rag_and_chatbot.md)                                     | Vector search, LLM integration, chat sessions, embedding pipeline       |
+| 02  | [Organisation & RBAC](#02-organisation--rbac)                            | [02_organisation_and_rbac.md](02_organisation_and_rbac.md)                         | Tenant hierarchy, departments, roles, permissions, access control       |
+| 03  | [Authentication & Identity](#03-authentication--identity)                | [03_authentication_and_identity.md](03_authentication_and_identity.md)             | Login, JWT, MFA, SSO, session management, password policy               |
+| 04  | [Document Management](#04-document-management)                           | [04_document_management.md](04_document_management.md)                             | Upload, processing, storage, classification, versioning, lifecycle      |
+| 05  | [Platform Administration & SaaS](#05-platform-administration--saas)      | [05_platform_and_saas.md](05_platform_and_saas.md)                                 | Multi-tenancy, subscriptions, billing, feature flags, AI config         |
+| 06  | [Notifications & Alerts](#06-notifications--alerts)                      | [06_notifications_and_alerts.md](06_notifications_and_alerts.md)                   | In-app, email, push notifications, templates, preferences, real-time    |
+| 07  | [Audit, Logging & Compliance](#07-audit-logging--compliance)             | [07_audit_logging_and_compliance.md](07_audit_logging_and_compliance.md)           | Audit trail, change tracking, integrity, security detection, GDPR       |
+| 08  | [Dashboard, Analytics & Reporting](#08-dashboard-analytics--reporting)   | [08_dashboard_analytics_and_reporting.md](08_dashboard_analytics_and_reporting.md) | Metrics collection, dashboards, charts, cost analytics, alerting        |
+| 09  | [Infrastructure & Core Services](#09-infrastructure--core-services)      | [09_infrastructure_and_core_services.md](09_infrastructure_and_core_services.md)   | Middleware, caching, throttling, Celery, deployment, CI/CD              |
+| 10  | [Chatbot System Development Guide](#10-chatbot-system-development-guide) | [10_chatbot_system_development_guide.md](10_chatbot_system_development_guide.md)   | Step-by-step implementation plan for responsive, secure chatbot rollout |
 
 ---
 
@@ -109,6 +110,12 @@ Always cross-check with the verified matrix before making delivery commitments.
 **Current:** TenantIsolation + AuditLogging middleware, Redis cache, Celery with 2 queues, custom exceptions, Docker support.
 **Key Gaps:** SQLite database, no request correlation, no structured logging, no circuit breakers, static throttle rates, no CI/CD pipeline.
 **Advanced Design:** PostgreSQL with read replicas, request ID correlation, structured JSON logging, circuit breaker pattern, plan-aware dynamic throttling, Redis-based real-time quotas, Kubernetes deployment, GitHub Actions CI/CD.
+
+### 10 — Chatbot System Development Guide
+
+**Current:** Defines a practical step-by-step delivery sequence for evolving the existing chatbot implementation.
+**Key Focus:** Contract-first streaming, frontend modularisation, adaptive responsive layout, RBAC-safe retrieval, observability, and rollout safety gates.
+**Outcome:** A phased execution path from architecture baseline to production release with clear Definition of Done per phase.
 
 ---
 
@@ -178,13 +185,15 @@ These themes appear across multiple modules and must be designed holistically:
 
 ## Supporting Artefacts
 
-| Artefact                                                                       | Purpose                                      |
-| ------------------------------------------------------------------------------ | -------------------------------------------- |
-| [rag_architecture.drawio](rag_architecture.drawio)                             | Draw.io diagram of RAG pipeline architecture |
-| [../database_schema.md](../database_schema.md)                                 | Current database schema reference            |
-| [../backend_architecture_principles.md](../backend_architecture_principles.md) | Backend architecture and security principles |
-| [../ui-spec-v2.md](../ui-spec-v2.md)                                           | UI specification (V2)                        |
-| [../owner.md](../owner.md)                                                     | Platform owner design notes                  |
+| Artefact                                                                                                   | Purpose                                           |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| [rag_architecture.drawio](rag_architecture.drawio)                                                         | Draw.io diagram of RAG pipeline architecture      |
+| [../database_schema.md](../database_schema.md)                                                             | Current database schema reference                 |
+| [../backend_architecture_principles.md](../backend_architecture_principles.md)                             | Backend architecture and security principles      |
+| [../ui-spec-v2.md](../ui-spec-v2.md)                                                                       | UI specification (V2)                             |
+| [../owner.md](../owner.md)                                                                                 | Platform owner design notes                       |
+| [10_chatbot_implementation_ticket_backlog.md](10_chatbot_implementation_ticket_backlog.md)                 | Sprint-wise ticket backlog for chatbot rollout    |
+| [10_chatbot_feature_implementation_and_test_guide.md](10_chatbot_feature_implementation_and_test_guide.md) | Feature implementation status and test procedures |
 
 ---
 

@@ -1,17 +1,31 @@
 """
 RAG query views.
 """
+from rest_framework import serializers, status
 from rest_framework.decorators import api_view, renderer_classes, throttle_classes
 from rest_framework.renderers import BaseRenderer
+from rest_framework.response import Response
 from apps.rag.services.rag_query import RAGQueryService
 from apps.api.serializers import RAGQuerySerializer
 from apps.core.services.quota import QuotaService, QuotaExceeded
 from apps.core.throttle import TenantQueryThrottle, UserQueryThrottle
 from rest_framework.exceptions import PermissionDenied
 from django.http import StreamingHttpResponse
+from django.core import signing
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class RAGActionDecisionSerializer(serializers.Serializer):
+    """Validate HITL action approval/rejection submissions."""
+
+    action_id = serializers.CharField(max_length=128)
+    decision = serializers.ChoiceField(choices=['approve', 'reject'])
+    approval_token = serializers.CharField(max_length=2048)
+    reason = serializers.CharField(
+        required=False, allow_blank=True, max_length=500)
+    session_id = serializers.UUIDField(required=False, allow_null=True)
 
 
 class ServerSentEventRenderer(BaseRenderer):
@@ -59,7 +73,8 @@ def rag_query_view(request):
 
     logger.info(
         "RAG query | user=%s tenant=%s session=%s",
-        request.user.id, getattr(request.user, 'tenant_id', 'platform'), session_id,
+        request.user.id, getattr(
+            request.user, 'tenant_id', 'platform'), session_id,
     )
 
     rag_service = RAGQueryService()
@@ -73,4 +88,51 @@ def rag_query_view(request):
     return StreamingHttpResponse(
         stream_generator,
         content_type='text/event-stream'
+    )
+
+
+@api_view(['POST'])
+def rag_action_decision_view(request):
+    """
+    Receive human-in-the-loop action decisions from the chat UI.
+
+    This endpoint validates and records user intent so action workflows can
+    resume in a deterministic and auditable way.
+    """
+    serializer = RAGActionDecisionSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    payload = serializer.validated_data
+
+    rag_service = RAGQueryService()
+    try:
+        result = rag_service.action_decision(
+            user=request.user,
+            action_id=payload['action_id'],
+            decision=payload['decision'],
+            approval_token=payload['approval_token'],
+            reason=payload.get('reason', ''),
+            session_id=(str(payload['session_id'])
+                        if payload.get('session_id') else None),
+        )
+    except signing.SignatureExpired:
+        raise PermissionDenied(detail='Approval token expired.')
+    except signing.BadSignature:
+        raise PermissionDenied(detail='Invalid approval token.')
+    except ValueError as exc:
+        raise PermissionDenied(detail=str(exc))
+
+    logger.info(
+        "RAG action decision | user=%s tenant=%s action=%s decision=%s session=%s resolved=%s",
+        request.user.id,
+        getattr(request.user, 'tenant_id', 'platform'),
+        payload['action_id'],
+        payload['decision'],
+        payload.get('session_id'),
+        result.get('resolved'),
+    )
+
+    return Response(
+        result,
+        status=status.HTTP_200_OK,
     )
