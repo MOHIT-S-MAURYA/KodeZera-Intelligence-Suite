@@ -1,0 +1,166 @@
+@startuml KIS_Use_Case_Diagram
+
+' ═══════════════════════════════════════════════════════════════
+'  Kodezera Intelligence Suite — UML 2.x Use Case Diagram
+'  Layout: left-to-right to avoid line intersections
+' ═══════════════════════════════════════════════════════════════
+
+left to right direction
+skinparam backgroundColor white
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 12
+skinparam dpi 300
+skinparam linetype ortho
+
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #1a1a1a
+    BorderThickness 2
+    FontSize 12
+    FontColor #111111
+    StereotypeFontSize 10
+    StereotypeFontColor #555555
+}
+
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #1a1a1a
+    FontSize 12
+    FontColor #111111
+    BorderThickness 2
+}
+
+skinparam rectangle {
+    BackgroundColor #FAFAFA
+    BorderColor #111111
+    BorderThickness 3
+    FontSize 16
+    FontStyle bold
+    FontColor #111111
+}
+
+skinparam arrow {
+    Color #333333
+    FontSize 10
+    FontColor #444444
+    Thickness 1.5
+}
+
+' ── Actors ────────────────────────────────────────────────────
+
+actor "Platform\nOwner" as PO
+actor "Tenant\nAdministrator" as TA
+actor "End User /\nEmployee" as EU
+
+' ── System Boundary ───────────────────────────────────────────
+
+rectangle "Kodezera Intelligence Suite (KIS)" {
+
+    ' ── Zone 1: Platform Owner Only ───────────────────────────
+    package "Platform Administration" {
+        usecase "Manage Tenants &\nSubscriptions" as UC01
+        usecase "Configure AI\nProvider" as UC02
+        usecase "Monitor Platform\nHealth & Metrics" as UC03
+        usecase "Manage Feature\nFlags" as UC04
+    }
+
+    ' ── Zone 2: Tenant Admin Only ─────────────────────────────
+    package "Tenant Management" {
+        usecase "Manage Users\n& Roles (RBAC)" as UC05
+        usecase "Manage\nDepartments" as UC06
+        usecase "Manage Document\nAccess Policies" as UC07
+    }
+
+    ' ── Zone 3: Shared (Admin + End User) ─────────────────────
+    package "Document Operations" {
+        usecase "Upload\nDocument" as UC08
+        usecase "Process Document\nPipeline" as UC09
+        usecase "Browse & Search\nDocuments" as UC10
+    }
+
+    package "AI Chat (RAG)" {
+        usecase "Query AI\nAssistant (RAG)" as UC11
+        usecase "Manage Chat\nSessions & Folders" as UC12
+    }
+
+    package "Monitoring & Support" {
+        usecase "View Analytics\nDashboard" as UC13
+        usecase "View Audit\nLogs" as UC14
+        usecase "View\nNotifications" as UC15
+        usecase "Manage Support\nTickets" as UC16
+    }
+
+    ' ── Zone 4: Technical (include/extend targets) ────────────
+    package "System Internals" <<Rectangle>> {
+        usecase "Verify RBAC\nPermissions" as T1
+        usecase "Generate Vector\nEmbeddings" as T2
+        usecase "Retrieve Context\nChunks" as T3
+        usecase "Stream LLM\nResponse (SSE)" as T4
+        usecase "Log Audit\nTrail" as T5
+        usecase "Enforce Quota\nLimits" as T6
+        usecase "Trigger Alert\nNotification" as T7
+    }
+}
+
+' ═══════════════════════════════════════════════════════════════
+'  ASSOCIATIONS — Platform Owner (Zone 1 only)
+' ═══════════════════════════════════════════════════════════════
+
+PO -- UC01
+PO -- UC02
+PO -- UC03
+PO -- UC04
+PO -- UC14
+PO -- UC16
+
+' ═══════════════════════════════════════════════════════════════
+'  ASSOCIATIONS — Tenant Administrator (Zone 2 + Zone 3)
+' ═══════════════════════════════════════════════════════════════
+
+TA -- UC05
+TA -- UC06
+TA -- UC07
+TA -- UC08
+TA -- UC10
+TA -- UC11
+TA -- UC12
+TA -- UC13
+TA -- UC14
+TA -- UC15
+TA -- UC16
+
+' ═══════════════════════════════════════════════════════════════
+'  ASSOCIATIONS — End User / Employee (Zone 3 only)
+' ═══════════════════════════════════════════════════════════════
+
+EU -- UC08
+EU -- UC10
+EU -- UC11
+EU -- UC12
+EU -- UC13
+EU -- UC15
+
+' ═══════════════════════════════════════════════════════════════
+'  <<include>> RELATIONSHIPS
+' ═══════════════════════════════════════════════════════════════
+
+UC08 ..> UC09   : <<include>>
+UC09 ..> T2     : <<include>>
+UC09 ..> T6     : <<include>>
+UC09 ..> T5     : <<include>>
+UC11 ..> T1     : <<include>>
+UC11 ..> T3     : <<include>>
+UC11 ..> T4     : <<include>>
+UC05 ..> T1     : <<include>>
+UC07 ..> T1     : <<include>>
+UC08 ..> T6     : <<include>>
+
+' ═══════════════════════════════════════════════════════════════
+'  <<extend>> RELATIONSHIPS
+' ═══════════════════════════════════════════════════════════════
+
+T7 ..> UC03     : <<extend>>\n[threshold breached]
+T5 ..> UC05     : <<extend>>\n[on role change]
+T5 ..> UC08     : <<extend>>\n[on upload]
+
+@enduml

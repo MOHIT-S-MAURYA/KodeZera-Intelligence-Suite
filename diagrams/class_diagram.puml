@@ -1,0 +1,664 @@
+@startuml KIS_Class_Diagram
+
+' ═══════════════════════════════════════════════════════════════
+'  Kodezera Intelligence Suite — UML 2.x Class Diagram
+'  Full System Architecture · Zero Isolation · Monochrome
+' ═══════════════════════════════════════════════════════════════
+
+skinparam backgroundColor white
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 11
+skinparam dpi 300
+skinparam linetype ortho
+skinparam padding 4
+skinparam nodesep 60
+skinparam ranksep 50
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #111111
+    BorderThickness 2
+    FontColor #111111
+    FontSize 12
+    AttributeFontSize 10
+    StereotypeFontSize 10
+    StereotypeFontColor #444444
+    HeaderBackgroundColor #F0F0F0
+}
+
+skinparam package {
+    BackgroundColor #FAFAFA
+    BorderColor #888888
+    BorderThickness 1
+    FontSize 13
+    FontStyle bold
+}
+
+skinparam arrow {
+    Color #333333
+    FontSize 9
+    FontColor #555555
+    Thickness 1.5
+}
+
+hide empty members
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                    CORE SUBSYSTEM                            ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+package "apps.core" <<Rectangle>> {
+
+    class Tenant {
+        - id : UUID <<PK>>
+        - name : String
+        - slug : String <<unique>>
+        - is_active : Boolean
+        - contact_email : String
+        - billing_email : String
+        - onboarding_step : Enum
+        - data_region : Enum
+        - trial_ends_at : DateTime
+        - deleted_at : DateTime
+        - created_at : DateTime
+        - updated_at : DateTime
+        __
+        + __str__() : String
+    }
+
+    class User {
+        - id : UUID <<PK>>
+        - username : String
+        - email : String <<unique>>
+        - first_name : String
+        - last_name : String
+        - is_staff : Boolean
+        - is_active : Boolean
+        - employee_id : String
+        - job_title : String
+        - clearance_level : Integer
+        - employment_type : Enum
+        - mfa_enabled : Boolean
+        - force_password_change : Boolean
+        - failed_login_count : Integer
+        - locked_until : DateTime
+        - profile_metadata : JSON
+        __
+        + full_name : String <<property>>
+        + is_tenant_admin : Boolean <<property>>
+        + get_department_chain() : List
+        + create_user(email, password) : User
+        + create_superuser(email, password) : User
+    }
+
+    class Department {
+        - id : UUID <<PK>>
+        - name : String
+        - description : String
+        - created_at : DateTime
+        - updated_at : DateTime
+        __
+        + get_ancestors() : List
+        + get_descendants() : List
+    }
+
+    class OrgUnit {
+        - id : UUID <<PK>>
+        - name : String
+        - code : String
+        - description : String
+        - unit_type : Enum
+        - depth : Integer
+        - path : String
+        - sibling_order : Integer
+        - is_active : Boolean
+        - metadata : JSON
+        __
+        # MAX_DEPTH : 15
+        + clean() : void
+    }
+
+    class OrgUnitClosure {
+        - ancestor : FK(OrgUnit)
+        - descendant : FK(OrgUnit)
+        - depth : Integer
+    }
+
+    class AuditLog {
+        - id : UUID <<PK>>
+        - action : Enum
+        - resource_type : String
+        - resource_id : UUID
+        - metadata : JSON
+        - ip_address : String
+        - user_agent : String
+        - created_at : DateTime
+    }
+
+    class AIProviderConfig <<Singleton>> {
+        - llm_provider : Enum
+        - llm_model : String
+        - llm_api_key : String
+        - llm_api_base : String
+        - embedding_provider : Enum
+        - embedding_model : String
+        - embedding_api_key : String
+        - max_tokens_per_request : Integer
+        - requests_per_minute : Integer
+        __
+        + {static} get_config() : AIProviderConfig
+        + llm_api_key_masked() : String
+        + embedding_api_key_masked() : String
+    }
+
+    class SubscriptionPlan {
+        - name : String <<unique>>
+        - plan_type : Enum
+        - max_users : Integer
+        - max_storage_gb : Integer
+        - max_queries_per_month : Integer
+        - max_tokens_per_month : Integer
+        - price_monthly : Decimal
+        - features : JSON
+        - is_active : Boolean
+    }
+
+    class TenantSubscription {
+        - status : Enum
+        - current_period_start : DateTime
+        - current_period_end : DateTime
+        - last_payment_date : DateTime
+        - payment_method : String
+    }
+
+    class Notification {
+        - id : UUID <<PK>>
+        - title : String
+        - message : String
+        - category : Enum
+        - target_type : Enum
+        - target_id : UUID
+        - created_at : DateTime
+    }
+
+    class UserNotification {
+        - id : UUID <<PK>>
+        - title : String
+        - message : String
+        - notification_type : Enum
+        - category : Enum
+        - priority : Enum
+        - action_url : String
+        - is_read : Boolean
+        - is_dismissed : Boolean
+        - expires_at : DateTime
+    }
+
+    class SupportTicket {
+        - id : String <<PK>>
+        - subject : String
+        - description : String
+        - category : Enum
+        - priority : Enum
+        - status : Enum
+        - context_info : JSON
+        __
+        + save() : void
+    }
+}
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                    RBAC SUBSYSTEM                            ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+package "apps.rbac" <<Rectangle>> {
+
+    class Role {
+        - id : UUID <<PK>>
+        - name : String
+        - description : String
+        - is_system_role : Boolean
+        - max_users : Integer
+        - priority : Integer
+        - scope_type : Enum
+        __
+        # SYSTEM_ADMIN_ROLE_NAME : String
+        + get_ancestors() : List
+        + get_all_permissions() : QuerySet
+    }
+
+    class Permission {
+        - id : UUID <<PK>>
+        - name : String <<unique>>
+        - resource_type : Enum
+        - action : Enum
+        - description : String
+        - conditions : JSON
+        - is_deny : Boolean
+    }
+
+    class RolePermission {
+        - id : UUID <<PK>>
+        - created_at : DateTime
+    }
+
+    class UserRole {
+        - id : UUID <<PK>>
+        - expires_at : DateTime
+        - is_active : Boolean
+        - reason : String
+        __
+        + is_expired : Boolean <<property>>
+    }
+
+    class RoleClosure {
+        - ancestor : FK(Role)
+        - descendant : FK(Role)
+        - depth : Integer
+    }
+}
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                  DOCUMENTS SUBSYSTEM                         ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+package "apps.documents" <<Rectangle>> {
+
+    class Document {
+        - id : UUID <<PK>>
+        - title : String
+        - description : String
+        - file_key : String
+        - file_size : BigInteger
+        - file_type : String
+        - original_filename : String
+        - content_hash : String
+        - mime_type : String
+        - page_count : Integer
+        - language : String
+        - classification_level : Integer
+        - visibility_type : Enum
+        - status : Enum
+        - processing_error : String
+        - processing_progress : Integer
+        - chunk_count : Integer
+        - is_deleted : Boolean
+        - retention_until : DateTime
+    }
+
+    class DocumentFolder {
+        - id : UUID <<PK>>
+        - name : String
+        - is_shared : Boolean
+    }
+
+    class DocumentVersion {
+        - id : UUID <<PK>>
+        - version_number : Integer
+        - file_key : String
+        - file_size : BigInteger
+        - content_hash : String
+        - change_note : String
+    }
+
+    class DocumentAccess {
+        - id : UUID <<PK>>
+        - access_type : Enum
+        - permission_level : Enum
+        - include_descendants : Boolean
+        - expires_at : DateTime
+    }
+
+    class DocumentTag {
+        - id : UUID <<PK>>
+        - name : String
+        - color : String
+        - category : Enum
+    }
+
+    class DocumentTagAssignment {
+        - id : UUID <<PK>>
+        - created_at : DateTime
+    }
+}
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                     RAG SUBSYSTEM                            ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+package "apps.rag" <<Rectangle>> {
+
+    class VectorChunk {
+        - id : UUID <<PK>>
+        - chunk_index : Integer
+        - vector_id : String <<unique>>
+        - text_preview : String
+        - token_count : Integer
+    }
+
+    class ChatFolder {
+        - id : UUID <<PK>>
+        - name : String
+    }
+
+    class ChatSession {
+        - id : UUID <<PK>>
+        - title : String
+        - created_at : DateTime
+        - updated_at : DateTime
+    }
+
+    class ChatMessage {
+        - id : UUID <<PK>>
+        - role : Enum
+        - content : String
+        - sources : JSON
+        - created_at : DateTime
+    }
+}
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                  RAG SERVICES (Pipeline)                     ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+package "apps.rag.services" <<Rectangle>> {
+
+    class RAGPipeline {
+        - retriever : RAGRetriever
+        - llm_runner : LLMRunner
+        - citation_verifier : CitationVerifier
+        __
+        + execute_query(user, query, session_id) : Dict
+        + execute_query_stream(user, query, session_id) : Generator
+        + handle_action_decision(user, action_id, decision, token) : Dict
+        - _get_or_create_session(user, session_id) : ChatSession
+        - _format_sources_for_output(chunks) : List
+        - _calculate_average_confidence(chunks) : String
+        - _log_query_audit(user, query, num_sources) : void
+        - _record_metrics(user, session, query, answer, latency) : void
+        - _detect_action_request(query) : Dict
+        - _create_pending_action(user, session, query, type, summary) : Dict
+    }
+
+    class RAGRetriever {
+        - vector_store : VectorStoreService
+        - embedding_service : EmbeddingService
+        __
+        + retrieve(query, tenant_id, doc_ids, top_k) : List
+        + retrieve_with_context(query, tenant_id, doc_ids, top_k, window) : List
+        - _calculate_confidence(score) : String
+        - _rewrite_query(query, history) : String
+        - _rerank_results(query, results) : List
+        - _attach_document_metadata(chunks) : List
+    }
+
+    class EmbeddingService {
+        __
+        + {static} generate_embedding(text) : List[float]
+        + {static} generate_embeddings_batch(texts) : List[List[float]]
+        - {static} _embed(texts) : List[List[float]]
+        - {static} _embed_sentence_transformers(texts, model, key, base) : List
+        - {static} _embed_openai(texts, model, key, base) : List
+        - {static} _embed_huggingface(texts, model, key, base) : List
+    }
+
+    class LLMRunner {
+        - provider : String
+        - model : String
+        - api_key : String
+        - api_base : String
+        - max_tokens : Integer
+        __
+        + generate_response(query, context, history) : String
+        + generate_response_stream(query, context, history) : Generator
+        - _build_system_prompt() : String
+        - _build_user_prompt(context, query) : String
+        - _format_context(context) : String
+        - _generate_openai(messages) : String
+        - _generate_anthropic(messages) : String
+        - _generate_ollama(messages) : String
+        - _generate_huggingface(messages) : String
+        - _generate_local(messages) : String
+        - _stream_openai(messages) : Generator
+    }
+
+    class VectorStoreService {
+        - client : QdrantClient
+        - collection_name : String
+        __
+        + create_collection() : void
+        + upsert_vectors(vectors, payloads) : void
+        + search_vectors(embedding, tenant_id, doc_ids, top_k) : List
+        + get_chunks_by_index(doc_id, chunk_indices) : List
+        + delete_document_vectors(doc_id) : void
+    }
+
+    class CitationVerifier {
+        + verify(answer, sources, chunks) : Dict
+    }
+}
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                  ANALYTICS SUBSYSTEM                         ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+package "apps.analytics" <<Rectangle>> {
+
+    class QueryAnalytics {
+        - id : UUID <<PK>>
+        - session_id : UUID
+        - query_hash : String
+        - latency_ms : Integer
+        - chunks_retrieved : Integer
+        - avg_relevance : Float
+        - model_used : String
+        - tokens_in : Integer
+        - tokens_out : Integer
+        - cost_usd : Decimal
+        - user_feedback : Enum
+        - is_follow_up : Boolean
+        - is_failed : Boolean
+    }
+
+    class MetricHour {
+        - id : UUID <<PK>>
+        - hour : DateTime
+        - queries_count : Integer
+        - failed_count : Integer
+        - tokens_used : Integer
+        - avg_latency_ms : Float
+        - p95_latency_ms : Float
+        - active_users : Integer
+        - cost_usd : Decimal
+    }
+
+    class MetricMonth {
+        - id : UUID <<PK>>
+        - month : Date
+        - queries_count : Integer
+        - tokens_used : Integer
+        - storage_bytes : BigInteger
+        - documents_count : Integer
+        - cost_usd : Decimal
+        - revenue_usd : Decimal
+    }
+
+    class CostRate {
+        - id : UUID <<PK>>
+        - provider : String
+        - model : String
+        - input_cost_per_1k : Decimal
+        - output_cost_per_1k : Decimal
+        - embedding_cost_per_1k : Decimal
+        - effective_from : Date
+        - effective_to : Date
+        - is_active : Boolean
+    }
+
+    class AlertRule {
+        - id : UUID <<PK>>
+        - name : String
+        - metric : Enum
+        - condition : Enum
+        - threshold : Float
+        - scope : Enum
+        - notification_channels : JSON
+        - is_active : Boolean
+        - cooldown_minutes : Integer
+    }
+
+    class MetricAlert {
+        - id : UUID <<PK>>
+        - metric_value : Float
+        - threshold_value : Float
+        - status : Enum
+        - resolved_at : DateTime
+    }
+}
+
+
+' ╔═══════════════════════════════════════════════════════════════╗
+' ║                    RELATIONSHIPS                             ║
+' ╚═══════════════════════════════════════════════════════════════╝
+
+' ── Core: Tenant Ownership (Composition — ♦) ─────────────────
+
+Tenant *--{ User : "1" tenants\n"0..*" users
+Tenant *--{ Department : "1\n0..*"
+Tenant *--{ OrgUnit : "1\n0..*"
+Tenant *--{ AuditLog : "1\n0..*"
+Tenant *--{ Notification : "1\n0..*"
+Tenant *--{ SupportTicket : "1\n0..*"
+
+' ── Core: User Associations ──────────────────────────────────
+
+User }o-- Department : "0..* users\n0..1 department"
+User }o-- OrgUnit : "0..* headed_units\n0..1 head"
+User -- AuditLog : "1\n0..*"
+User -- UserNotification : "1\n0..*"
+User -- SupportTicket : "1\n0..*"
+Department o--{ Department : "parent\n0..* children"
+
+' ── Core: OrgUnit Hierarchy ──────────────────────────────────
+
+OrgUnit o--{ OrgUnit : "parent\n0..* children"
+OrgUnit "1" --{ OrgUnitClosure : ancestor
+OrgUnit "1" --{ OrgUnitClosure : descendant
+
+' ── Core: Subscription ───────────────────────────────────────
+
+Tenant "1" -- "0..1" TenantSubscription
+SubscriptionPlan "1" --{ TenantSubscription : "plan"
+
+' ── Core: Notification Fan-Out ───────────────────────────────
+
+Notification "0..1" --{ UserNotification : source
+Tenant *--{ UserNotification : "1\n0..*"
+User "1" -- "0..*" Notification : created_by
+
+' ── Core: AI Config (Singleton) ──────────────────────────────
+
+User "0..1" -- AIProviderConfig : updated_by
+User }o-- User : "manager\n0..* direct_reports"
+
+' ── RBAC: Role Hierarchy ─────────────────────────────────────
+
+Tenant *--{ Role : "1\n0..*"
+Role o--{ Role : "parent\n0..* children"
+Role "1" --{ RoleClosure : ancestor
+Role "1" --{ RoleClosure : descendant
+Role }o-- OrgUnit : "scope_org_unit"
+
+' ── RBAC: Permission Grants ──────────────────────────────────
+
+Role "1" --{ RolePermission
+Permission "1" --{ RolePermission
+
+' ── RBAC: User-Role Assignment ───────────────────────────────
+
+User "1" --{ UserRole
+Role "1" --{ UserRole
+User "0..1" -- UserRole : assigned_by
+
+' ── Documents: Ownership & Structure ─────────────────────────
+
+Tenant *--{ Document : "1\n0..*"
+Tenant *--{ DocumentFolder : "1\n0..*"
+Tenant *--{ DocumentTag : "1\n0..*"
+User -- Document : "uploaded_by"
+Document }o-- DocumentFolder : "0..1 folder"
+Document }o-- Department : "0..1 department"
+DocumentFolder o--{ DocumentFolder : "parent\n0..* children"
+User -- DocumentFolder : "0..1 owner"
+
+' ── Documents: Versioning ────────────────────────────────────
+
+Document *--{ DocumentVersion : "1\n0..*"
+Document "0..1" -- DocumentVersion : current_version
+User -- DocumentVersion : "uploaded_by"
+
+' ── Documents: Access Control ────────────────────────────────
+
+Document *--{ DocumentAccess : "1\n0..*"
+DocumentAccess }o-- Role : "0..1 role"
+DocumentAccess }o-- OrgUnit : "0..1 org_unit"
+DocumentAccess }o-- User : "0..1 user"
+User -- DocumentAccess : "granted_by"
+
+' ── Documents: Tagging ───────────────────────────────────────
+
+Document "1" --{ DocumentTagAssignment
+DocumentTag "1" --{ DocumentTagAssignment
+User -- DocumentTagAssignment : "assigned_by"
+
+' ── RAG: Data Models ─────────────────────────────────────────
+
+Document *--{ VectorChunk : "1\n0..*"
+Tenant *--{ ChatSession : "1\n0..*"
+User "1" --{ ChatSession
+ChatSession *--{ ChatMessage : "1\n0..*"
+Tenant *--{ ChatFolder : "1\n0..*"
+User "1" --{ ChatFolder
+ChatSession }o-- ChatFolder : "0..1 folder"
+
+' ── RAG Services: Composition ────────────────────────────────
+
+RAGPipeline *-- RAGRetriever
+RAGPipeline *-- LLMRunner
+RAGPipeline *-- CitationVerifier
+RAGRetriever *-- VectorStoreService
+RAGRetriever *-- EmbeddingService
+
+' ── RAG Services → Data Models ───────────────────────────────
+
+RAGPipeline ..> ChatSession : <<uses>>
+RAGPipeline ..> ChatMessage : <<creates>>
+RAGPipeline ..> AuditLog : <<creates>>
+LLMRunner ..> AIProviderConfig : <<reads>>
+EmbeddingService ..> AIProviderConfig : <<reads>>
+VectorStoreService ..> VectorChunk : <<manages>>
+RAGRetriever ..> Document : <<reads>>
+
+' ── Analytics: Tenant Scoping ────────────────────────────────
+
+Tenant *--{ QueryAnalytics : "1\n0..*"
+Tenant *--{ MetricHour : "1\n0..*"
+Tenant *--{ MetricMonth : "1\n0..*"
+User "1" --{ QueryAnalytics
+Tenant "0..1" --{ AlertRule
+Tenant "0..1" --{ MetricAlert
+AlertRule "1" --{ MetricAlert : triggered_alerts
+User -- AlertRule : created_by
+User -- MetricAlert : acknowledged_by
+
+' ── Analytics → RAG Pipeline (metrics recording) ─────────────
+
+RAGPipeline ..> QueryAnalytics : <<records>>
+
+@enduml
